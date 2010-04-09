@@ -1,0 +1,192 @@
+#!/usr/bin/env python
+
+import optparse, sys, os, re, time
+
+p = optparse.OptionParser()
+
+g = optparse.OptionGroup(p, "BLAST")
+
+g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
+	help = "Results of a BLAST sequence alignment (note: the file MUST be XML-formatted).")
+
+g.add_option("--query-collection", dest = "queries_collection", metavar = "STRING",
+	help = "Name of the collection the query sequences belong to.")
+
+g.add_option("--hit-collection", dest = "hits_collection", metavar = "STRING",
+	help = "Name of the collection the hit sequences belong to.")
+
+g.add_option("--date", dest = "date", nargs = 3, type = "int",
+	help = "Date of the BLAST run (year, month, day). By default, creation date of the input file.")
+
+g.add_option("--query-id-getter", dest = "query_id_getter", metavar = "PYTHON CODE", default = "{Iteration_query-ID}")
+g.add_option("--hit-id-getter", dest = "hit_id_getter", metavar = "PYTHON CODE", default = "{Hit_id}")
+
+p.add_option_group(g)
+
+p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+
+(p, a) = p.parse_args()
+
+def error (msg):
+	print >>sys.stderr, "ERROR: %s." % msg
+	sys.exit(1)
+
+if (p.input_fn == None):
+	error("A XML-formatted BLAST alignment output file must be provided")
+
+if (not os.path.exists(p.input_fn)):
+	error("File '%s' not found" % p.input_fn)
+
+if (not p.queries_collection):
+	error("A collection for the query sequences must be provided")
+
+if (not p.hits_collection):
+	error("A collection for the hit sequences must be provided")
+
+if (not p.date):
+	date = time.localtime(os.path.getmtime(p.input_fn))
+	p.date = (date.tm_year, date.tm_mon, date.tm_mday)
+
+else:
+	try:
+		y, m, d = p.date
+		assert (y > 1990), "value '%s' is incorrect for year" % y
+		assert (m > 0) and (m < 13), "value '%s' is incorrect for month" % m
+		assert (d > 0) and (d < 32), "value '%s' is incorrect for day" % d
+
+	except Exception, msg:
+		error("Invalid date: %s" % msg)
+
+try:
+	pattern = re.compile("\{(.*?)\}")
+	repl = r"str(x['\1'])"
+
+	get_query_id = eval("lambda x: " + pattern.sub(repl, p.query_id_getter))
+	get_hit_id = eval("lambda x: " + pattern.sub(repl, p.hit_id_getter))
+
+except SyntaxError, e:
+	error("Invalid getter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+import MetagenomeDB as mdb
+
+try:
+	from amara import bindery
+except:
+	error("The amara library must be installed\nTry 'easy_install Amara'")
+
+if (p.verbosity > 0):
+	mdb.set_debug_level(p.verbosity)
+
+print "Importing '%s' ..." % p.input_fn
+
+document = bindery.parse(p.input_fn)
+
+# Read parameters of the BLAST run
+print "  reading BLAST parameters"
+
+parameters = {}
+for node in document.BlastOutput.BlastOutput_param.xml_select("Parameters/*"):
+	key, value = str(node.xml_qname), str(node)
+	assert (key.startswith("Parameters_")), key ###
+
+	parameters[key[11:]] = value
+
+for key in sorted(parameters.keys()):
+	print "    %s: %s" % (key, parameters[key])
+
+# List query and hit sequences
+print "  listing possible sequences ..."
+
+QuerySequences, HitSequences = {}, {}
+
+queries = mdb.Collection.find_one({ "name": p.queries_collection })
+if (queries == None):
+	error("Unknown collection '%s'" % p.queries_collection)
+
+for sequence, relationship in queries.get_sequences():
+	QuerySequences[str(sequence["name"])] = sequence
+
+hits = mdb.Collection.find_one({ "name": p.hits_collection })
+if (hits == None):
+	error("Unknown collection '%s'" % p.hits_collection)
+
+for sequence, relationship in hits.get_sequences():
+	HitSequences[str(sequence["name"])] = sequence
+
+print "    %s sequences listed" % (len(QuerySequences) + len(HitSequences))
+
+print "  checking hits and query sequences ..."
+
+Queries, Hits = {}, {}
+for iteration in document.BlastOutput.BlastOutput_iterations.Iteration:
+	query_id = get_query_id(iteration)
+
+	if (not query_id in QuerySequences):
+		error("Unknown query sequence '%s'" % query_id)
+
+	Queries[query_id] = True
+
+	for hit in iteration.Iteration_hits.Hit:
+		hit_id = get_hit_id(hit)
+
+		if (not hit_id in HitSequences):
+			error("Unknown hit sequence '%s'" % hit_id)
+
+		Hits[hit_id] = True
+
+print "    %s queries, %s hits" % (len(Queries), len(Hits))
+
+del Queries
+del Hits
+
+# Import
+print "  importing hits ..."
+
+int_ = lambda x: int(str(x))
+float_ = lambda x: float(str(x))
+
+for iteration in document.BlastOutput.BlastOutput_iterations.Iteration:
+	query_id = get_query_id(iteration)
+	query_xref = QuerySequences[query_id]
+
+	for hit in iteration.Iteration_hits.Hit:
+		hit_id = get_hit_id(hit)
+		hit_xref = HitSequences[hit_id]
+
+		print "    %s -> %s (%s HSPs)" % (query_id, hit_id, len(hit.Hit_hsps.Hsp))
+
+		for hsp in hit.Hit_hsps.Hsp:
+			r = mdb.Relationship(query_xref, hit_xref, "similar-to")
+
+			r["source-coordinates"] = (int_(hsp["Hsp_query-from"]), int_(hsp["Hsp_query-to"]))
+			r["target-coordinates"] = (int_(hsp["Hsp_hit-from"]), int_(hsp["Hsp_hit-to"]))
+
+			r["run.date"] = (p.date[0], p.date[1], p.date[2])
+			r["run.algorithm"] = {
+				"name": str(document.BlastOutput.BlastOutput_program),
+				"version": str(document.BlastOutput.BlastOutput_version),
+				"parameters": parameters,
+			}
+
+			r["alignment"] = {
+				"source": str(hsp["Hsp_qseq"]),
+				"conservation": str(hsp["Hsp_midline"]),
+				"target": str(hsp["Hsp_hseq"]),
+			}
+
+			r["score"] =  {
+				"fraction-identical": 100 * float_(hsp["Hsp_identity"]) / float_(hsp["Hsp_align-len"]),
+				"fraction-conserved": 100 * float_(hsp["Hsp_positive"]) / float_(hsp["Hsp_align-len"]),
+				"expectation": {
+					"e-value": float_(hsp["Hsp_evalue"]),
+					"search-space": {
+						"database-name": str(document.BlastOutput.BlastOutput_db),
+						"number-of-sequences": int_(iteration.Iteration_stat.Statistics["Statistics_db-num"]),
+						"number-of-residues": int_(iteration.Iteration_stat.Statistics["Statistics_db-len"]),
+					}
+				}
+			}
+
+			r.commit()

@@ -1,0 +1,259 @@
+#!/usr/bin/env python
+
+import optparse, sys, os, re, time
+
+p = optparse.OptionParser()
+
+g = optparse.OptionGroup(p, "FASTA")
+
+g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
+	help = "Results of a FASTA sequence alignment (note: the file MUST be formatted with the '-m 10' option).")
+
+g.add_option("--query-collection", dest = "queries_collection", metavar = "STRING",
+	help = "Name of the collection the query sequences belong to.")
+
+g.add_option("--hit-collection", dest = "hits_collection", metavar = "STRING",
+	help = "Name of the collection the hit sequences belong to.")
+
+g.add_option("--date", dest = "date", nargs = 3, type = "int",
+	help = "Date of the FASTA run (year, month, day). By default, creation date of the input file.")
+
+p.add_option_group(g)
+
+p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+
+(p, a) = p.parse_args()
+
+def error (msg):
+	print >>sys.stderr, "ERROR: %s." % msg
+	sys.exit(1)
+
+if (p.input_fn == None):
+	error("A FASTA alignment output file must be provided")
+
+if (not os.path.exists(p.input_fn)):
+	error("File '%s' not found" % p.input_fn)
+
+if (not p.queries_collection):
+	error("A collection for the query sequences must be provided")
+
+if (not p.hits_collection):
+	error("A collection for the hit sequences must be provided")
+
+if (not p.date):
+	date = time.localtime(os.path.getmtime(p.input_fn))
+	p.date = (date.tm_year, date.tm_mon, date.tm_mday)
+
+else:
+	try:
+		y, m, d = p.date
+		assert (y > 1990), "value '%s' is incorrect for year" % y
+		assert (m > 0) and (m < 13), "value '%s' is incorrect for month" % m
+		assert (d > 0) and (d < 32), "value '%s' is incorrect for day" % d
+
+	except Exception, msg:
+		error("Invalid date: %s" % msg)
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+import MetagenomeDB as mdb
+
+if (p.verbosity > 0):
+	mdb.set_debug_level(p.verbosity)
+
+print "Importing '%s' ..." % p.input_fn
+
+print "  listing possible sequences ..."
+
+QuerySequences, HitSequences = {}, {}
+
+queries = mdb.Collection.find_one({ "name": p.queries_collection })
+if (queries == None):
+	error("Unknown collection '%s'" % p.queries_collection)
+
+for sequence, relationship in queries.get_sequences():
+	QuerySequences[str(sequence["name"])] = sequence
+
+hits = mdb.Collection.find_one({ "name": p.hits_collection })
+if (hits == None):
+	error("Unknown collection '%s'" % p.hits_collection)
+
+for sequence, relationship in hits.get_sequences():
+	HitSequences[str(sequence["name"])] = sequence
+
+print "    %s sequences listed" % (len(QuerySequences) + len(HitSequences))
+
+print "  checking hits and query sequences ..."
+
+fh = open(p.input_fn, 'r')
+
+DB_DIMENSIONS = re.compile("\s*([0-9]+) residues in\s*([0-9]+) sequences\n")
+QUERY_HEADER = re.compile(">>>(.*?), [0-9]+ nt vs (.*?) library\n")
+HIT_HEADER = re.compile(">>([^ .]*).*\n")
+KEY_VALUE = re.compile("; ([a-z]{2}_[a-zA-Z\-_0-9]+):(.*)\n")
+
+previous = None
+have_statistics = False
+
+Hits = {}
+
+while True:
+	line = fh.readline()
+	if (line == ''):
+		break
+
+	if (not have_statistics) and line.startswith("Statistics:"):
+		m = DB_DIMENSIONS.match(previous)
+		assert (m != None), previous
+		n_residues, n_sequences = int(m.group(1)), int(m.group(2))
+
+		print "  database: %s residues, %s sequences" % (n_residues, n_sequences)
+		have_statistics = True
+
+	if (line == ">>><<<\n"):
+		continue
+
+	# new query
+	if line.startswith(">>>"):
+		m = QUERY_HEADER.match(line)
+		assert (m != None), line
+		query_id, database = m.group(1), os.path.basename(m.group(2))
+
+		if (not query_id in QuerySequences):
+			error("Unknown query sequence '%s'" % query_id)
+
+		run = { "database": database }
+		hits = {}
+		block_n = 0
+		hit_n = 0
+		line_n = 0
+
+		while True:
+			line = fh.readline()
+			if (line == '') or (line == "\n") or (line == ">>><<<\n"):
+				break
+
+			elif (line.startswith(">>")):
+				m = HIT_HEADER.match(line)
+				assert (m != None), line
+
+				hit_id = m.group(1)
+				hit_n += 1
+				hit_key = (hit_n, hit_id)
+
+				if (not hit_id in HitSequences):
+					error("Unknown hit sequence '%s'" % hit_id)
+
+				block_n += 1
+
+			elif (line.startswith(">")):
+#				assert (line == ">%s ..\n" % query_id) or (line == ">%s ..\n" % hit_id), line
+				block_n += 1
+
+			else:
+				if (line[0] == ';'):
+					m = KEY_VALUE.match(line)
+					assert (m != None), line
+
+					key, value = m.group(1), m.group(2).strip()
+					last_key = key
+				else:
+					key, value = (last_key, line_n), line.rstrip('\n')
+
+				# run
+				if (block_n == 0):
+					run[key] = value
+
+				# hsp
+				elif ((block_n - 1) % 3 == 0):
+					if (not hit_key in hits):
+						hits[hit_key] = { "query": {}, "hit": {} }
+
+					hits[hit_key][key] = value
+
+				# query in hsp
+				elif ((block_n - 2) % 3 == 0):
+					hits[hit_key]["query"][key] = value
+
+				# hit in hsp
+				elif ((block_n - 3) % 3 == 0):
+					hits[hit_key]["hit"][key] = value
+
+			line_n += 1
+
+		Hits[query_id] = (run, hits)
+
+	previous = line
+
+print "  importing hits ..."
+
+for query_id in Hits:
+	query_xref = QuerySequences[query_id]
+
+	run, hits = Hits[query_id]
+
+	parameters = {}
+	for key in filter(lambda x: x not in ("pg_name", "pg_ver", "pg_name_alg", "pg_ver_rel", "database", "mp_Algorithm"), run):
+		parameters[key] = run[key]
+
+	for hit_key in hits:
+		hit_xref = HitSequences[hit_key[1]]
+
+		print "    %s -> %s" % (query_id, hit_key[1])
+
+		hsp = hits[hit_key]
+
+		r = mdb.Relationship(query_xref, hit_xref, "similar-to")
+
+		r["run.date"] = (p.date[0], p.date[1], p.date[2])
+		r["run.algorithm"] = {
+			"name": run["pg_name"],
+			"version": run["pg_ver"],
+			"parameters": parameters,
+		}
+
+		query_alignment = ''.join([hsp["query"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_display_start"), hsp["query"]), lambda x, y: cmp(x[1], y[1]))])
+		hit_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_display_start"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
+		cons_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_cons"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
+
+		r["source-coordinates"] = (int(hsp["query"]["al_start"]), int(hsp["query"]["al_stop"]))
+		r["target-coordinates"] = (int(hsp["hit"]["al_start"]), int(hsp["hit"]["al_stop"]))
+
+		source_offset = int(hsp["query"]["al_display_start"])
+		target_offset = int(hsp["hit"]["al_display_start"])
+
+		#print query_alignment, r["source-coordinates"], source_offset
+		#print cons_alignment
+		#print hit_alignment, r["target-coordinates"], target_offset
+
+		offset1 = abs(source_offset - r["source-coordinates"][0])
+		offset2 = abs(target_offset - r["target-coordinates"][0])
+
+		start = max(offset1, offset2)
+		stop = len(cons_alignment.strip()) + start
+		assert (cons_alignment[start] != ' ') ###
+
+		#print ">", query_alignment[start:stop]
+		#print ">", cons_alignment[start:stop]
+		#print ">", hit_alignment[start:stop]
+
+		r["alignment"] = {
+			"source": query_alignment[start:stop],
+			"conservation": cons_alignment[start:stop],
+			"target": hit_alignment[start:stop],
+		}
+
+		r["score"] = {
+			"fraction-identical": 100 * float(hsp["bs_ident"]),
+			"fraction-conserved": 100 * float(hsp["bs_sim"]),
+			"expectation": {
+				"e-value": float(hsp["fa_expect"]),
+				"search-space": {
+					"database-name": run["database"],
+					"number-of-sequences": n_sequences,
+					"number-of-residues": n_residues,
+				}
+			}
+		}
+
+		r.commit()
