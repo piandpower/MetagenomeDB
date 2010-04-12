@@ -5,6 +5,10 @@ import weakref
 
 __objects = weakref.WeakValueDictionary()
 
+def count (classname):
+	db = connection.connection()[classname]
+	return db.count()
+
 def create_from_query (classname, query = None, where = None, find_one = False):
 	db = connection.connection()[classname]
 

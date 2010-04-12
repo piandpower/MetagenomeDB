@@ -218,6 +218,10 @@ class Object (object):
 
 		return self["_id"]
 
+	@classmethod
+	def count (cls):
+		return forge.count(cls.__name__)
+
 	# List all instances of this object in the database.
 	@classmethod
 	def list (cls):
