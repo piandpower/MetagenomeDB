@@ -1,5 +1,8 @@
 
-import commons, connection, forge, dictionary
+# TODO:
+# - assert no user-provided field can start with a '_'
+
+import commons, connection, forge, tree
 import pymongo
 from encodings import hex_codec
 import sys, json, datetime
@@ -29,7 +32,7 @@ class Object (object):
 			if (key == "_id"):
 				self.__properties[key] = value
 			else:
-				dictionary.set(self.__properties, key.split('_'), value)
+				tree.set(self.__properties, key.split('_'), value)
 
 		if ("_id" in self.__properties):
 			self.__state = STORED
@@ -82,21 +85,21 @@ class Object (object):
 			key = key.split('.')
 
 		# discard 'phantom' modifications
-		if dictionary.contains(self.__properties, key) and (value == dictionary.get(self.__properties, key)):
+		if tree.contains(self.__properties, key) and (value == tree.get(self.__properties, key)):
 			return
 
-		dictionary.set(self.__properties, key, value)
+		tree.set(self.__properties, key, value)
 		self.__modified = True
 
 	def __getitem__ (self, key):
 		if (type(key) == str):
 			key = key.split('.')
 
-		return dictionary.get(self.__properties, key)
+		return tree.get(self.__properties, key)
 
 	def get (self, key, default):
 		try:
-			return dictionary.get(self.__properties, key)
+			return tree.get(self.__properties, key)
 		except:
 			return default
 
@@ -107,13 +110,13 @@ class Object (object):
 		if (type(key) == str):
 			key = key.split('.')
 
-		dictionary.delete(self.__properties, key)
+		tree.delete(self.__properties, key)
 
 	def __contains__ (self, key):
 		if (type(key) == str):
 			key = key.split('.')
 
-		return dictionary.contains(self.__properties, key)
+		return tree.contains(self.__properties, key)
 
 	def validate (self, schema):
 		### TO DO
@@ -218,43 +221,32 @@ class Object (object):
 
 		return self["_id"]
 
+	# Count the number of instances of this object in the database
 	@classmethod
 	def count (cls):
 		return forge.count(cls.__name__)
 
-	# List all instances of this object in the database.
+	# Select instances of this object that statisfy a criterion,
+	# expressed as a nested tree.
+	# If no criteria is provided, all instances are returned.
 	@classmethod
-	def list (cls):
-		return forge.create_from_query(cls.__name__)
+	def select (cls, **kwargs):
+		return forge.find(cls.__name__, query = kwargs)
 
-	# Find instances of this object that match a specific MongoDB query.
+	# Select the first (or the only) instance of this object that satisfy
+	# a criterion, expressed as a nested tree.
 	@classmethod
-	def find (cls, query = None, where = None):
-		return forge.create_from_query(cls.__name__, query, where)
+	def select_one (cls, **kwargs):
+		return forge.find(cls.__name__, query = kwargs, find_one = True)
 
-	# Find the first (or only) instance of this object that match a MongoDB query.
-	# If as_iterator is set to False, returns a list rather than an iterator.
-	@classmethod
-	def find_one (cls, query = None, where = None):
-		return forge.create_from_query(cls.__name__, query, where, find_one = True)
-
-	# Select the one instance of this object having a given identifier.
-	@classmethod
-	def select (cls, id):
-		try:
-			return forge.create_from_query(cls.__name__, pymongo.objectid.ObjectId(id))
-
-		except pymongo.errors.InvalidId:
-			raise ValueError("Invalid identifier")
-
-	# Remove this object from the database. The object do
-	# remains in memory, albeit its status is set to uncommitted.
-	def remove (self):
+	# Delete this object from the database. The object does remain
+	# in memory, albeit its status is set to uncommitted.
+	def delete (self):
 		collection = self.__class__.__name__
 
 		connection.connection()[collection].remove({ "_id": self.id() })
 
-		dictionary.delete(self.__properties, "_id")
+		tree.delete(self.__properties, "_id")
 		self.__state = REMOVED
 
 		if (commons.debug_level > 1):
@@ -297,7 +289,7 @@ class Collection (Object):
 
 		super(Collection, self).__init__(**kw)
 
-	# Create a new Collection object from a dictionary.
+	# Create a new Collection object from a tree.
 	@classmethod
 	def from_dict (cls, data):
 		if (not "name" in data):
@@ -355,7 +347,7 @@ class Sequence (Object):
 
 		super(Sequence, self).__init__(**kw)
 
-	# Create a new Sequence object from a dictionary.
+	# Create a new Sequence object from a tree.
 	@classmethod
 	def from_dict (cls, data):
 		if (not "name" in data):
@@ -402,7 +394,7 @@ class Relationship (Object):
 
 		super(Relationship, self).__init__(**kw)
 
-	# Create a Relationship object from a dictionary.
+	# Create a Relationship object from a tree.
 	@classmethod
 	def from_dict (cls, data):
 		if (not "source" in data) or (not isinstance(data["source"], pymongo.dbref.DBRef)):
