@@ -67,14 +67,14 @@ print "  listing possible sequences ..."
 
 QuerySequences, HitSequences = {}, {}
 
-queries = mdb.Collection.find_one({ "name": p.queries_collection })
+queries = mdb.Collection.select_one(name = p.queries_collection)
 if (queries == None):
 	error("Unknown collection '%s'" % p.queries_collection)
 
 for sequence, relationship in queries.get_sequences():
 	QuerySequences[str(sequence["name"])] = sequence
 
-hits = mdb.Collection.find_one({ "name": p.hits_collection })
+hits = mdb.Collection.select_one(name = p.hits_collection)
 if (hits == None):
 	error("Unknown collection '%s'" % p.hits_collection)
 
@@ -203,7 +203,7 @@ for query_id in Hits:
 
 		hsp = hits[hit_key]
 
-		r = mdb.Relationship(query_xref, hit_xref, "similar-to")
+		r = mdb.Relationship(source = query_xref, target = hit_xref, type = "similar-to")
 
 		r["run.date"] = (p.date[0], p.date[1], p.date[2])
 		r["run.algorithm"] = {

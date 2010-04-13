@@ -1,0 +1,10 @@
+#!/usr/bin/env python
+
+import MetagenomeDB as mdb
+
+mdb.set_debug_level(1)
+
+mdb.Collection.remove_all()
+mdb.Sequence.remove_all()
+mdb.Relationship.remove_all()
+
