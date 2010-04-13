@@ -5,7 +5,7 @@
 
 import connection, forge, tree
 import pymongo
-import sys, json, datetime
+import sys, json
 
 class UncommittedObject (Exception):
 	def __init__ (self, msg = None):
@@ -13,9 +13,6 @@ class UncommittedObject (Exception):
 
 	def __str__ (self):
 		return self.msg
-
-class DuplicateObject (Exception):
-	pass
 
 class Object (object):
 	def __init__ (self, properties, indexes):
