@@ -63,7 +63,7 @@ if (p.verbosity > 0):
 
 print "Importing '%s' ..." % p.input_fn
 
-print "  listing possible sequences ..."
+print "  registering query and hit collections ..."
 
 QuerySequences, HitSequences = {}, {}
 
@@ -83,7 +83,7 @@ for sequence, relationship in hits.get_sequences():
 
 print "    %s sequences listed" % (len(QuerySequences) + len(HitSequences))
 
-print "  checking hits and query sequences ..."
+print "  checking query and hit sequences ..."
 
 fh = open(p.input_fn, 'r')
 
@@ -95,7 +95,8 @@ KEY_VALUE = re.compile("; ([a-z]{2}_[a-zA-Z\-_0-9]+):(.*)\n")
 previous = None
 have_statistics = False
 
-Hits = {}
+HSP = {}
+Queries, Hits = {}, {}
 
 while True:
 	line = fh.readline()
@@ -107,7 +108,7 @@ while True:
 		assert (m != None), previous
 		n_residues, n_sequences = int(m.group(1)), int(m.group(2))
 
-		print "  database: %s residues, %s sequences" % (n_residues, n_sequences)
+#		print "  database: %s residues, %s sequences" % (n_residues, n_sequences)
 		have_statistics = True
 
 	if (line == ">>><<<\n"):
@@ -122,8 +123,10 @@ while True:
 		if (not query_id in QuerySequences):
 			error("Unknown query sequence '%s'" % query_id)
 
+		Queries[query_id] = True
+
 		run = { "database": database }
-		hits = {}
+		hsp = {}
 		block_n = 0
 		hit_n = 0
 		line_n = 0
@@ -143,6 +146,8 @@ while True:
 
 				if (not hit_id in HitSequences):
 					error("Unknown hit sequence '%s'" % hit_id)
+
+				Hits[hit_id] = True
 
 				block_n += 1
 
@@ -166,31 +171,33 @@ while True:
 
 				# hsp
 				elif ((block_n - 1) % 3 == 0):
-					if (not hit_key in hits):
-						hits[hit_key] = { "query": {}, "hit": {} }
+					if (not hit_key in hsp):
+						hsp[hit_key] = { "query": {}, "hit": {} }
 
-					hits[hit_key][key] = value
+					hsp[hit_key][key] = value
 
 				# query in hsp
 				elif ((block_n - 2) % 3 == 0):
-					hits[hit_key]["query"][key] = value
+					hsp[hit_key]["query"][key] = value
 
 				# hit in hsp
 				elif ((block_n - 3) % 3 == 0):
-					hits[hit_key]["hit"][key] = value
+					hsp[hit_key]["hit"][key] = value
 
 			line_n += 1
 
-		Hits[query_id] = (run, hits)
+		HSP[query_id] = (run, hsp)
 
 	previous = line
 
-print "  importing hits ..."
+print "    %s queries, %s hits" % (len(Queries), len(Hits))
 
-for query_id in Hits:
+print "  importing HSPs ..."
+
+for query_id in HSP:
 	query_xref = QuerySequences[query_id]
 
-	run, hits = Hits[query_id]
+	run, hits = HSP[query_id]
 
 	parameters = {}
 	for key in filter(lambda x: x not in ("pg_name", "pg_ver", "pg_name_alg", "pg_ver_rel", "database", "mp_Algorithm"), run):
@@ -198,8 +205,6 @@ for query_id in Hits:
 
 	for hit_key in hits:
 		hit_xref = HitSequences[hit_key[1]]
-
-		print "    %s -> %s" % (query_id, hit_key[1])
 
 		hsp = hits[hit_key]
 
@@ -216,26 +221,18 @@ for query_id in Hits:
 		hit_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_display_start"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
 		cons_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_cons"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
 
-		r["source-coordinates"] = (int(hsp["query"]["al_start"]), int(hsp["query"]["al_stop"]))
-		r["target-coordinates"] = (int(hsp["hit"]["al_start"]), int(hsp["hit"]["al_stop"]))
+		r["source_coordinates"] = (int(hsp["query"]["al_start"]), int(hsp["query"]["al_stop"]))
+		r["target_coordinates"] = (int(hsp["hit"]["al_start"]), int(hsp["hit"]["al_stop"]))
 
 		source_offset = int(hsp["query"]["al_display_start"])
 		target_offset = int(hsp["hit"]["al_display_start"])
 
-		#print query_alignment, r["source-coordinates"], source_offset
-		#print cons_alignment
-		#print hit_alignment, r["target-coordinates"], target_offset
-
-		offset1 = abs(source_offset - r["source-coordinates"][0])
-		offset2 = abs(target_offset - r["target-coordinates"][0])
+		offset1 = abs(source_offset - r["source_coordinates"][0])
+		offset2 = abs(target_offset - r["target_coordinates"][0])
 
 		start = max(offset1, offset2)
 		stop = len(cons_alignment.strip()) + start
 		assert (cons_alignment[start] != ' ') ###
-
-		#print ">", query_alignment[start:stop]
-		#print ">", cons_alignment[start:stop]
-		#print ">", hit_alignment[start:stop]
 
 		r["alignment"] = {
 			"source": query_alignment[start:stop],
@@ -244,16 +241,18 @@ for query_id in Hits:
 		}
 
 		r["score"] = {
-			"fraction-identical": 100 * float(hsp["bs_ident"]),
-			"fraction-conserved": 100 * float(hsp["bs_sim"]),
+			"fraction_identical": 100 * float(hsp["bs_ident"]),
+			"fraction_conserved": 100 * float(hsp["bs_sim"]),
 			"expectation": {
-				"e-value": float(hsp["fa_expect"]),
-				"search-space": {
-					"database-name": run["database"],
-					"number-of-sequences": n_sequences,
-					"number-of-residues": n_residues,
+				"e_value": float(hsp["fa_expect"]),
+				"search_space": {
+					"database_name": run["database"],
+					"number_of_sequences": n_sequences,
+					"number_of_residues": n_residues,
 				}
 			}
 		}
 
 		r.commit()
+
+print "    done."
