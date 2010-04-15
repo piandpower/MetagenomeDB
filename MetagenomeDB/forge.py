@@ -17,7 +17,7 @@ def exists (id):
 	return (id in __objects)
 
 # Drop a whole collection, and remove any corresponding instanciated object
-def drop (collection):
+def remove_all (collection):
 	connection.connection().drop_collection(collection)
 
 	for object in filter(lambda x: x.__class__.__name__ == collection, __objects.values()):

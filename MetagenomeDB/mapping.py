@@ -32,6 +32,8 @@ class Object (object):
 			# unless the object is provided an _id, it
 			# is considered not stored in the database.
 			self.__committed = True
+		else:
+			self.__committed = False
 
 	#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: Class methods
 
