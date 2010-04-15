@@ -16,21 +16,22 @@ class UncommittedObject (Exception):
 
 class Object (object):
 	def __init__ (self, properties, indexes):
-		self.__properties = {}
-		self.__indexes = {}
+		self.__properties = properties
+		self.__indexes = indexes
 
-		for key, value in properties.iteritems():
-			if (key.startswith('_')):
-				self.__properties[key] = value
-			else:
-				tree.set(self.__properties, key.split('_'), value)
+		if ("_id" in self.__properties):
+			id = self.__properties["_id"]
 
-		for key, value in indexes.iteritems():
-			self.__indexes[key] = value
+			if (type(id) == str):
+				id = pymongo.objectid.ObjectId(id)
+				self.__properties["_id"] = id
 
-		# unless the object is provided an _id, it
-		# is considered not stored in the database.
-		self.__committed = self.__contains__("_id")
+			if (not forge.exists(id)):
+				raise ValueError("Unknown identifier '%s'" % id)
+
+			# unless the object is provided an _id, it
+			# is considered not stored in the database.
+			self.__committed = True
 
 	#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: Class methods
 

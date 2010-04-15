@@ -13,6 +13,9 @@ class DuplicateObject (Exception):
 
 __objects = weakref.WeakValueDictionary()
 
+def exists (id):
+	return (id in __objects)
+
 # Drop a whole collection, and remove any corresponding instanciated object
 def drop (collection):
 	connection.connection().drop_collection(collection)
@@ -99,6 +102,8 @@ def __forge_from_entry (collection, entry):
 	object = getattr(objects, collection)
 
 	# instanciate this class
+	__objects[id] = object
+
 	instance = object(**tree.traverse(entry, lambda x: True, lambda x: str(x)))
 
 	__objects[id] = instance
@@ -184,7 +189,7 @@ def commit (object, indexes):
 	if (not object.is_committed()):
 		assert (not "_id" in object) ###
 
-		object["created-on"] = datetime.datetime.now()
+		object["creation_time"] = datetime.datetime.now()
 
 		try:
 			id = db[collection].insert(object.get_properties(), safe = True, check_keys = True)
@@ -200,7 +205,7 @@ def commit (object, indexes):
 		"""
 	# Update
 	elif (self.__modified):
-		self.__properties["last-modified-on"] = datetime.datetime.now()
+		self.__properties["modification_time"] = datetime.datetime.now()
 
 		self.__modified = False
 
