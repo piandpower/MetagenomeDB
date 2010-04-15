@@ -24,7 +24,7 @@ def drop (collection):
 		object.remove()
 
 	if (commons.debug_level > 0):
-		commons.log("drop", "'%s' collection dropped" % collection)
+		commons.log("remove_all", "'%s' collection dropped" % collection)
 
 # Remove an object from the database
 def remove (object):

@@ -68,7 +68,7 @@ class Object (object):
 	# flagged as uncommitted.
 	@classmethod
 	def remove_all (cls):
-		forge.drop(cls.__name__)
+		forge.remove_all(cls.__name__)
 
 	#:::::::::::::::::::::::::::::::::::::::::::::::::::::::: Instances methods
 
@@ -104,7 +104,7 @@ class Object (object):
 			raise UncommittedObject()
 
 		forge.remove(self)
-		tree.delete(self.__properties, "_id")
+		del self.__properties["_id"]
 		self.__committed = False
 
 	def __del__ (self):
