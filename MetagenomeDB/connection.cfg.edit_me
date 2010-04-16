@@ -1,0 +1,6 @@
+# This is an example connection.cfg file. Fill in the blank, and rename it to 'connection.cfg'
+
+[connection]
+host: localhost
+port: 27017
+database: YOUR DATABASE NAME
