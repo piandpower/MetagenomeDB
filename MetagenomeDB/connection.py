@@ -1,5 +1,6 @@
 
 import os, sys, ConfigParser
+import commons
 import pymongo
 
 def __property (cp, section, key, default = None, coerce = None):
@@ -40,6 +41,26 @@ def connection():
 
 	except pymongo.errors.ConnectionFailure as msg:
 		raise Exception("Unable to connect to database '%s' on %s:%s. Message was: %s" % (db, host, port, msg))
+
+	if (commons.debug_level > 0):
+		commons.log("connection", "Connected to '%s' on %s:%s" % (db, host, port))
+
+	# use credentials, if any
+	user = __property(cp, "connection", "user", '')
+	password = __property(cp, "connection", "password", '')
+
+	if (user != ''):
+		connection.authenticate(user, password)
+
+		if (commons.debug_level):
+			commons.log("connection", "Authenticated as '%s'" % user)
+
+	# test if the credentials are okay
+	try:
+		connection.collection_names()
+
+	except pymongo.errors.OperationFailure as msg:
+		raise Exception("Unable to connect to database '%s' on %s:%s. Incorrect credentials." % (db, host, port))
 
 	__connection = connection
 	return __connection
