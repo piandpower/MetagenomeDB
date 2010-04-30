@@ -15,26 +15,20 @@ g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 g.add_option("-f", "--format", dest = "input_format", metavar = "STRING",
 	help = "Format of the sequences file (cf. http://biopython.org/wiki/SeqIO)")
 
-g.add_option("-p", "--sequence-property", dest = "sequence_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
+g.add_option("-s", "--sequence-property", dest = "sequence_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
 	help = "Custom sequence property (optional).")
 
 p.add_option_group(g)
 
 g = optparse.OptionGroup(p, "Collection")
 
-g.add_option("--collection-id", dest = "collection_id", metavar = "ID",
-	help = "Identifier of the collection the sequences belong to (optional).")
-
-g.add_option("--collection-name", dest = "collection_name", metavar = "STRING",
-	help = "Name of the collection the sequences belong to (optional).")
-
-g.add_option("--collection", dest = "collection_fn", metavar = "FILENAME",
-	help = "Description of the collection the sequences belong to, as a JSON-formatted text file (optional).")
+g.add_option("-C", "--collection-name", dest = "collection_name", metavar = "STRING",
+	help = "Name of the collection the sequences belong to.")
 
 g.add_option("-c", "--collection-property", dest = "collection_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
 	help = "Description of the collection the sequences belong to, as a key/value (optional).")
 
-g.add_option("-P", "--relationship-property", dest = "relationship_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
+g.add_option("-r", "--relationship-property", dest = "relationship_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
 	help = "Custom sequence-to-collection relationship property (optional).")
 
 p.add_option_group(g)
@@ -56,16 +50,13 @@ if (not os.path.exists(p.input_fn)):
 if (not p.input_format):
 	error("A sequence format name must be provided (see http://biopython.org/wiki/SeqIO)")
 
+if (not p.collection_name) and (not p.collection_properties):
+	error("A collection name or description must be provided")
+
 if (p.sequence_properties):
 	for key, value in p.sequence_properties:
 		if (key in ("name", "description", "length", "sequence", "type")):
 			error("The key '%s' is reserved" % key)
-
-if ((p.collection_id != None) + (p.collection_fn != None) + (p.collection_properties != None)) > 1:
-	error("A collection identifier OR a collection description can be provided, but not both")
-
-if (p.collection_fn) and (not os.path.exists(p.collection_fn)):
-	error("File '%s' not found" % p.collection_fn)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -74,51 +65,31 @@ import MetagenomeDB as mdb
 if (p.verbosity > 0):
 	mdb.set_debug_level(p.verbosity)
 
-if (p.collection_id):
-	try:
-		collection = mdb.Collection.select_one(p.collection_id)
-	except ValueError:
-		error("Invalid identifier '%s'" % p.collection_id)
-
-	if (collection == None):
-		error("Unknown collection with id '%s'" % p.collection_id)
-
-elif (p.collection_name):
-	collection = mdb.Collection.select_one(name = p.collection_name)
-
-	if (collection == None):
-		error("Unknown collection with name '%s'" % p.collection_name)
-
-elif (p.collection_fn):
-	try:
-		collection = mdb.Collection.from_json(p.collection_fn)
-
-		if ("_id" in collection):
-			print "WARNING: A '_id' field was found in %s and removed." % p.collection_fn
-			del collection["_id"]
-
-	except Exception, msg:
-		error("Malformed collection description: %s" % msg)
-
-elif (p.collection_properties):
+# Creation of a collection
+if (p.collection_properties):
 	m = {}
 	for (key, value) in p.collection_properties:
 		m[key] = value
 
 	if ("_id" in m):
-		error("Reserved field '_id'")
+		print >>sys.stderr, "WARNING: A '_id' field was found in the collection description and ignored."
+		del m["_id"]
 
 	if ("name" in m) and (mdb.Collection.select_one(name = m["name"]) != None):
 		error("Duplicate collection '%s'" % m["name"])
 
 	try:
 		collection = mdb.Collection(**m)
-	
+
 	except ValueError, msg:
 		error("Malformed collection description: %s" % msg)
 
-else:
-	error("A collection must be provided")
+# Retrieval of an existing collection
+elif (p.collection_name):
+	collection = mdb.Collection.select_one(name = p.collection_name)
+
+	if (collection == None):
+		error("Unknown collection with name '%s'" % p.collection_name)
 
 if (p.relationship_properties):
 	m = {}
@@ -146,6 +117,23 @@ def read():
 
 print "Importing '%s' (%s) ..." % (p.input_fn, p.input_format)
 
+class ProgressBar:
+	def __init__ (self, upper = None):
+		self.__min = 0.0
+		self.__max = upper + 0.0
+
+	def display (self, value):
+		f = (value - self.__min) / (self.__max - self.__min) # fraction
+		p = 100 * f # percentage
+		s = int(round(80 * f)) # bar size
+
+		sys.stdout.write(' ' * 2 + ('.' * s) + " %4.2f%%\r" % p)
+		sys.stdout.flush()
+
+	def clear (self):
+		sys.stdout.write(' ' * (2 + 80 + 8) + "\r")
+		sys.stdout.flush()
+
 seen = {}
 for record in read():
 	if (record.id in seen):
@@ -153,7 +141,9 @@ for record in read():
 
 	seen[record.id] = True
 
-n = 0
+N, n = len(seen), 0
+pb = ProgressBar(N)
+
 for record in read():
 	entry = {
 		"name": record.id,
@@ -173,7 +163,6 @@ for record in read():
 
 	sequence = mdb.Sequence(**entry)
 	sequence.commit()
-	n += 1
 
 	p.relationship_properties["source"] = sequence
 	p.relationship_properties["target"] = collection
@@ -181,7 +170,9 @@ for record in read():
 
 	mdb.Relationship(**p.relationship_properties).commit()
 
-	if (n % 1000 == 0):
-		print "  (%s sequences imported)" % n
+	n += 1
+	pb.display(n)
 
-print "\n  %s sequences imported." % n
+pb.clear()
+
+print "  %s sequences imported." % n

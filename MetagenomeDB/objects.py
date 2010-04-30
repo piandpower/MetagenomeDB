@@ -3,10 +3,10 @@
 
 # TODO: think about the best strategy to remove objects that are linked
 
-import commons, forge, mapping
+import commons, forge, base
 import pymongo
 
-class Collection (mapping.Object):
+class Collection (base.Object):
 	def __init__ (self, **properties):
 		if (not "name" in properties):
 			raise ValueError("Mandatory property 'name' is missing")
@@ -47,7 +47,7 @@ class Collection (mapping.Object):
 	def __str__ (self):
 		return "<Collection id:%s name:'%s'>" % (self.get_property("_id", "(uncommitted)"), self["name"])
 
-class Sequence (mapping.Object):
+class Sequence (base.Object):
 	def __init__ (self, **properties):
 		if (not "name" in properties):
 			raise ValueError("Mandatory property 'name' is missing")
@@ -86,7 +86,7 @@ class Sequence (mapping.Object):
 	def __str__ (self):
 		return "<Sequence id:%s name:'%s' len:%s>" % (self.get_property("_id", "(uncommitted)"), self["name"], self["length"])
 
-class Relationship (mapping.Object):
+class Relationship (base.Object):
 	def __init__ (self, **properties):
 		if (not "source" in properties):
 			raise ValueError("Mandatory property 'source' is missing")

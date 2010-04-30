@@ -1,0 +1,154 @@
+#!/usr/bin/env python
+
+import optparse, sys, os, pprint
+import MetagenomeDB as mdb
+
+p = optparse.OptionParser(description = """The 'add' tool is part of the
+MetagenomeDB toolkit. Its purpose is to import objects (Sequence, Collection
+and Relationship) into the database by reading a JSON- or CSV-formatted
+description of those objects (see http://www.json.org/ for an introduction to
+the JSON format). More than one object can be described in the the input file.""")
+
+p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
+	help = "Name of the file containing a description of the objects to import")
+
+p.add_option("-f", "--format", dest = "input_format", choices = ("json", "csv"), metavar = "STRING", default = "json",
+	help = "Format of the input file, either 'json' or 'csv' (default: %default)")
+
+p.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
+	help = "If set, ignore duplicate objects errors")
+
+p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+
+(p, a) = p.parse_args()
+
+def error (msg):
+	print >>sys.stderr, "ERROR: %s." % msg
+	sys.exit(1)
+
+if (p.input_fn == None):
+	error("An input file must be provided")
+
+if (not os.path.exists(p.input_fn)):
+	error("File '%s' does not exists" % p.input_fn)
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+if (p.input_format == "json"):
+	import json
+
+	try:
+		data = json.load(open(p.input_fn, 'r'))
+
+		if (type(data) == dict):
+			data = [data]
+
+		elif (type(data) != list):
+			raise ValueError("Unexpected JSON type: %s" % type(data))
+
+	except Exception as msg:
+		error("Error while reading '%s': %s" % (p.input_fn, msg))
+
+	# hack to work around a bug in Python 2.6 which
+	# doesn't allow kwargs with unicode strings.
+	data = [mdb.tree.traverse(entry, lambda x: True, lambda x: str(x)) for entry in data]
+
+	reader = data
+
+if (p.input_format == "csv"):
+	import csv
+
+	def generator():
+		for line in csv.reader(open(p.input_fn, 'r'), delimiter = ',', quotechar='"'):
+			map = {}
+			for item in line:
+				key, value = item.split('=')
+				mdb.tree.set(map, key.split('.'), value)
+
+			yield map
+
+	reader = generator()
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+if (p.verbosity > 0):
+	mdb.set_debug_level(p.verbosity)
+
+mdb.show_warnings(False)
+
+BUILDER = {
+	"Collection": mdb.Collection,
+	"Sequence": mdb.Sequence,
+	"Relationship": mdb.Relationship,
+}
+
+# retrieve an object based on its xref (object name if the object
+# if a Collection, Collection name and object name if the object is
+# a Sequence)
+def retrieve_xref (xref):
+	try:
+		collection = xref["@type"]
+
+		# the xref refers to a Collection
+		if (collection == "Collection"):
+			object = getattr(mdb, collection).select_one(name = xref["@name"])
+			if (object == None):
+				raise Exception("Unknown Collection '%s'" % name)
+
+		# the xref refers to a Sequence
+		elif (collection == "Sequence"):
+			c = mdb.Collection.select_one(name = xref["@collection"])
+			if (c == None):
+				raise Exception("Unknown Collection '%s'" % name)
+
+			object = collection.get_sequences({ "name": xref["@name"] })
+			if (len(object) == 0):
+				raise Exception("Unknown Sequence '%s' in Collection '%s'" % (xref["@name"], xref["@collection"]))
+
+			object = object[0]
+
+		else:
+			raise ValueError("A relationship many only exists among collection and/or sequences")
+
+	except KeyError as msg:
+		raise Exception("Invalid entry: %s" % msg)
+
+	return object
+
+n = 0
+for entry in reader:
+	print entry
+
+	try:
+		if (not "@type" in entry):
+			raise Exception("Missing @type field")
+
+		type = entry["@type"]
+		del entry["@type"]
+
+		if (not type in BUILDER):
+			raise Exception("Invalid value '%s' for @type" % type)
+
+		# if the object to build is a relationship, we
+		# first retrieve its source and target objects
+		if (type == "Relationship"):
+			entry["source"] = retrieve_xref(entry["source"])
+			entry["target"] = retrieve_xref(entry["target"])
+
+		object = BUILDER[type](**entry)
+		object.commit()
+		n += 1
+
+	except mdb.errors.ConnectionError as msg:
+		error(str(msg))
+
+	except mdb.errors.DuplicateObject as msg:
+		if (p.ignore_duplicates):
+			print >>sys.stderr, "WARNING: %s" % str(msg)
+		else:
+			error(str(msg))
+
+	except Exception as msg:
+		error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
+
+print "%s object%s added." % (n, { True: 's', False: '' }[n > 1])

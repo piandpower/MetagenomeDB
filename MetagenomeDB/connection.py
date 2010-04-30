@@ -1,6 +1,6 @@
 
 import os, sys, ConfigParser
-import commons
+import commons, errors
 import pymongo
 
 def __property (cp, section, key, default = None, coerce = None):
@@ -14,7 +14,7 @@ def __property (cp, section, key, default = None, coerce = None):
 		return cp.get(section, key)
 
 	except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-		if (default):
+		if (default != None):
 			return default
 		else:
 			raise Exception("No value found for '%s' in section '%s'" % (key, section))
@@ -40,7 +40,7 @@ def connection():
 		connection = pymongo.connection.Connection(host, port)[db]
 
 	except pymongo.errors.ConnectionFailure as msg:
-		raise Exception("Unable to connect to database '%s' on %s:%s. Message was: %s" % (db, host, port, msg))
+		raise errors.ConnectionError(db, host, port, msg)
 
 	if (commons.debug_level > 0):
 		commons.log("connection", "Connected to '%s' on %s:%s" % (db, host, port))
@@ -60,7 +60,7 @@ def connection():
 		connection.collection_names()
 
 	except pymongo.errors.OperationFailure as msg:
-		raise Exception("Unable to connect to database '%s' on %s:%s. Incorrect credentials." % (db, host, port))
+		raise errors.ConnectionError(db, host, port, "Incorrect credentials.")
 
 	__connection = connection
 	return __connection

@@ -1,0 +1,111 @@
+#!/usr/bin/env python
+
+import optparse, os, sys
+
+p = optparse.OptionParser()
+
+g = optparse.OptionGroup(p, "Target")
+
+g.add_option("--all", dest = "remove_all", action = "store_true", default = False,
+	help = "Remove all content in the database.")
+
+g.add_option("--type", dest = "remove_collection", metavar = "STRING",
+	help = "Remove all objects of a given type.")
+
+g.add_option("--orphan-relationships", dest = "remove_orphan_relationships", action = "store_true", default = False,
+	help = "Remove all relationships of which either the source or the target are missing.")
+
+g.add_option("--date-range", dest = "remove_by_date_range", nargs = 2, metavar = "DATE1 DATE2",
+	help = "Remove all objects which creation date is between two given dates (or 'now')")
+
+p.add_option_group(g)
+
+p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+
+(p, a) = p.parse_args()
+
+def error (msg):
+	print >>sys.stderr, "ERROR: %s." % msg
+	sys.exit(1)
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+import MetagenomeDB as mdb
+import datetime, re
+
+if (p.verbosity > 0):
+	mdb.set_debug_level(p.verbosity)
+
+mdb.set_debug_level(1)
+
+collections = {
+	"Collection": mdb.Collection,
+	"Sequence": mdb.Sequence,
+	"Relationship": mdb.Relationship,
+}
+
+DATE = re.compile("([0-9]+)([ywdhms])")
+
+def convert_date (date):
+	if (date.lower() == "now"):
+		return datetime.datetime.utcnow()
+
+	m = list(DATE.finditer(date.lower()))
+	if (len(m) == 0):
+		raise Exception("Invalid date '%s'" % date)
+
+	delta = {}
+	for item in m:
+		value, key = item.groups()
+
+		key = {
+			"y": "year",
+			"w": "weeks",
+			"d": "days",
+			"h": "hours",
+			"m": "minutes",
+			"s": "seconds",
+		}[key]
+
+		delta[key] = int(value)
+
+	delta = datetime.timedelta(**delta)
+	return datetime.datetime.utcnow() - delta
+
+try:
+	if (p.remove_all):
+		print "Removing all content."
+
+		for collection in collections.values():
+			collection.remove_all()
+
+		sys.exit(0)
+
+	if (p.remove_collection):
+		print "Removing all content from '%s'" % p.remove_collection
+
+		try:
+			collection = collections[p.remove_collection]
+		except AttributeError:
+			raise Exception("Unknown object type '%s'" % p.remove_collection)
+
+		collection.remove_all()
+		sys.exit(0)
+
+	if (p.remove_by_date_range):
+		date1, date2 = p.remove_by_date_range
+
+		date1 = convert_date(date1)
+		date2 = convert_date(date2)
+
+		if (date1 > date2):
+			date2, date1 = date1, date2
+
+		print "Removing all content created between %s and %s" % (date1, date2)
+
+		for collection in collections.values():
+			for object in collection.select(creation_time = { "$gte": date1, "$lte": date2 }):
+				print object
+
+except Exception as msg:
+	error(msg)

@@ -1,24 +1,38 @@
-# mapping.py: root class abstracting the MongoDB content
+# base.py: root class abstracting the MongoDB content
 
-# TODO:
-# - assert no user-provided field can start with a '_'
-
-import connection, forge, tree
+import connection, forge, tree, errors, commons
 import pymongo
-import sys, json
-
-class UncommittedObject (Exception):
-	def __init__ (self, msg = None):
-		self.msg = msg
-
-	def __str__ (self):
-		return self.msg
+import sys
 
 class Object (object):
+
+	# Create a new object wrapping a MongoDB collection.
+	# - properties: dictionary of key/values for this object
+	# - indexes: dictionary of which keys will be set as indexes for the
+	#   MongoDB collection. Values are booleans that indicate if this index
+	#   must contains unique values.
+	#
+	# NOTE: if '_id' is in the properties, this class assumes the object exists
+	# in the MongoDB database and has been already queried (i.e., it is present
+	# in the objects cache).
 	def __init__ (self, properties, indexes):
-		self.__properties = properties
+		self.__properties = {}
 		self.__indexes = indexes
 
+		# we convert any property name with underscore
+		# in it into a nested list of properties
+		for key in properties:
+			if (key.startswith('_')):
+				if (key != "_id"):
+					raise ValueError("Invalid property '%s'" % key)
+
+				self.__properties[key] = properties[key]
+			else:
+				tree.set(self.__properties, key.split('_'), properties[key])
+
+		# if the object is provided with an identifier, we check if
+		# this identifier is present in the object cache to consider
+		# if it was committed or not.
 		if ("_id" in self.__properties):
 			id = self.__properties["_id"]
 
@@ -36,17 +50,6 @@ class Object (object):
 			self.__committed = False
 
 	#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: Class methods
-
-	# Create a new object from a JSON-formatted file.
-	@classmethod
-	def from_json (cls, fn):
-		data = json.load(open(fn, 'r'))
-
-		kw = {}
-		for (key, value) in iterate(data):
-			kw['_'.join(key)] = value
-
-		return cls(**kw)
 
 	# Count the number of instances of this object in the database
 	@classmethod
@@ -81,6 +84,9 @@ class Object (object):
 	# Commit this instance of this object to the database.
 	# The new identifier of this object is returned.
 	def commit (self, **patch):
+		if (self.__committed):
+			return
+
 		# If some patch needs to be applied on the object's
 		# properties, we temporary store the old values
 		tmp = {}
@@ -103,14 +109,19 @@ class Object (object):
 	# remains in memory, albeit flagged as uncommitted.
 	def remove (self):
 		if (not self.__committed):
-			raise UncommittedObject()
+			raise errors.UncommittedObject()
 
 		forge.remove(self)
 		del self.__properties["_id"]
 		self.__committed = False
 
 	def __del__ (self):
-		if (not self.__committed):
+		# if the object is destroyed due to an exception thrown during
+		# its instantiation, self.__committed will not exists.
+		if (not hasattr(self, "__committed")):
+			return
+
+		if ((not self.__committed) and commons.display_warnings):
 			print >>sys.stderr, "WARNING: Object %s has been destroyed without having been committed" % self
 
 	# Find neighbors of this object in the database, as declared through
@@ -123,7 +134,7 @@ class Object (object):
 	# Note: This method shouldn't be called directly by the user.
 	def get_neighbors (self, direction, neighbor_class, neighbor_filter, relationship_filter):
 		if (not self.__committed):
-			raise UncommittedObject()
+			raise errors.UncommittedObject()
 
 		return forge.neighbors(
 			self,
@@ -186,7 +197,7 @@ class Object (object):
 	#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: Misc. methods
 
 	def __str__ (self):
-		if (self.__committed):
+		if (hasattr(self, "__committed") and self.__committed):
 			return "<Object %s>" % id
 		else:
 			return "<Object (uncommitted)>"

@@ -4,12 +4,9 @@
 # Note: The term 'collection', when used in this file, refers to a MongoDB
 # collection and NOT to the Collection object in objects.py
 
-import commons, connection, objects, tree
+import commons, connection, objects, tree, errors
 import pymongo
-import weakref, datetime
-
-class DuplicateObject (Exception):
-	pass
+import weakref, datetime, re
 
 __objects = weakref.WeakValueDictionary()
 
@@ -101,9 +98,11 @@ def __forge_from_entry (collection, entry):
 	# select the class for this object
 	object = getattr(objects, collection)
 
-	# instanciate this class
+	# trick: we store a non-volatile object in the __objects dictionary so
+	# that during the instanciation the identifier is present in the cache
 	__objects[id] = object
 
+	# instanciate this class
 	instance = object(**tree.traverse(entry, lambda x: True, lambda x: str(x)))
 
 	__objects[id] = instance
@@ -196,7 +195,8 @@ def commit (object, indexes):
 
 		except pymongo.errors.OperationFailure as msg:
 			if ("E11000" in str(msg)):
-				raise DuplicateObject()
+				keys = ','.join([object[key] for key in filter(lambda x: indexes[x], indexes)])
+				raise errors.DuplicateObject(collection, keys)
 			else:
 				raise Exception("Unable to commit: %s" % msg)
 
