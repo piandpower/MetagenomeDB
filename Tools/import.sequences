@@ -3,7 +3,7 @@
 # TODO: I read somewhere there is a limit of 4Mb per object. Check this value,
 #   and ensure an error is thrown when a sequence is too big
 
-import optparse, sys, os, json
+import optparse, sys, os
 
 p = optparse.OptionParser()
 
@@ -69,7 +69,7 @@ if (p.verbosity > 0):
 if (p.collection_properties):
 	m = {}
 	for (key, value) in p.collection_properties:
-		m[key] = value
+		m[key] = mdb.tools.parse(value)
 
 	if ("_id" in m):
 		print >>sys.stderr, "WARNING: A '_id' field was found in the collection description and ignored."
@@ -94,7 +94,7 @@ elif (p.collection_name):
 if (p.relationship_properties):
 	m = {}
 	for (key, value) in p.relationship_properties:
-		m[key] = value
+		m[key] = mdb.tools.parse(value)
 
 	p.relationship_properties = m
 else:

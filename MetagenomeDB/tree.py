@@ -1,99 +1,125 @@
 # Manipulation of a tree as a nested dictionary
 
-def _check_keys (keys):
-	kt = type(keys)
+def validate_key (key, separator = '.'):
+	key_t = type(key)
 
-	if (kt == list):
-		keys = tuple(keys)
-	elif (kt != tuple):
-		keys = (keys,)
+	if (key_t == list):
+		key = tuple(key)
 
-	if (len(keys) == 0):
-		raise ValueError("Empty set of keys")
+	elif (key_t == str):
+		key = tuple(key.split(separator))
 
-	return keys
+	elif (key_t != tuple):
+		raise ValueError("Malformed key hierarchy: '%s'" % key)
 
-def set (map, keys, value):
-	keys = _check_keys(keys)
+	if (len(key) == 0):
+		raise ValueError("Empty key hierarchy")
+
+	return key
+
+# Insert a key/value pair into an existing dictionary
+# - d: dictionary to consider
+# - keys: hiearchy of keys, as a list
+# - value: value to associate to the last key in the hierarchy
+# Example:
+#   > m = {}
+#   > set(m, ('a', 'b', 'c'), 1)
+#   > print m
+#   {'a': {'b': {'c': 1}}}
+def set (d, keys, value):
 	leaf, key = (len(keys) == 1), keys[0]
 
 	if (leaf):
-		map[key] = value
+		d[key] = value
 	else:
-		if (not key in map):
-			map[key] = {}
+		if (not key in d):
+			d[key] = {}
 
-		set(map[key], keys[1:], value)
+		set(d[key], keys[1:], value)
 
-def get (map, keys):
-	keys = _check_keys(keys)
+# Retrieve the value associated to a hierarchy of key
+# - d: dictionary to consider
+# - keys: hiearchy of keys, as a list
+def get (d, keys):
 	leaf, key = (len(keys) == 1), keys[0]
 
 	if (leaf):
-		return map[key]
+		return d[key]
 	else:
-		return get(map[key], keys[1:])
+		return get(d[key], keys[1:])
 
-def iterate (map, path = []):
+# Iterate through a given nested dictionary and return all
+# key hierarchies as lists of keys
+# - d: dictionary to consider
+# Example:
+#   > m = {'a': {'b': {'c': 1}, 'd': 2}}
+#   > print keys(m)
+#   [(('a', 'b', 'c'), 1), (('a', 'd'), 2)]
+def keys (d, path = []):
 	branches = []
-	for key in map:
-		value = map[key]
+	for key in d:
+		value = d[key]
 		path_ = path + [key]
 
 		if (type(value) == dict):
-			branches.extend(iterate(value, path_))
+			branches.extend(keys(value, path_))
 		else:
 			branches.append((tuple(path_), value))
 
 	return branches
 
-def delete (map, keys):
-	keys = _check_keys(keys)
+# Delete a hiearchy of keys
+def delete (d, keys):
 	leaf, key = (len(keys) == 1), keys[0]
 
-	if (type(map) != dict):
+	if (type(d) != dict):
 		raise KeyError(key)
 
 	if (leaf):
-		del map[key]
+		del d[key]
 
 	else:
-		delete(map[key], keys[1:])
-		if (len(map[key]) == 0):
-			del map[key]
+		delete(d[key], keys[1:])
+		if (len(d[key]) == 0):
+			del d[key]
 
-def contains (map, keys):
-	keys = _check_keys(keys)
+# Test if a dictionary contains a value for a given hiearchy of keys
+def contains (d, keys):
 	leaf, key = (len(keys) == 1), keys[0]
 
-	if (key in map):
+	if (key in d):
 		if (leaf):
 			return True
 
-		if (type(map[key]) != dict):
+		if (type(d[key]) != dict):
 			return False
 
-		return contains(map[key], keys[1:])
+		return contains(d[key], keys[1:])
 
 	return False
 
-def traverse (tree, selector = lambda x: False, key_modifier = lambda x: x, value_modifier = lambda x: x):
-	tree_ = {}
+# Traverse a nested dictionary and modify selected key and/or values
+# - d: dictionary to consider
+# - selector: boolean function; should return true for key that should be modified
+# - key_modifier: function that will be applied on selected keys
+# - value_modifier: function that will be applied on values of selected keys
+def traverse (d, selector = lambda x: False, key_modifier = lambda x: x, value_modifier = lambda x: x):
+	tree = {}
 
-	for key in tree:
-		value = tree[key]
+	for key in d:
+		value = d[key]
 		selected = selector(key)
 
 		if (selected):
 			key = key_modifier(key)
 
 		if (type(value) == dict):
-			tree_[key] = traverse(value, selector, key_modifier, value_modifier)
+			tree[key] = traverse(value, selector, key_modifier, value_modifier)
 
 		elif (selected):
-			tree_[key] = value_modifier(value)
+			tree[key] = value_modifier(value)
 
 		else:
-			tree_[key] = value
+			tree[key] = value
 
-	return tree_
+	return tree

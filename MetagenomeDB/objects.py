@@ -63,6 +63,7 @@ class Sequence (base.Object):
 		super(Sequence, self).__init__(properties, {
 			"name": False,
 			"length": False,
+			"class": False,
 		})
 
 	# Return collections this sequence is part of.

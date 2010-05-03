@@ -18,6 +18,12 @@ p.add_option("-f", "--format", dest = "input_format", choices = ("json", "csv"),
 p.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
 	help = "If set, ignore duplicate objects errors")
 
+p.add_option("--ignore-missing", dest = "ignore_missing", action = "store_true", default = False,
+	help = "If set, ignore relationships that points to missing objects")
+
+p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False,
+	help = "If set, process the input file but does not actually import the objects")
+
 p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
 
 (p, a) = p.parse_args()
@@ -34,43 +40,6 @@ if (not os.path.exists(p.input_fn)):
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-if (p.input_format == "json"):
-	import json
-
-	try:
-		data = json.load(open(p.input_fn, 'r'))
-
-		if (type(data) == dict):
-			data = [data]
-
-		elif (type(data) != list):
-			raise ValueError("Unexpected JSON type: %s" % type(data))
-
-	except Exception as msg:
-		error("Error while reading '%s': %s" % (p.input_fn, msg))
-
-	# hack to work around a bug in Python 2.6 which
-	# doesn't allow kwargs with unicode strings.
-	data = [mdb.tree.traverse(entry, lambda x: True, lambda x: str(x)) for entry in data]
-
-	reader = data
-
-if (p.input_format == "csv"):
-	import csv
-
-	def generator():
-		for line in csv.reader(open(p.input_fn, 'r'), delimiter = ',', quotechar='"'):
-			map = {}
-			for item in line:
-				key, value = item.split('=')
-				mdb.tree.set(map, key.split('.'), value)
-
-			yield map
-
-	reader = generator()
-
-#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
 if (p.verbosity > 0):
 	mdb.set_debug_level(p.verbosity)
 
@@ -81,6 +50,9 @@ BUILDER = {
 	"Sequence": mdb.Sequence,
 	"Relationship": mdb.Relationship,
 }
+
+class NotFound (Exception):
+	pass
 
 # retrieve an object based on its xref (object name if the object
 # if a Collection, Collection name and object name if the object is
@@ -93,17 +65,20 @@ def retrieve_xref (xref):
 		if (collection == "Collection"):
 			object = getattr(mdb, collection).select_one(name = xref["@name"])
 			if (object == None):
-				raise Exception("Unknown Collection '%s'" % name)
+				raise Exception("Unknown Collection '%s'" % xref["@name"])
 
 		# the xref refers to a Sequence
 		elif (collection == "Sequence"):
-			c = mdb.Collection.select_one(name = xref["@collection"])
-			if (c == None):
-				raise Exception("Unknown Collection '%s'" % name)
+			# we first list all sequences having this name,
+			candidates = mdb.Sequence.select(name = xref["@name"])
+			# then we filter out those that are not linked to this collection
+			object = filter(lambda x: len(list(x.get_collections({ "name": xref["@collection"] }))) > 0, candidates)
 
-			object = collection.get_sequences({ "name": xref["@name"] })
 			if (len(object) == 0):
-				raise Exception("Unknown Sequence '%s' in Collection '%s'" % (xref["@name"], xref["@collection"]))
+				raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (xref["@name"], xref["@collection"]))
+
+			if (len(object) > 1):
+				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (xref["@name"], xref["@collection"]))
 
 			object = object[0]
 
@@ -116,18 +91,13 @@ def retrieve_xref (xref):
 	return object
 
 n = 0
-for entry in reader:
-	print entry
-
+for entry in mdb.tools.parser(p.input_fn, p.input_format):
 	try:
-		if (not "@type" in entry):
-			raise Exception("Missing @type field")
-
 		type = entry["@type"]
 		del entry["@type"]
 
 		if (not type in BUILDER):
-			raise Exception("Invalid value '%s' for @type" % type)
+			raise Exception("Unknown object type '%s'" % type)
 
 		# if the object to build is a relationship, we
 		# first retrieve its source and target objects
@@ -136,7 +106,10 @@ for entry in reader:
 			entry["target"] = retrieve_xref(entry["target"])
 
 		object = BUILDER[type](**entry)
-		object.commit()
+
+		if (not p.dry_run):
+			object.commit()
+
 		n += 1
 
 	except mdb.errors.ConnectionError as msg:
@@ -148,7 +121,16 @@ for entry in reader:
 		else:
 			error(str(msg))
 
+	except NotFound as msg:
+		if (p.ignore_missing):
+			print >>sys.stderr, "WARNING: %s" % msg
+		else:
+			error(msg)
+
 	except Exception as msg:
 		error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
 
 print "%s object%s added." % (n, { True: 's', False: '' }[n > 1])
+
+if (p.dry_run):
+	print "(dry run)"

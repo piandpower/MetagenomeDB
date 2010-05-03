@@ -1,2 +1,4 @@
 *.cfg
 *.pyc
+Tools,custom
+latest_commit.txt

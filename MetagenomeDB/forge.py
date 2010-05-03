@@ -32,16 +32,37 @@ def remove (object):
 		commons.log("remove", "%s removed from '%s'" % (object, collection))
 
 # Count entries in a given collection
-def count (collection):
+def count (collection, query):
+	if (query == {}):
+		cursor = connection.connection()[collection]
+		return cursor.count()
+	else:
+		return find(collection, query, count = True)
+
+# Retrieve distinct values (and number of objects
+# with this value) for a give field
+def distinct (collection, field):
 	cursor = connection.connection()[collection]
-	return cursor.count()
+
+	result = cursor.group(
+		key = { field: 1 },
+		condition = {},
+		initial = { "count": 0 },
+		reduce = "function (o, p) { p.count++; }"
+	)
+
+	result_ = {}
+	for r in result:
+		result_[r[field]] = int(r["count"])
+
+	return result_
 
 # Create objects from entries matching a given query, expressed as a JSON tree
 # (see http://www.mongodb.org/display/DOCS/Querying)
 # Special keys:
 #   - any '_xxx' key will be changed to '$xxx' (e.g., $where), except '_id'
 #   - value for '_id' will be cast into a pymongo.objectid.ObjectId
-def find (collection, query, find_one = False):
+def find (collection, query, find_one = False, count = False):
 	cursor = connection.connection()[collection]
 	query_t = type(query)
 
@@ -58,12 +79,15 @@ def find (collection, query, find_one = False):
 	elif (query_t == dict):
 		# no query argument: returns all objects in this collection
 		if (query == {}):
-			return __forge_from_entries(collection, cursor.find())
-
-		query = __clean_query(query)
+			query = None
+		else:
+			query = __clean_query(query)
 
 	else:
 		raise ValueError("Invalid query: %s" % query)
+
+	if (count):
+		return cursor.find(query).count()
 
 	if (find_one):
 		return __forge_from_entry(collection, cursor.find_one(query))
@@ -170,56 +194,57 @@ def neighbors (object, direction, neighbor_collection, neighbor_filter = None, r
 
 	return __results()
 
-def commit (object, indexes):
-	collection = object.__class__.__name__
+def commit (object, indices):
+	# first case: the object is already committed; we do nothing and return its identifier
+	if (object.is_committed()):
+		return object["_id"]
+
 	db = connection.connection()
 
-	if (not collection in db.collection_names()):
+	collection_name = object.__class__.__name__
+	collection = db[collection_name]
+
+	# if the collection this object belongs to doesn't exist in
+	# the database, we create it with its indices (if any)
+	if (not collection_name in db.collection_names()):
 		if (commons.debug_level > 0):
+			msg = "'%s' collection created" % collection_name
 			if (len(indexes) > 0):
-				commons.log("commit", "'%s' collection created with indexes %s" % (collection, ', '.join(["'%s'" % key for key in sorted(indexes.keys())])))
-			else:
-				commons.log("commit", "'%s' collection created" % collection)
+				msg += " with indices %s" % ', '.join(["'%s'" % key for key in sorted(indices.keys())])
 
-		for (index, is_unique) in indexes.iteritems():
-			db[collection].create_index(index, unique = is_unique)
+			commons.log("commit", msg)
 
-	# Upsert
-	if (not object.is_committed()):
-		assert (not "_id" in object) ###
+		for (index, is_unique) in indices.iteritems():
+			collection.create_index(index, unique = is_unique)
 
+
+	# second case: the object is not committed, and is not in the database
+	if (not "_id" in object):
 		object["creation_time"] = datetime.datetime.now()
-
-		try:
-			id = db[collection].insert(object.get_properties(), safe = True, check_keys = True)
-
-		except pymongo.errors.OperationFailure as msg:
-			if ("E11000" in str(msg)):
-				keys = ','.join([object[key] for key in filter(lambda x: indexes[x], indexes)])
-				raise errors.DuplicateObject(collection, keys)
-			else:
-				raise Exception("Unable to commit: %s" % msg)
-
 		verb = "created"
 
-		"""
-	# Update
-	elif (self.__modified):
-		self.__properties["modification_time"] = datetime.datetime.now()
-
-		self.__modified = False
-
-		### TO DO
-		raise NotImplementedError
-
-		verb = "updated"
-		"""
-
+	# third case: the object is not committed, but a former version exists in the database
 	else:
-		id = object["_id"]
-		verb = "unchanged"
+		object["modification_time"] = datetime.datetime.now()
+		verb = "updated"
+
+	try:
+		object_id = collection.save(
+			object.get_properties(),
+			safe = True,
+		)
+
+		__objects[object_id] = object
+
+	except pymongo.errors.OperationFailure as msg:
+		if ("E11000" in str(msg)):
+			keys = ','.join([object[key] for key in filter(lambda x: indices[x], indices)])
+
+			raise errors.DuplicateObject(collection_name, keys)
+		else:
+			raise Exception("Unable to commit: %s" % msg)
 
 	if (commons.debug_level > 1):
-		commons.log("commit", "%s %s in collection '%s'" % (object, verb, collection))
+		commons.log("commit", "%s %s in collection '%s'" % (object, verb, collection_name))
 
-	return id
+	return object_id

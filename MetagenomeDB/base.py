@@ -8,31 +8,20 @@ class Object (object):
 
 	# Create a new object wrapping a MongoDB collection.
 	# - properties: dictionary of key/values for this object
-	# - indexes: dictionary of which keys will be set as indexes for the
+	# - indices: dictionary of which keys will be set as indexes for the
 	#   MongoDB collection. Values are booleans that indicate if this index
 	#   must contains unique values.
-	#
-	# NOTE: if '_id' is in the properties, this class assumes the object exists
-	# in the MongoDB database and has been already queried (i.e., it is present
-	# in the objects cache).
-	def __init__ (self, properties, indexes):
+	def __init__ (self, properties, indices):
 		self.__properties = {}
-		self.__indexes = indexes
+		self.__indices = indices
 
-		# we convert any property name with underscore
-		# in it into a nested list of properties
-		for key in properties:
-			if (key.startswith('_')):
-				if (key != "_id"):
-					raise ValueError("Invalid property '%s'" % key)
+		for key, value in properties.iteritems():
+			key = tree.validate_key(key)
+			tree.set(self.__properties, key, value)
 
-				self.__properties[key] = properties[key]
-			else:
-				tree.set(self.__properties, key.split('_'), properties[key])
-
-		# if the object is provided with an identifier, we check if
-		# this identifier is present in the object cache to consider
-		# if it was committed or not.
+		# if the object is provided with an identifier,
+		# we check if this identifier is present in the
+		# object cache to know if it was committed.
 		if ("_id" in self.__properties):
 			id = self.__properties["_id"]
 
@@ -43,8 +32,6 @@ class Object (object):
 			if (not forge.exists(id)):
 				raise ValueError("Unknown identifier '%s'" % id)
 
-			# unless the object is provided an _id, it
-			# is considered not stored in the database.
 			self.__committed = True
 		else:
 			self.__committed = False
@@ -53,8 +40,14 @@ class Object (object):
 
 	# Count the number of instances of this object in the database
 	@classmethod
-	def count (cls):
-		return forge.count(cls.__name__)
+	def count (cls, **filter):
+		return forge.count(cls.__name__, query = filter)
+
+	# Retrieve distinct values (and number of objects having this value) for
+	# a given property
+	@classmethod
+	def distinct (cls, property):
+		return forge.distinct(cls.__name__, property)
 
 	# Select instances of this object that pass a filter,
 	# expressed as a set of (possibly) nested key/values.
@@ -95,7 +88,7 @@ class Object (object):
 			tmp[key] = self.__properties[key]
 			self.__properties[key] = value
 
-		id = forge.commit(self, self.__indexes)
+		id = forge.commit(self, self.__indices)
 		self.__committed = True
 		self.__properties["_id"] = id
 
@@ -147,40 +140,33 @@ class Object (object):
 	#:::::::::::::::::::::::::::::::::::::::::::::::::: Properties manipulation
 
 	def __setitem__ (self, key, value):
-		if (type(key) == str):
-			key = key.split('.')
-
-		if (key[0] == "_id"):
-			raise ValueError("The property '_id' is read-only")
+		keys = tree.validate_key(key)
+		if (keys[0] == "_id"):
+			raise ValueError("The property '_id' cannot be modified")
 
 		# discard 'phantom' modifications
-		if tree.contains(self.__properties, key) and (value == tree.get(self.__properties, key)):
+		if tree.contains(self.__properties, keys) and \
+		   (value == tree.get(self.__properties, keys)):
 			return
 
-		tree.set(self.__properties, key, value)
+		tree.set(self.__properties, keys, value)
 		self.__committed = False
 
 	def __getitem__ (self, key):
-		if (type(key) == str):
-			key = key.split('.')
-
-		return tree.get(self.__properties, key)
+		keys = tree.validate_key(key)
+		return tree.get(self.__properties, keys)
 
 	def __delitem__ (self, key):
-		if (type(key) == str):
-			key = key.split('.')
+		keys = tree.validate_key(key)
+		if (keys[0] == "_id"):
+			raise ValueError("The property '_id' cannot be modified")
 
-		if (key[0] == "_id"):
-			raise ValueError("The property '_id' is read-only")
-
-		tree.delete(self.__properties, key)
+		tree.delete(self.__properties, keys)
 		self.__committed = False
 
 	def __contains__ (self, key):
-		if (type(key) == str):
-			key = key.split('.')
-
-		return tree.contains(self.__properties, key)
+		keys = tree.validate_key(key)
+		return tree.contains(self.__properties, keys)
 
 	# Returns a copy of this object's properties, as a nested dictionary.
 	def get_properties (self):
@@ -188,10 +174,11 @@ class Object (object):
 
 	# Return the value of a given property, or a default one if this
 	# property doesn't exist.
-	def get_property (self, key, default):
+	def get_property (self, key, default = None):
 		try:
-			return tree.get(self.__properties, key)
-		except:
+			return self.__getitem__(key)
+
+		except KeyError:
 			return default
 
 	#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: Misc. methods
