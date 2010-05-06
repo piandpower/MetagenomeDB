@@ -1,6 +1,0 @@
-MetagenomeDB is a Python abstraction layer built on top of a MongoDB database. Its purpose is to simplify the storage and querying of metagenomic data:
-- sequences (reads, contigs)
-- collections of sequences (such as reads resulting from the sequencing of a given sample, or contigs resulting from a given assembly)
-- relationship between sequences and/or collections (sequences belonging to a collection, collections within collections, sequence that is part of another sequence, sequence that is similar to another sequence)
-
-MetagenomeDB is provided with a set of tools to import sequences in many format (thanks to the set of Biopython parsers), as well as importing sequence comparison results from the BLAST and FASTA alignment algorithms.
