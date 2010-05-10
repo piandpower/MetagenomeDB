@@ -70,15 +70,7 @@ def retrieve_xref (xref):
 		# the xref refers to a Sequence
 		elif (collection == "Sequence"):
 			# we first list all sequences having this name,
-<<<<<<< HEAD
-<<<<<<< HEAD
 			candidates = mdb.Sequence.find(name = xref["@name"])
-=======
-			candidates = mdb.Sequence.select(name = xref["@name"])
->>>>>>> 12588eb... latest_commit.txt
-=======
-			candidates = mdb.Sequence.find(name = xref["@name"])
->>>>>>> dd2b849... - Renamed 'select()' and 'select_one()' to 'find()' and 'find_one()', respectively, to be consistent with the MongoDB syntax
 			# then we filter out those that are not linked to this collection
 			object = filter(lambda x: len(list(x.get_collections({ "name": xref["@collection"] }))) > 0, candidates)
 
