@@ -70,10 +70,14 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 
 			# we first list all sequences having this name,
 <<<<<<< HEAD
+<<<<<<< HEAD
 			candidates = mdb.Sequence.find(name = name)
 =======
 			candidates = mdb.Sequence.select(name = name)
 >>>>>>> 12588eb... latest_commit.txt
+=======
+			candidates = mdb.Sequence.find(name = name)
+>>>>>>> dd2b849... - Renamed 'select()' and 'select_one()' to 'find()' and 'find_one()', respectively, to be consistent with the MongoDB syntax
 			# then we filter out those that are not linked to this collection
 			objects = filter(lambda x: len(list(x.get_collections({ "name": collection }))) > 0, candidates)
 			c = len(objects)
@@ -88,10 +92,14 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 			name = entry["@name"]
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 			objects = [mdb.Collection.find_one(name = name)]
 =======
 			objects = [mdb.Collection.select_one(name = name)]
 >>>>>>> 12588eb... latest_commit.txt
+=======
+			objects = [mdb.Collection.find_one(name = name)]
+>>>>>>> dd2b849... - Renamed 'select()' and 'select_one()' to 'find()' and 'find_one()', respectively, to be consistent with the MongoDB syntax
 
 			if (len(c) == 0):
 				raise NotFound("Unknown Collection '%s'" % name)
