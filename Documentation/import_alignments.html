@@ -1,0 +1,37 @@
+<h1>import.BLAST and import.FASTA</h1>
+
+- when either the query or hit collection is not provided, the query or hit object that will be registered is a custom object
+
+- import.BLAST: several XML tags can be combined to generate either a query or hit id. Python code can also be used to modify the content on those tags on the fly:
+
+Example 1:
+	...
+    <Iteration>
+      <Iteration_iter-num>1</Iteration_iter-num>
+      <Iteration_query-ID>1</Iteration_query-ID>
+      <Iteration_query-def>CH0704v-contig00010 length=3963   numreads=678</Iteration_query-def>
+      <Iteration_query-len>3963</Iteration_query-len>
+      <Iteration_hits>
+	...
+
++	--query-id-getter "<Iteration_query-def>.split()[0]"
+
+=	'CH0704v-contig00010' as the query identifier
+
+
+Example 2:
+	...
+        <Hit>
+          <Hit_num>2</Hit_num>
+          <Hit_id>gi|9625521|ref|NP_039778.1|</Hit_id>
+          <Hit_def>putative integrase [Sulfolobus virus 1] &gt;gi|138570|sp|P20214.1|INTG_SSV1 RecName: Full=Probable integrase &gt;gi|46705|emb|CAA30211.1| ORF D-335 [Sulfolobus spindle-shaped virus 1]</Hit_def>
+          <Hit_accession>NP_039778</Hit_accession>
+          <Hit_len>335</Hit_len>
+          <Hit_hsps>
+            <Hsp>
+	...
+
+The following syntax,
+	--hit-id-getter "{'id': <Hit_id>, 'definition': <Hit_def>, 'accession': <Hit_accession>}"
+
+together with no provided hit collection, will create custom objects as hits which will be a dictionary with the three keys 'id', 'definition' and 'accession'

@@ -1,19 +1,22 @@
 #!/usr/bin/env python
 
-import optparse, sys, os, re, time
+import optparse, sys, os, re, time, pprint
 
-p = optparse.OptionParser()
+p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
+Imports XML-formatted BLAST alignments into the database.""")
 
 g = optparse.OptionGroup(p, "BLAST")
 
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
-	help = "Results of a BLAST sequence alignment (note: the file MUST be XML-formatted).")
+	help = "Output of a BLAST sequence alignment.")
 
 g.add_option("--query-collection", dest = "queries_collection", metavar = "STRING",
-	help = "Name of the collection the query sequences belong to.")
+	help = """Name of the collection the query sequences belong to. If not
+provided, the query sequences are assumed to be external to the database.""")
 
 g.add_option("--hit-collection", dest = "hits_collection", metavar = "STRING",
-	help = "Name of the collection the hit sequences belong to.")
+	help = """Name of the collection the hit sequences belong to. If not
+provided, the hit sequences are assumed to be external to the database.""")
 
 g.add_option("--date", dest = "date", nargs = 3, type = "int",
 	help = "Date of the BLAST run (year, month, day). By default, creation date of the input file.")
@@ -24,6 +27,7 @@ g.add_option("--hit-id-getter", dest = "hit_id_getter", metavar = "PYTHON CODE",
 p.add_option_group(g)
 
 p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
 
 (p, a) = p.parse_args()
 
@@ -37,11 +41,8 @@ if (p.input_fn == None):
 if (not os.path.exists(p.input_fn)):
 	error("File '%s' not found" % p.input_fn)
 
-if (not p.queries_collection):
-	error("A collection for the query sequences must be provided")
-
-if (not p.hits_collection):
-	error("A collection for the hit sequences must be provided")
+if ((p.queries_collection == None) + (p.hits_collection == None) == 2):
+	error("A collection must be provided for either query or hit sequences")
 
 if (not p.date):
 	date = time.localtime(os.path.getmtime(p.input_fn))
@@ -58,7 +59,7 @@ else:
 		error("Invalid date: %s" % msg)
 
 try:
-	pattern = re.compile("\{(.*?)\}")
+	pattern = re.compile("<(.*?)>")
 	repl = r"str(x['\1'])"
 
 	get_query_id = eval("lambda x: " + pattern.sub(repl, p.query_id_getter))
@@ -81,7 +82,7 @@ if (p.verbosity > 0):
 
 print "Importing '%s' ..." % p.input_fn
 
-document = bindery.parse(p.input_fn)
+document = bindery.parse(p.input_fn, standalone = True)
 
 # Read parameters of the BLAST run
 print "  reading BLAST parameters"
@@ -96,51 +97,38 @@ for node in document.BlastOutput.BlastOutput_param.xml_select("Parameters/*"):
 for key in sorted(parameters.keys()):
 	print "    %s: %s" % (key, parameters[key])
 
-# List query and hit sequences
-print "  registering query and hit collections ..."
+# Check query and hit sequences
+print "  validating query and hit sequences ..."
 
 QuerySequences, HitSequences = {}, {}
 
-queries = mdb.Collection.find_one(name = p.queries_collection)
-if (queries == None):
-	error("Unknown collection '%s'" % p.queries_collection)
+if (p.queries_collection):
+	queries = mdb.Collection.find_one(name = p.queries_collection)
+	if (queries == None):
+		error("Unknown collection '%s'" % p.queries_collection)
 
-for sequence, relationship in queries.get_sequences():
-	QuerySequences[str(sequence["name"])] = sequence
+	for sequence, relationship in queries.get_sequences():
+		QuerySequences[str(sequence["name"])] = sequence
 
-hits = mdb.Collection.find_one(name = p.hits_collection)
-if (hits == None):
-	error("Unknown collection '%s'" % p.hits_collection)
+if (p.hits_collection):
+	hits = mdb.Collection.find_one(name = p.hits_collection)
+	if (hits == None):
+		error("Unknown collection '%s'" % p.hits_collection)
 
-for sequence, relationship in hits.get_sequences():
-	HitSequences[str(sequence["name"])] = sequence
-
-print "    %s sequences listed" % (len(QuerySequences) + len(HitSequences))
-
-print "  checking query and hit sequences ..."
-
-Queries, Hits = {}, {}
+	for sequence, relationship in hits.get_sequences():
+		HitSequences[str(sequence["name"])] = sequence
 
 for iteration in document.BlastOutput.BlastOutput_iterations.Iteration:
 	query_id = get_query_id(iteration)
 
-	if (not query_id in QuerySequences):
+	if (p.queries_collection) and (not query_id in QuerySequences):
 		error("Unknown query sequence '%s'" % query_id)
-
-	Queries[query_id] = True
 
 	for hit in iteration.Iteration_hits.Hit:
 		hit_id = get_hit_id(hit)
 
-		if (not hit_id in HitSequences):
+		if (p.hits_collection) and (not hit_id in HitSequences):
 			error("Unknown hit sequence '%s'" % hit_id)
-
-		Hits[hit_id] = True
-
-print "    %s queries, %s hits" % (len(Queries), len(Hits))
-
-del Queries
-del Hits
 
 # Import
 print "  importing HSPs ..."
@@ -149,22 +137,30 @@ int_ = lambda x: int(str(x))
 float_ = lambda x: float(str(x))
 
 for iteration in document.BlastOutput.BlastOutput_iterations.Iteration:
+	r_arguments = {"type": "similar-to"}
+
 	query_id = get_query_id(iteration)
-	query_xref = QuerySequences[query_id]
+
+	if (p.queries_collection):
+		r_arguments["source"] = QuerySequences[query_id]
+	else:
+		r_arguments["custom_source"] = query_id
 
 	for hit in iteration.Iteration_hits.Hit:
 		hit_id = get_hit_id(hit)
-		hit_xref = HitSequences[hit_id]
 
-#		print "    %s -> %s (%s HSPs)" % (query_id, hit_id, len(hit.Hit_hsps.Hsp))
+		if (p.hits_collection):
+			r_arguments["target"] = HitSequences[hit_id]
+		else:
+			r_arguments["custom_target"] = hit_id
 
 		for hsp in hit.Hit_hsps.Hsp:
-			r = mdb.Relationship(source = query_xref, target = hit_xref, type = "similar-to")
+			r = mdb.Relationship(**r_arguments)
 
 			r["source_coordinates"] = (int_(hsp["Hsp_query-from"]), int_(hsp["Hsp_query-to"]))
 			r["target_coordinates"] = (int_(hsp["Hsp_hit-from"]), int_(hsp["Hsp_hit-to"]))
 
-			r["run.date"] = (p.date[0], p.date[1], p.date[2])
+			r["run.date"] = {"year": p.date[0], "month": p.date[1], "day": p.date[2]}
 			r["run.algorithm"] = {
 				"name": str(document.BlastOutput.BlastOutput_program),
 				"version": str(document.BlastOutput.BlastOutput_version),
@@ -190,6 +186,9 @@ for iteration in document.BlastOutput.BlastOutput_iterations.Iteration:
 				}
 			}
 
-			r.commit()
+			if (p.dry_run):
+				print pprint.pformat(r)
+			else:
+				r.commit()
 
 print "    done."

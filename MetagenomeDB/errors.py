@@ -22,4 +22,11 @@ class UncommittedObject (Exception):
 		self.name = name
 
 	def __str__ (self):
+		return self.name
+
+class MalformedObject (Exception):
+	def __init__ (self, msg):
+		self.msg = msg
+
+	def __str__ (self):
 		return self.msg

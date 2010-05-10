@@ -57,8 +57,8 @@ def distinct (collection, field):
 
 	return result_
 
-# Create objects from entries matching a given query, expressed as a JSON tree
-# (see http://www.mongodb.org/display/DOCS/Querying)
+# Create objects from entries matching a given query, expressed as
+# a JSON tree; see http://www.mongodb.org/display/DOCS/Querying
 # Special keys:
 #   - any '_xxx' key will be changed to '$xxx' (e.g., $where), except '_id'
 #   - value for '_id' will be cast into a pymongo.objectid.ObjectId
@@ -93,6 +93,64 @@ def find (collection, query, find_one = False, count = False):
 		return __forge_from_entry(collection, cursor.find_one(query))
 	else:
 		return __forge_from_entries(collection, cursor.find(query))
+
+OUTGOING = 1
+INGOING = 2
+
+# Find neighbors of a given object
+def neighbors (object, direction, neighbor_collection, neighbor_filter = None, relationship_filter = None):
+	if (direction == OUTGOING):
+		here, there = "source", "target"
+	elif (direction == INGOING):
+		here, there = "target", "source"
+	else:
+		raise ValueError("Invalid direction '%s'" % direction)
+
+	if (relationship_filter == None):
+		relationship_filter = {}
+	else:
+		relationship_filter = __clean_query(relationship_filter)
+
+	if (neighbor_filter == None):
+		neighbor_filter = {}
+	else:
+		neighbor_filter = __clean_query(neighbor_filter)
+
+	# (1) list all candidate neighbors, based on the relationship filter only
+	relationship_filter[here] = pymongo.dbref.DBRef(object.__class__.__name__, object["_id"])
+	r = connection.connection()["Relationship"]
+
+	confirmed_neighbors, candidate_neighbors = [], {}
+
+	for relationship in r.find(relationship_filter):
+		# case where the neighbor is a custom object; accepted right away
+		if ("custom_" + there in relationship):
+			confirmed_neighbors.append((relationship["custom_" + there], relationship))
+
+		# case where the neighbor is a dbref; will be evaluated later
+		else:
+			dbref = relationship[there]
+			if (dbref.collection != neighbor_collection):
+				continue
+
+			if (dbref.id not in candidate_neighbors):
+				candidate_neighbors[dbref.id] = []
+
+			candidate_neighbors[dbref.id].append(relationship)
+
+	# (2) filter down those eligible neighbors using the neighbor filter
+	neighbor_filter["_id"] = { "$in": candidate_neighbors.keys() }
+	n = connection.connection()[neighbor_collection]
+
+	def iterator():
+		for neighbor, relationship in confirmed_neighbors:
+			yield neighbor, __forge_from_entry("Relationship", relationship)
+
+		for neighbor in n.find(neighbor_filter):
+			for relationship in candidate_neighbors[neighbor["_id"]]:
+				yield __forge_from_entry(neighbor_collection, neighbor), __forge_from_entry("Relationship", relationship)
+
+	return iterator()
 
 def __clean_query (query):
 	query = tree.traverse(
@@ -143,57 +201,6 @@ def __forge_from_entries (collection, resultset):
 
 		return __generator()
 
-OUTGOING = 1
-INGOING = 2
-
-# Find neighbors of a given object
-def neighbors (object, direction, neighbor_collection, neighbor_filter = None, relationship_filter = None):
-	if (direction == OUTGOING):
-		local_side, distant_side = "source", "target"
-
-	elif (direction == INGOING):
-		local_side, distant_side = "target", "source"
-
-	else:
-		raise ValueError("Invalid end '%s'" % direction)
-
-	# list all eligible neighbors, based on the relationship filter only
-	if (relationship_filter == None):
-		relationship_filter = {}
-	else:
-		relationship_filter = __clean_query(relationship_filter)
-
-	relationship_filter[local_side] = pymongo.dbref.DBRef(object.__class__.__name__, object["_id"])
-	relationships = connection.connection()["Relationship"]
-
-	eligible_neighbors = {}
-
-	for relationship in relationships.find(relationship_filter):
-		dbref = relationship[distant_side]
-		if (dbref.collection != neighbor_collection):
-			continue
-
-		eligible_neighbors[dbref.id] = relationship
-
-	# filter down those eligible neighbors using the neighbor filter
-	if (neighbor_filter == None):
-		neighbor_filter = {}
-	else:
-		neighbor_filter = __clean_query(neighbor_filter)
-
-	neighbor_filter["_id"] = { "$in": eligible_neighbors.keys() }
-	neighbors = connection.connection()[neighbor_collection]
-
-	def __results():
-		for neighbor in neighbors.find(neighbor_filter):
-			relationship = eligible_neighbors[neighbor["_id"]]
-
-			yield \
-				__forge_from_entry(neighbor_collection, neighbor), \
-				__forge_from_entry("Relationship", relationship)
-
-	return __results()
-
 def commit (object, indices):
 	# first case: the object is already committed; we do nothing and return its identifier
 	if (object.is_committed()):
@@ -216,7 +223,6 @@ def commit (object, indices):
 
 		for (index, is_unique) in indices.iteritems():
 			collection.create_index(index, unique = is_unique)
-
 
 	# second case: the object is not committed, and is not in the database
 	if (not "_id" in object):

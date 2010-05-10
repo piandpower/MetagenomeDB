@@ -3,11 +3,9 @@
 import optparse, sys, os, pprint
 import MetagenomeDB as mdb
 
-p = optparse.OptionParser(description = """The 'add' tool is part of the
-MetagenomeDB toolkit. Its purpose is to import objects (Sequence, Collection
-and Relationship) into the database by reading a JSON- or CSV-formatted
-description of those objects (see http://www.json.org/ for an introduction to
-the JSON format). More than one object can be described in the the input file.""")
+p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
+Import objects (Sequence, Collection and Relationship) into the database. Those
+objects are provided as JSON- or CSV-formatted descriptions.""")
 
 p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "Name of the file containing a description of the objects to import")

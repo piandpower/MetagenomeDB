@@ -5,15 +5,17 @@
 
 import optparse, sys, os
 
-p = optparse.OptionParser()
+p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
+Imports nucleotide or aminoacid sequences into the database. Those sequences
+can be in any format supported by Biopython (see http://biopython.org/wiki/SeqIO).""")
 
 g = optparse.OptionGroup(p, "Sequences")
 
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "Sequences to import.")
 
-g.add_option("-f", "--format", dest = "input_format", metavar = "STRING",
-	help = "Format of the sequences file (cf. http://biopython.org/wiki/SeqIO)")
+g.add_option("-f", "--format", dest = "input_format", metavar = "STRING", default = "fasta",
+	help = "Format of the sequences file. Default: %default")
 
 g.add_option("-s", "--sequence-property", dest = "sequence_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
 	help = "Custom sequence property (optional).")

@@ -3,10 +3,9 @@
 import optparse, sys, os, pprint
 import MetagenomeDB as mdb
 
-p = optparse.OptionParser(description = """The 'annotate' tool is part of the
-MetagenomeDB toolkit. Its purpose is to annotate objects already present in the
-database. It reads annotations in either JSON or CSV format (see
-http://www.json.org/ for an introduction to the JSON format).""")
+p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
+Annotate objects in the database. Annotations are provided as either JSON- or
+CSV-formatted files.""")
 
 p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "Name of the file containing the annotations")
