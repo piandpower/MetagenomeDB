@@ -48,7 +48,7 @@ From then you only have to import ``MetagenomeDB`` to start storing and retrievi
 
 	import MetagenomeDB as mdb
 
-	c = mdb.Collection.select(name = "my_collection")
+	c = mdb.Collection.find(name = "my_collection")
 
 	for sequence, relationship in c.get_sequences():
 		print sequence["name"], sequence["sequence"]
