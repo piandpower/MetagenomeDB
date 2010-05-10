@@ -104,7 +104,7 @@ try:
 		print "Removing all content created between %s and %s" % (date1, date2)
 
 		for collection in collections.values():
-			for object in collection.select(creation_time = { "$gte": date1, "$lte": date2 }):
+			for object in collection.find(creation_time = { "$gte": date1, "$lte": date2 }):
 				print object
 
 except Exception as msg:

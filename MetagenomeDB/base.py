@@ -53,12 +53,12 @@ class Object (object):
 	# expressed as a set of (possibly) nested key/values.
 	# If no filter is provided, all instances are returned.
 	@classmethod
-	def select (cls, **filter):
+	def find (cls, **filter):
 		return forge.find(cls.__name__, query = filter)
 
-	# Same as select(), but return only the first instance.
+	# Same as find(), but return only the first instance.
 	@classmethod
-	def select_one (cls, **filter):
+	def find_one (cls, **filter):
 		return forge.find(cls.__name__, query = filter, find_one = True)
 
 	# Remove all objects of this type in the database. Note that

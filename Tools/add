@@ -63,14 +63,14 @@ def retrieve_xref (xref):
 
 		# the xref refers to a Collection
 		if (collection == "Collection"):
-			object = getattr(mdb, collection).select_one(name = xref["@name"])
+			object = getattr(mdb, collection).find_one(name = xref["@name"])
 			if (object == None):
 				raise Exception("Unknown Collection '%s'" % xref["@name"])
 
 		# the xref refers to a Sequence
 		elif (collection == "Sequence"):
 			# we first list all sequences having this name,
-			candidates = mdb.Sequence.select(name = xref["@name"])
+			candidates = mdb.Sequence.find(name = xref["@name"])
 			# then we filter out those that are not linked to this collection
 			object = filter(lambda x: len(list(x.get_collections({ "name": xref["@collection"] }))) > 0, candidates)
 

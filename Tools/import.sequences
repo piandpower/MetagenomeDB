@@ -75,7 +75,7 @@ if (p.collection_properties):
 		print >>sys.stderr, "WARNING: A '_id' field was found in the collection description and ignored."
 		del m["_id"]
 
-	if ("name" in m) and (mdb.Collection.select_one(name = m["name"]) != None):
+	if ("name" in m) and (mdb.Collection.find_one(name = m["name"]) != None):
 		error("Duplicate collection '%s'" % m["name"])
 
 	try:
@@ -86,7 +86,7 @@ if (p.collection_properties):
 
 # Retrieval of an existing collection
 elif (p.collection_name):
-	collection = mdb.Collection.select_one(name = p.collection_name)
+	collection = mdb.Collection.find_one(name = p.collection_name)
 
 	if (collection == None):
 		error("Unknown collection with name '%s'" % p.collection_name)

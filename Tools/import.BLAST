@@ -101,14 +101,14 @@ print "  registering query and hit collections ..."
 
 QuerySequences, HitSequences = {}, {}
 
-queries = mdb.Collection.select_one(name = p.queries_collection)
+queries = mdb.Collection.find_one(name = p.queries_collection)
 if (queries == None):
 	error("Unknown collection '%s'" % p.queries_collection)
 
 for sequence, relationship in queries.get_sequences():
 	QuerySequences[str(sequence["name"])] = sequence
 
-hits = mdb.Collection.select_one(name = p.hits_collection)
+hits = mdb.Collection.find_one(name = p.hits_collection)
 if (hits == None):
 	error("Unknown collection '%s'" % p.hits_collection)
 
