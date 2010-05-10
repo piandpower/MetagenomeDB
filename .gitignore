@@ -2,3 +2,4 @@
 *.pyc
 Tools,custom
 latest_commit.txt
+build
