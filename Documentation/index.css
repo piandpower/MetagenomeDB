@@ -1,0 +1,89 @@
+BODY {
+	margin: 0;
+	padding: 10px;
+	font-family: Georgia, serif;
+	font-size: 16px;
+	color: #000;
+}
+
+PRE {
+	font-family: Fixedsys, Monaco, Courier;
+	font-size: 9pt;
+	padding: 2px 0 2px 7pt;
+	border-left: 5px solid #d2f2f1;
+	margin-left: 40px;
+	color: #003f3f;
+	background: #faffff;
+	overflow: auto;
+	width: 90%;
+ }
+
+CODE, TT {
+	font-family: Fixedsys, Monaco, Courier;
+	font-size: 10pt;
+	color: #8F1D00;
+ }
+
+H1.title {
+	margin-top: 0px;
+	font-size: 21px;
+	border: none;
+	text-align: center;
+}
+
+H1 {
+	font-size: 19px;
+	border-bottom: 1px solid #aaa;
+	margin-top: 20px;
+}
+
+H2 {
+	font-size: 18px;
+	margin-left: 20px;
+	margin-top: 20px;
+}
+
+H3 {
+	font-size: 16px;
+	margin-left: 20px;
+}
+
+H4 {
+	font-size: 16px;
+	margin-left: 20px;
+	font-weight: normal;
+}
+
+P {
+	text-indent: 20px;
+}
+
+A, A:hover, A:visited {
+	color: #000;
+	text-decoration: none;
+	text-transformation: none;
+	border-bottom: 1px dashed #aaa;	
+}
+
+H2 > A, H2 > A:hover, H2 > A:visited,
+H3 > A, H3 > A:hover, H3 > A:visited,
+H4 > A, H4 > A:hover, H4 > A:visited,
+DIV.contents * A, DIV.contents * A:visited {
+	border-bottom: none;
+}
+
+DIV.note {
+	border: 1px solid #7099C5;
+	background: #f4ffff;
+	padding: 0;
+	margin-left: 20px;
+	margin-right: 20px;
+	-webkit-border-radius: 8px;
+	-moz-border-radius: 8px;
+}
+
+DIV.note > P.first {
+	font-weight: bold;
+	display: inline;
+	padding: 4px 0 0 4px;
+}
