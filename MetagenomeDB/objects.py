@@ -2,22 +2,26 @@
 
 import connection, forge, tree, errors, commons
 import pymongo
-import sys, datetime
+import sys, datetime, itertools
 
+# Base object.
 class Object (object):
 
-	# Create a new object wrapping a MongoDB collection.
-	# - properties: dictionary of key/values for this object
-	# - indices: dictionary of which keys will be set as indexes for the
-	#   MongoDB collection. Values are booleans that indicate if this index
-	#   must contains unique values.
-	def __init__ (self, properties, indices):
+	# Create a new base object.
+	#	properties -- (dictionary) object annotations. Nested properties can
+	#		be expressed using dot notation.
+	def __init__ (self, **properties):
 		self.__properties = {}
-		self.__indices = indices
 
 		for key, value in properties.iteritems():
 			key = tree.validate_key(key)
 			tree.set(self.__properties, key, value)
+
+		if ("_indices" in self.__properties):
+			self.__indices = self.__properties["_indices"]
+			del self.__properties["_indices"]
+		else:
+			self.__indices = {}
 
 		# if the object is provided with an identifier,
 		# we check if this identifier is present in the
@@ -36,46 +40,12 @@ class Object (object):
 		else:
 			self.__committed = False
 
-	#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: Class methods
+		# TODO: prevent the user to inject 'internal' keys; e.g., _creation_time
 
-	# Count the number of instances of this object in the database
-	@classmethod
-	def count (cls, **filter):
-		return forge.count(cls.__name__, query = filter)
-
-	# Retrieve distinct values (and number of objects having this value) for
-	# a given property
-	@classmethod
-	def distinct (cls, property):
-		return forge.distinct(cls.__name__, property)
-
-	# Select instances of this object that pass a filter,
-	# expressed as a set of (possibly) nested key/values.
-	# If no filter is provided, all instances are returned.
-	@classmethod
-	def find (cls, **filter):
-		return forge.find(cls.__name__, query = filter)
-
-	# Same as find(), but return only the first instance.
-	@classmethod
-	def find_one (cls, **filter):
-		return forge.find(cls.__name__, query = filter, find_one = True)
-
-	# Remove all objects of this type in the database. Note that
-	# any existing instance of this object remains in memory, albeit
-	# flagged as uncommitted.
-	@classmethod
-	def remove_all (cls):
-		forge.remove_all(cls.__name__)
-
-	#:::::::::::::::::::::::::::::::::::::::::::::::::::::::: Instances methods
-
-	# Test if this object has been committed to the database.
-	def is_committed (self):
-		return self.__committed
-
-	# Commit this instance of this object to the database.
-	# The new identifier of this object is returned.
+	# Commit this object to the database.
+	#	patch -- (dictionary) transient properties patch; set of properties
+	#		that will be added to the object prior commit. Those properties
+	#		are removed (or restored, if overwritten) after commit.
 	def commit (self, **patch):
 		if (self.__committed):
 			return
@@ -96,10 +66,79 @@ class Object (object):
 		for (key, value) in tmp.iteritems():
 			self.__properties[key] = value
 
-		return id
+	# Count the number of object of this type in the database.
+	#	filter -- (dictionary) optional filter.
+	@classmethod
+	def count (cls, **filter):
+		return forge.count(cls.__name__, query = filter)
 
-	# Remove this object from the database. The object
-	# remains in memory, albeit flagged as uncommitted.
+	# Count instances of this object having distinct values for a given property.
+	#	property -- property to count objects for.
+	# Return a dictionary with distinct values for this property as keys, and
+	# number of objects having this value as value.
+	@classmethod
+	def distinct (cls, property):
+		return forge.distinct(cls.__name__, property)
+
+	# Find all instances of this object that match a query.
+	#	filter -- (dictionary) query, or None if all objects are to be returned.
+	# Return the objects selected, as a generator.
+	@classmethod
+	def find (cls, **filter):
+		return forge.find(cls.__name__, query = filter)
+
+	# Find the first (or only) instance of this object that match a query.
+	#	filter -- (dictionary) query, or None if all objects are to be returned.
+	@classmethod
+	def find_one (cls, **filter):
+		return forge.find(cls.__name__, query = filter, find_one = True)
+
+	# Return a copy of all of this object's properties.
+	# Return a dictionary.
+	def get_properties (self):
+		return self.__properties.copy()
+
+	# Return the value for a given property.
+	#	property -- property to retrieve. Nested properties can be requested
+	#		using a dot notation.
+	#	default -- default value to return if the property is not set.
+	def get_property (self, key, default = None):
+		try:
+			return self.__getitem__(key)
+
+		except KeyError:
+			return default
+
+	INGOING, REFERRING = 1, 1
+	OUTGOING, REFERRED = 2, 2
+	BOTH = 3
+
+	# Return anonymous objects this object is related to.
+	#	direction -- either Object.INGOING (or Object.REFERRING; anonymous
+	#		objects referring to this object) or Object.OUTGOING (or
+	#		Object.REFERRED; anonymous objects refered to be this object).
+	#	object_filter -- filter to apply on the related anoynmous objects.
+	#	relationship_filter -- filter to apply on the relationship between this
+	#		object and the related anonymous objects.
+	# Return the related anonymous objects as a generator.
+	def get_related_objects (self, direction, object_filter = None, relationship_filter = None):
+		ingoing, outgoing = [], []
+
+		if (direction & self.INGOING != 0):
+			ingoing = forge.find_neighbors(self, forge.INGOING, "Object", object_filter, relationship_filter)
+
+		if (direction & self.OUTGOING != 0):
+			outgoing = forge.find_neighbors(self, forge.OUTGOING, "Object", object_filter, relationship_filter)
+
+		return itertools.chain(ingoing, outgoing)
+
+	# Test if this object has been committed to the database.
+	# Return a boolean.
+	def is_committed (self):
+		return self.__committed
+
+	# Remove this object from the database.
+	# Note: The object remains in memory, flagged as uncommitted.
 	def remove (self):
 		if (not self.__committed):
 			raise errors.UncommittedObject()
@@ -107,6 +146,12 @@ class Object (object):
 		forge.remove(self)
 		del self.__properties["_id"]
 		self.__committed = False
+
+	# Remove all objects of this type in the database.
+	# Note: any existing instance of this object remains in memory, flagged as uncommitted.
+	@classmethod
+	def remove_all (cls):
+		forge.remove_all(cls.__name__)
 
 	def __del__ (self):
 		# if the object is destroyed due to an exception thrown during
@@ -116,28 +161,6 @@ class Object (object):
 
 		if ((not self.__committed) and commons.display_warnings):
 			print >>sys.stderr, "WARNING: Object %s has been destroyed without having been committed" % self
-
-	# Find neighbors of this object in the database, as declared through
-	# 'Relationship' objects.
-	# - direction: either INGOING (objects pointing to this object) or
-	#   OUTGOING (objects pointed by this object)
-	# - neighbor_class: class of the neighbors to look for
-	# - neighbor_filter: neighbor filter, expressed as a nested dictionary
-	# - relationship_filter: relationship filter, expressed as a nested dictionary
-	# Note: This method shouldn't be called directly by the user.
-	def get_neighbors (self, direction, neighbor_class, neighbor_filter, relationship_filter):
-		if (not self.__committed):
-			raise errors.UncommittedObject()
-
-		return forge.neighbors(
-			self,
-			direction,
-			neighbor_class,
-			neighbor_filter,
-			relationship_filter
-		)
-
-	#:::::::::::::::::::::::::::::::::::::::::::::::::: Properties manipulation
 
 	def __setitem__ (self, key, value):
 		keys = tree.validate_key(key)
@@ -168,26 +191,11 @@ class Object (object):
 		keys = tree.validate_key(key)
 		return tree.contains(self.__properties, keys)
 
-	# Returns a copy of this object's properties, as a nested dictionary.
-	def get_properties (self):
-		return self.__properties.copy()
-
-	# Return the value of a given property, or a default one if this
-	# property doesn't exist.
-	def get_property (self, key, default = None):
-		try:
-			return self.__getitem__(key)
-
-		except KeyError:
-			return default
-
-	#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: Misc. methods
-
 	def __str__ (self):
-		if (hasattr(self, "__committed") and self.__committed):
-			return "<Object %s>" % id
-		else:
-			return "<Object (uncommitted)>"
+		return "<Object id:%s state:'%s'>" % (
+			self.get_property("_id", "none"),
+			{True: "committed", False: "uncommitted"}[self.is_committed()],
+		)
 
 	def __repr__ (self):
 		return self.__str__()
@@ -208,38 +216,45 @@ class Sequence (Object):
 		# TODO: Check the sequence length; if too big (what is the limit?)
 		#       we should store it using gridfs
 
-		if (not "length" in properties):
-			properties["length"] = len(properties["sequence"])
+		properties["length"] = len(properties["sequence"])
 
-		super(Sequence, self).__init__(properties, {
-			"name": False,
-			"length": False,
-			"class": False,
-		})
+		properties["_indices.name"] = False
+		properties["_indices.length"] = False
+		properties["_indices.class"] = False
+
+		super(Sequence, self).__init__(**properties)
 
 	# Return collections this sequence is part of.
 	# - collection_filter: collection filter, expressed as a nested dictionary
 	# - relationship_filter: relationship filter, expressed as a nested dictionary 
 	def get_collections (self, collection_filter = None, relationship_filter = None):
-		return self.get_neighbors(forge.OUTGOING, "Collection", collection_filter, relationship_filter)
+		return forge.find_neighbors(self, forge.OUTGOING, "Collection", collection_filter, relationship_filter)
 
-	# Return sequences this sequence refers to.
-	# - sequence_filter: sequence filter, expressed as a nested dictionary
-	# - relationship_filter: relationship filter, expressed as a nested dictionary 
-	def get_refereed_sequences (self, sequence_filter = None, relationship_filter = None):
-		return self.get_neighbors(forge.OUTGOING, "Sequence", sequence_filter, relationship_filter)
+	# Return sequences this sequence is related to.
+	#	direction -- either Sequence.INGOING (sequences referring to this sequence;
+	#		Sequence.REFERRING can also be used) or Sequence.OUTGOING (sequences
+	#		refered to be this sequence; Sequence.REFEREED can also be used).
+	#	sequence_filter -- filter to apply on the related sequences.
+	#	relationship_filter -- filter to apply on the relationship between this
+	#		sequence and the related sequences.
+	# Return the related sequences as a generator.
+	def get_related_sequences (self, direction, sequence_filter = None, relationship_filter = None):
+		ingoing, outgoing = [], []
 
-	# Return sequences referring this sequence.
-	# - sequence_filter: sequence filter, expressed as a nested dictionary
-	# - relationship_filter: relationship filter, expressed as a nested dictionary 
-	def get_referring_sequences (self, sequence_filter = None, relationship_filter = None):
-		return self.get_neighbors(forge.INGOING, "Sequence", sequence_filter, relationship_filter)
+		if (direction & self.INGOING != 0):
+			ingoing = forge.find_neighbors(self, forge.INGOING, "Sequence", sequence_filter, relationship_filter)
+
+		if (direction & self.OUTGOING != 0):
+			outgoing = forge.find_neighbors(self, forge.OUTGOING, "Sequence", sequence_filter, relationship_filter)
+
+		return itertools.chain(ingoing, outgoing)
 
 	def __str__ (self):
-		return "<Sequence id:%s name:'%s' len:%s>" % (
-			self.get_property("_id", "(uncommitted)"),
+		return "<Sequence id:%s name:'%s' length:%s state:'%s'>" % (
+			self.get_property("_id", "none"),
 			self["name"],
-			self["length"]
+			self["length"],
+			{True: "committed", False: "uncommitted"}[self.is_committed()],
 		)
 
 # Collection of Sequence objects.
@@ -249,31 +264,54 @@ class Collection (Object):
 		if (not "name" in properties):
 			raise errors.MalformedObject("Property 'name' is missing")
 
-		super(Collection, self).__init__(properties, {
-			"name": True,
-			"class": False,
-		})
+		properties["_indices.name"] = True
+		properties["_indices.class"] = False
+
+		super(Collection, self).__init__(**properties)
+
+	# Add a sequence object to this collection.
+	def add_sequence (self, sequence, relationship = None):
+		# TO DO
+		raise NotImplementedError
+
+	# Remove a sequence object from this collection.
+	# Note: Raise a ObjectNotFound error if the sequence is not part of this collection.
+	def remove_sequence (self, sequence, relationship = None):
+		# TO DO
+		raise NotImplementedError
 
 	# Return collections this collection is part of.
-	# - collection_filter: collection filter, expressed as a nested dictionary
-	# - relationship_filter: relationship filter, expressed as a nested dictionary 
+	#	collection_filter -- filter to apply on the super-collections
+	#	relationship_filter -- filter to apply on the relationship between this
+	#		collection and the related super-collections 
+	# Return the related collections as a generator.
 	def get_supercollections (self, collection_filter = None, relationship_filter = None):
-		return self.get_neighbors(forge.OUTGOING, "Collection", collection_filter, relationship_filter)
+		return forge.find_neighbors(self, forge.OUTGOING, "Collection", collection_filter, relationship_filter)
 
 	# Return collections that are part of this collection.
-	# - collection_filter: collection filter, expressed as a nested dictionary
-	# - relationship_filter: relationship filter, expressed as a nested dictionary 
+	#	collection_filter -- filter to apply on the sub-collections
+	#	relationship_filter -- filter to apply on the relationship between this
+	#		collection and the related sub-collections 
+	# Return the related collections as a generator.
 	def get_subcollections (self, collection_filter = None, relationship_filter = None):
-		return self.get_neighbors(forge.INGOING, "Collection", collection_filter, relationship_filter)
+		return forge.find_neighbors(self, forge.INGOING, "Collection", collection_filter, relationship_filter)
 
 	# Return sequences that are part of this collection.
 	# - sequence_filter: sequence filter, expressed as a nested dictionary
 	# - relationship_filter: relationship filter, expressed as a nested dictionary 
+	#	sequence_filter -- filter to apply on the related sequences.
+	#	relationship_filter -- filter to apply on the relationship between this
+	#		sequence and the related sequences.
+	# Return the related sequences as a generator.
 	def get_sequences (self, sequence_filter = None, relationship_filter = None):
-		return self.get_neighbors(forge.INGOING, "Sequence", sequence_filter, relationship_filter)
+		return forge.find_neighbors(self, forge.INGOING, "Sequence", sequence_filter, relationship_filter)
+
+	def count_sequences (self, sequence_filter = None, relationship_filter = None):
+		return forge.find_neighbors(self, forge.INGOING, "Sequence", sequence_filter, relationship_filter, count = True)
 
 	# Remove this collection from the database.
-	# - remove_sequences: if True, remove also the sequences that belong to this collection
+	#	remove_sequences -- (boolean) if True, remove also the sequences that
+	#		belong to this collection
 	# TODO: allow the removal of super- and sub-collections
 	def remove (self, remove_sequences = False):
 		if (remove_sequences):
@@ -283,125 +321,86 @@ class Collection (Object):
 		super(Collection, self).remove()
 
 	def __str__ (self):
-		return "<Collection id:%s name:'%s'>" % (
-			self.get_property("_id", "(uncommitted)"),
-			self["name"]
+		return "<Collection id:%s name:'%s' state:'%s'>" % (
+			self.get_property("_id", "none"),
+			self["name"],
+			{True: "committed", False: "uncommitted"}[self.is_committed()],
 		)
 
 # Relationship between Collection and/or Sequence objects.
 class Relationship (Object):
 
 	def __init__ (self, **properties):
-		self.__is_custom = {}
-
-		for load in ("source", "target"):
-			custom_load = "custom_" + load
-
-			if (load in properties):
-				if (custom_load in properties):
-					raise errors.MalformedObject("Properties '%s' and '%s' can not coexist" % (load, custom_load))
-
-				properties[load] = Relationship.__validate_target_or_source(properties[load], load)
-				self.__is_custom[load] = False
-
-			elif (custom_load in properties):
-				self.__is_custom[load] = True
-
+		for key in ("source", "target"):
+			if (key in properties):
+				properties[key] = Relationship.__validate(properties[key], key)
 			else:
 				raise errors.MalformedObject("Property '%s' is missing" % key)
 
 		if (not "type" in properties):
 			raise errors.MalformedObject("Property 'type' is missing")
 
-		super(Relationship, self).__init__(properties, {
-			"source": False,
-			"target": False,
-			"custom_source": False,
-			"custom_target": False,
-			"type": False,
-		})
+		properties["_indices.source"] = False
+		properties["_indices.target"] = False
+		properties["_indices.type"] = False
 
-	# Hook to validate sources and targets on-the-fly
+		super(Relationship, self).__init__(**properties)
+
 	def __setitem__ (self, key, value):
 		if (key in ("source", "target")):
-			Relationship.__validate_target_or_source(value, key)
-			if (self.__is_custom[key]):
-				del self["custom_%s" % key]
-
-			self.__is_custom[key] = False
-
-		elif (key in ("custom_source", "custom_target")):
-			key_ = key[7:]
-			if (not self.__is_custom[key_]):
-				del self[key_]
-
-			self.__is_custom[key_] = True
+			value = Relationship.__validate(value, key)
 
 		super(Relationship, self).__setitem__(key, value)
 
-	# Validate objects provided as either source or target
 	@classmethod
-	def __validate_target_or_source (cls, object, side):
-		if (isinstance(object, pymongo.dbref.DBRef)) and (object.collection in ("Collection", "Sequence")):
+	def __validate (cls, object, side):
+		if (isinstance(object, pymongo.dbref.DBRef)) and (object.collection in ("Collection", "Sequence", "Object")):
 			return forge.find(object.collection, object.id, True)
 
-		elif (isinstance(object, Collection) or isinstance(object, Sequence)):
+		elif (object.__class__.__name__ in ("Collection", "Sequence", "Object")):
 			return object
 
 		else:
-			raise errors.MalformedObject("Invalid value for '%s': must be a Collection or Sequence object" % side)
+			raise errors.MalformedObject("Invalid value for '%s': must be an Object, Collection or Sequence object" % side)
 
-	# Return the collection or sequence declared as the source of this relationship.
+	# Return the object declared as the source of this relationship.
 	def get_source (self):
-		if self.is_source_custom():
-			return self["custom_source"]
-		else:
-			return self["source"]
+		return self["source"]
 
-	def is_source_custom (self):
-		return self.__is_custom["source"]
-
-	# Return the collection or sequence declared as the target of this relationship.
+	# Return the object declared as the target of this relationship.
 	def get_target (self):
-		if self.is_target_custom():
-			return self["custom_target"]
-		else:
-			return self["target"]
-
-	def is_target_custom (self):
-		return self.__is_custom["target"]
+		return self["target"]
 
 	def commit (self):
 		patch = {}
 
-		if (not self.is_source_custom()):
-			source = self["source"]
-			source.commit()
-			patch["source"] = pymongo.dbref.DBRef(source.__class__.__name__, source["_id"])
+		source = self["source"]
+		source.commit()
+		patch["source"] = pymongo.dbref.DBRef(source.__class__.__name__, source["_id"])
 
-		if (not self.is_target_custom()):
-			target = self["target"]
-			target.commit()
-			patch["target"] = pymongo.dbref.DBRef(target.__class__.__name__, target["_id"])
+		target = self["target"]
+		target.commit()
+		patch["target"] = pymongo.dbref.DBRef(target.__class__.__name__, target["_id"])
 
 		super(Relationship, self).commit(**patch)
 
 	# Remove this relationship from the database.
-	# - remove_source: if True, remove also the source object
-	# - remove_target: if True, remove also the target object
+	#	remove_source -- if True, remove also the source object
+	#	remove_target -- if True, remove also the target object
 	def remove (self, remove_source = False, remove_target = False):
-		if (remove_source and not self.is_source_custom()):
+		if (remove_source):
 			self["source"].remove()
 
-		if (remove_target and not self.is_target_custom()):
+		if (remove_target):
 			self["target"].remove()
 
 		super(Relationship, self).remove()
 
 	def __str__ (self):
-		return "<Relationship id:%s source:%s %s target:%s>" % (
-			self.get_property("_id", "(uncommitted)"),
-			self.get_property("source", "(custom)"),
+		return "<Relationship id:%s source:%s %s target:%s state:'%s'>" % (
+			self.get_property("_id", "none"),
+			self["source"],
 			self["type"],
-			self.get_property("target", "(custom)")
+			self["target"],
+			{True: "committed", False: "uncommitted"}[self.is_committed()],
 		)

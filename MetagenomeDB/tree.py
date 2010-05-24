@@ -55,18 +55,21 @@ def get (d, keys):
 #   > m = {'a': {'b': {'c': 1}, 'd': 2}}
 #   > print keys(m)
 #   [(('a', 'b', 'c'), 1), (('a', 'd'), 2)]
-def keys (d, path = []):
-	branches = []
-	for key in d:
-		value = d[key]
-		path_ = path + [key]
+def items (d):
+	def walk (d, b = []):
+		items = []
 
-		if (type(value) == dict):
-			branches.extend(keys(value, path_))
-		else:
-			branches.append((tuple(path_), value))
+		for key in d:
+			branch, value = b + [key], d[key]
 
-	return branches
+			if (type(value) == dict):
+				items.extend(walk(value, branch))
+			else:
+				items.append((tuple(branch), value))
+
+		return items
+
+	return walk(d)
 
 # Delete a hiearchy of keys
 def delete (d, keys):

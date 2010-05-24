@@ -94,7 +94,7 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 			continue
 
 		for object in objects:
-			for key, value in mdb.tree.keys(entry):
+			for key, value in mdb.tree.items(entry):
 				# we ignore any key hierarchy which contains a
 				# special key (i.e., key starting with a '@')
 				if (not key_filter(key)):

@@ -98,7 +98,7 @@ OUTGOING = 1
 INGOING = 2
 
 # Find neighbors of a given object
-def neighbors (object, direction, neighbor_collection, neighbor_filter = None, relationship_filter = None):
+def find_neighbors (object, direction, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
 	if (direction == OUTGOING):
 		here, there = "source", "target"
 	elif (direction == INGOING):
@@ -106,46 +106,43 @@ def neighbors (object, direction, neighbor_collection, neighbor_filter = None, r
 	else:
 		raise ValueError("Invalid direction '%s'" % direction)
 
+	if (not object.is_committed()):
+		raise errors.UncommittedObject()
+
+	# (1) list all candidate neighbors, based on the relationship filter only
 	if (relationship_filter == None):
 		relationship_filter = {}
 	else:
 		relationship_filter = __clean_query(relationship_filter)
 
+	relationship_filter[here] = pymongo.dbref.DBRef(object.__class__.__name__, object["_id"])
+	r = connection.connection()["Relationship"]
+
+	candidate_neighbors = {}
+
+	for relationship in r.find(relationship_filter):
+		dbref = relationship[there]
+		if (dbref.collection != neighbor_collection):
+			continue
+
+		if (dbref.id not in candidate_neighbors):
+			candidate_neighbors[dbref.id] = []
+
+		candidate_neighbors[dbref.id].append(relationship)
+
+	# (2) filter down those eligible neighbors using the neighbor filter
 	if (neighbor_filter == None):
 		neighbor_filter = {}
 	else:
 		neighbor_filter = __clean_query(neighbor_filter)
 
-	# (1) list all candidate neighbors, based on the relationship filter only
-	relationship_filter[here] = pymongo.dbref.DBRef(object.__class__.__name__, object["_id"])
-	r = connection.connection()["Relationship"]
-
-	confirmed_neighbors, candidate_neighbors = [], {}
-
-	for relationship in r.find(relationship_filter):
-		# case where the neighbor is a custom object; accepted right away
-		if ("custom_" + there in relationship):
-			confirmed_neighbors.append((relationship["custom_" + there], relationship))
-
-		# case where the neighbor is a dbref; will be evaluated later
-		else:
-			dbref = relationship[there]
-			if (dbref.collection != neighbor_collection):
-				continue
-
-			if (dbref.id not in candidate_neighbors):
-				candidate_neighbors[dbref.id] = []
-
-			candidate_neighbors[dbref.id].append(relationship)
-
-	# (2) filter down those eligible neighbors using the neighbor filter
 	neighbor_filter["_id"] = { "$in": candidate_neighbors.keys() }
 	n = connection.connection()[neighbor_collection]
 
-	def iterator():
-		for neighbor, relationship in confirmed_neighbors:
-			yield neighbor, __forge_from_entry("Relationship", relationship)
+	if (count):
+		return n.find(neighbor_filter).count()
 
+	def iterator():
 		for neighbor in n.find(neighbor_filter):
 			for relationship in candidate_neighbors[neighbor["_id"]]:
 				yield __forge_from_entry(neighbor_collection, neighbor), __forge_from_entry("Relationship", relationship)
@@ -226,12 +223,12 @@ def commit (object, indices):
 
 	# second case: the object is not committed, and is not in the database
 	if (not "_id" in object):
-		object["creation_time"] = datetime.datetime.now()
+		object["_creation_time"] = datetime.datetime.now()
 		verb = "created"
 
 	# third case: the object is not committed, but a former version exists in the database
 	else:
-		object["modification_time"] = datetime.datetime.now()
+		object["_modification_time"] = datetime.datetime.now()
 		verb = "updated"
 
 	try:

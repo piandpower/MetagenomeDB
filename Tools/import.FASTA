@@ -192,7 +192,7 @@ for query_id in HSP:
 	if (p.queries_collection):
 		r_arguments["source"] = QuerySequences[query_id]
 	else:
-		r_arguments["custom_source"] = query_id
+		r_arguments["source"] = mdb.Object(id = query_id)
 
 	run, hits = HSP[query_id]
 
@@ -206,7 +206,7 @@ for query_id in HSP:
 		if (p.hits_collection):
 			r_arguments["target"] = HitSequences[hit_id]
 		else:
-			r_arguments["custom_target"] = hit_id
+			r_arguments["target"] = mdb.Object(id = hit_id)
 
 		r = mdb.Relationship(**r_arguments)
 

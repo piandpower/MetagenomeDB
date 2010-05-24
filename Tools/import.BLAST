@@ -144,51 +144,55 @@ for iteration in document.BlastOutput.BlastOutput_iterations.Iteration:
 	if (p.queries_collection):
 		r_arguments["source"] = QuerySequences[query_id]
 	else:
-		r_arguments["custom_source"] = query_id
+		r_arguments["source"] = mdb.Object(**query_id)
 
-	for hit in iteration.Iteration_hits.Hit:
-		hit_id = get_hit_id(hit)
+	try:
+		for hit in iteration.Iteration_hits.Hit:
+			hit_id = get_hit_id(hit)
 
-		if (p.hits_collection):
-			r_arguments["target"] = HitSequences[hit_id]
-		else:
-			r_arguments["custom_target"] = hit_id
+			if (p.hits_collection):
+				r_arguments["target"] = HitSequences[hit_id]
+			else:
+				r_arguments["target"] = mdb.Object(**hit_id)
 
-		for hsp in hit.Hit_hsps.Hsp:
-			r = mdb.Relationship(**r_arguments)
+			for hsp in hit.Hit_hsps.Hsp:
+				r = mdb.Relationship(**r_arguments)
 
-			r["source_coordinates"] = (int_(hsp["Hsp_query-from"]), int_(hsp["Hsp_query-to"]))
-			r["target_coordinates"] = (int_(hsp["Hsp_hit-from"]), int_(hsp["Hsp_hit-to"]))
+				r["source_coordinates"] = (int_(hsp["Hsp_query-from"]), int_(hsp["Hsp_query-to"]))
+				r["target_coordinates"] = (int_(hsp["Hsp_hit-from"]), int_(hsp["Hsp_hit-to"]))
 
-			r["run.date"] = {"year": p.date[0], "month": p.date[1], "day": p.date[2]}
-			r["run.algorithm"] = {
-				"name": str(document.BlastOutput.BlastOutput_program),
-				"version": str(document.BlastOutput.BlastOutput_version),
-				"parameters": parameters,
-			}
+				r["run.date"] = {"year": p.date[0], "month": p.date[1], "day": p.date[2]}
+				r["run.algorithm"] = {
+					"name": str(document.BlastOutput.BlastOutput_program),
+					"version": str(document.BlastOutput.BlastOutput_version),
+					"parameters": parameters,
+				}
 
-			r["alignment"] = {
-				"source": str(hsp["Hsp_qseq"]),
-				"conservation": str(hsp["Hsp_midline"]),
-				"target": str(hsp["Hsp_hseq"]),
-			}
+				r["alignment"] = {
+					"source": str(hsp["Hsp_qseq"]),
+					"conservation": str(hsp["Hsp_midline"]),
+					"target": str(hsp["Hsp_hseq"]),
+				}
 
-			r["score"] =  {
-				"fraction_identical": 100 * float_(hsp["Hsp_identity"]) / float_(hsp["Hsp_align-len"]),
-				"fraction_conserved": 100 * float_(hsp["Hsp_positive"]) / float_(hsp["Hsp_align-len"]),
-				"expectation": {
-					"e_value": float_(hsp["Hsp_evalue"]),
-					"search_space": {
-						"database_name": str(document.BlastOutput.BlastOutput_db),
-						"number_of_sequences": int_(iteration.Iteration_stat.Statistics["Statistics_db-num"]),
-						"number_of_residues": int_(iteration.Iteration_stat.Statistics["Statistics_db-len"]),
+				r["score"] =  {
+					"fraction_identical": 100 * float_(hsp["Hsp_identity"]) / float_(hsp["Hsp_align-len"]),
+					"fraction_conserved": 100 * float_(hsp["Hsp_positive"]) / float_(hsp["Hsp_align-len"]),
+					"expectation": {
+						"e_value": float_(hsp["Hsp_evalue"]),
+						"search_space": {
+							"database_name": str(document.BlastOutput.BlastOutput_db),
+							"number_of_sequences": int_(iteration.Iteration_stat.Statistics["Statistics_db-num"]),
+							"number_of_residues": int_(iteration.Iteration_stat.Statistics["Statistics_db-len"]),
+						}
 					}
 				}
-			}
 
-			if (p.dry_run):
-				print pprint.pformat(r)
-			else:
-				r.commit()
+				if (p.dry_run):
+					print pprint.pformat(r)
+				else:
+					r.commit()
+
+	except AttributeError:
+		continue
 
 print "    done."
