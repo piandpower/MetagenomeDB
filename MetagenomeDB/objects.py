@@ -1,6 +1,6 @@
 # base.py: root class abstracting the MongoDB content
 
-import connection, forge, tree, errors, commons
+import forge, tree, errors, commons
 import pymongo
 import sys, datetime, itertools
 
@@ -279,6 +279,12 @@ class Collection (Object):
 	def remove_sequence (self, sequence, relationship = None):
 		# TO DO
 		raise NotImplementedError
+
+	def has_sequence (self, sequence):
+		if (type(sequence) == Sequence):
+			sequence = sequence["name"]
+
+		return forge.has_neighbor(self, forge.INGOING, "Sequence", {"name": sequence})
 
 	# Return collections this collection is part of.
 	#	collection_filter -- filter to apply on the super-collections

@@ -3,26 +3,21 @@
 import optparse, sys, os, re, time, pprint
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
-Imports XML-formatted BLAST alignments into the database.""")
+Imports ACE-formatted mapping between reads and contigs into the database.""")
 
-g = optparse.OptionGroup(p, "BLAST")
+g = optparse.OptionGroup(p, "ACE")
 
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
-	help = "Output of a BLAST sequence alignment.")
+	help = "ACE file.")
 
-g.add_option("--query-collection", dest = "queries_collection", metavar = "STRING",
-	help = """Name of the collection the query sequences belong to. If not
-provided, the query sequences are assumed to be external to the database.""")
+g.add_option("--reads-collection", dest = "reads_collection", metavar = "STRING",
+	help = "Name of the collection the reads belong to.")
 
-g.add_option("--hit-collection", dest = "hits_collection", metavar = "STRING",
-	help = """Name of the collection the hit sequences belong to. If not
-provided, the hit sequences are assumed to be external to the database.""")
+g.add_option("--contigs-collection", dest = "contigs_collection", metavar = "STRING",
+	help = "Name of the collection the contigs belong to.")
 
-g.add_option("--date", dest = "date", nargs = 3, type = "int",
-	help = "Date of the BLAST run (year, month, day). By default, creation date of the input file.")
-
-g.add_option("--query-id-getter", dest = "query_id_getter", metavar = "PYTHON CODE", default = "{Iteration_query-ID}")
-g.add_option("--hit-id-getter", dest = "hit_id_getter", metavar = "PYTHON CODE", default = "{Hit_id}")
+g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%.rd.name")
+g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON CODE", default = "%.name")
 
 p.add_option_group(g)
 
@@ -36,34 +31,17 @@ def error (msg):
 	sys.exit(1)
 
 if (p.input_fn == None):
-	error("A XML-formatted BLAST alignment output file must be provided")
+	error("An ACE file must be provided")
 
 if (not os.path.exists(p.input_fn)):
 	error("File '%s' not found" % p.input_fn)
 
-if ((p.queries_collection == None) + (p.hits_collection == None) == 2):
-	error("A collection must be provided for either query or hit sequences")
-
-if (not p.date):
-	date = time.localtime(os.path.getmtime(p.input_fn))
-	p.date = (date.tm_year, date.tm_mon, date.tm_mday)
-
-else:
-	try:
-		y, m, d = p.date
-		assert (y > 1990), "value '%s' is incorrect for year" % y
-		assert (m > 0) and (m < 13), "value '%s' is incorrect for month" % m
-		assert (d > 0) and (d < 32), "value '%s' is incorrect for day" % d
-
-	except Exception, msg:
-		error("Invalid date: %s" % msg)
+if (p.reads_collection == None)  or (p.contigs_collection == None):
+	error("A collection must be provided for both reads and contigs")
 
 try:
-	pattern = re.compile("<(.*?)>")
-	repl = r"str(x['\1'])"
-
-	get_query_id = eval("lambda x: " + pattern.sub(repl, p.query_id_getter))
-	get_hit_id = eval("lambda x: " + pattern.sub(repl, p.hit_id_getter))
+	get_read_id = eval("lambda x: " + p.read_id_getter.replace('%', 'x'))
+	get_contig_id = eval("lambda x: " + p.contig_id_getter.replace('%', 'x'))
 
 except SyntaxError, e:
 	error("Invalid getter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
@@ -73,126 +51,92 @@ except SyntaxError, e:
 import MetagenomeDB as mdb
 
 try:
-	from amara import bindery
+	from Bio.Sequencing import Ace
 except:
-	error("The amara library must be installed\nTry 'easy_install Amara'")
+	error("The Biopython library must be installed\nTry 'easy_install Biopython'")
 
 if (p.verbosity > 0):
 	mdb.set_debug_level(p.verbosity)
 
 print "Importing '%s' ..." % p.input_fn
 
-document = bindery.parse(p.input_fn, standalone = True)
+print "  validating read and contig sequences ..."
 
-# Read parameters of the BLAST run
-print "  reading BLAST parameters"
+Reads, Contigs = {}, {}
 
-parameters = {}
-for node in document.BlastOutput.BlastOutput_param.xml_select("Parameters/*"):
-	key, value = str(node.xml_qname), str(node)
-	assert (key.startswith("Parameters_")), key ###
+reads = mdb.Collection.find_one(name = p.reads_collection)
+if (reads == None):
+	error("Unknown collection '%s'" % p.reads_collection)
 
-	parameters[key[11:]] = value
+for read, relationship in reads.get_sequences():
+	Reads[str(read["name"])] = read
 
-for key in sorted(parameters.keys()):
-	print "    %s: %s" % (key, parameters[key])
+contigs = mdb.Collection.find_one(name = p.contigs_collection)
+if (contigs == None):
+	error("Unknown collection '%s'" % p.contigs_collection)
 
-# Check query and hit sequences
-print "  validating query and hit sequences ..."
+for contig, relationship in contigs.get_sequences():
+	Contigs[str(contig["name"])] = contig
 
-QuerySequences, HitSequences = {}, {}
+i = Ace.parse(open(p.input_fn, 'r'))
+c = 0
 
-if (p.queries_collection):
-	queries = mdb.Collection.find_one(name = p.queries_collection)
-	if (queries == None):
-		error("Unknown collection '%s'" % p.queries_collection)
+for contig in i:
+	contig_id = get_contig_id(contig)
+	if (not contig_id in Contigs):
+		error("Unknown contig '%s'" % contig_id)
 
-	for sequence, relationship in queries.get_sequences():
-		QuerySequences[str(sequence["name"])] = sequence
+	for read in contig.reads:
+		read_id = get_read_id(read)
+		if (not read_id in Reads):
+			error("Unknown read '%s'" % read_id)
 
-if (p.hits_collection):
-	hits = mdb.Collection.find_one(name = p.hits_collection)
-	if (hits == None):
-		error("Unknown collection '%s'" % p.hits_collection)
+		c += 1
 
-	for sequence, relationship in hits.get_sequences():
-		HitSequences[str(sequence["name"])] = sequence
+print "  importing mapping ..."
 
-for iteration in document.BlastOutput.BlastOutput_iterations.Iteration:
-	query_id = get_query_id(iteration)
+class ProgressBar:
+	def __init__ (self, upper = None):
+		self.__min = 0.0
+		self.__max = upper + 0.0
 
-	if (p.queries_collection) and (not query_id in QuerySequences):
-		error("Unknown query sequence '%s'" % query_id)
+	def display (self, value):
+		f = (value - self.__min) / (self.__max - self.__min) # fraction
+		p = 100 * f # percentage
+		s = int(round(80 * f)) # bar size
 
-	for hit in iteration.Iteration_hits.Hit:
-		hit_id = get_hit_id(hit)
+		sys.stdout.write(' ' * 2 + ('.' * s) + " %4.2f%%\r" % p)
+		sys.stdout.flush()
 
-		if (p.hits_collection) and (not hit_id in HitSequences):
-			error("Unknown hit sequence '%s'" % hit_id)
+	def clear (self):
+		sys.stdout.write(' ' * (2 + 80 + 8) + "\r")
+		sys.stdout.flush()
 
-# Import
-print "  importing HSPs ..."
+pb = ProgressBar(c)
 
-int_ = lambda x: int(str(x))
-float_ = lambda x: float(str(x))
+i = Ace.parse(open(p.input_fn, 'r'))
+c = 0
 
-for iteration in document.BlastOutput.BlastOutput_iterations.Iteration:
-	r_arguments = {"type": "similar-to"}
+for contig in i:
+	contig_id = get_contig_id(contig)
+	if (not contig_id in Contigs):
+		error("Unknown contig '%s'" % contig_id)
 
-	query_id = get_query_id(iteration)
+	for read in contig.reads:
+		read_id = get_read_id(read)
+		if (not read_id in Reads):
+			error("Unknown read '%s'" % read_id)
 
-	if (p.queries_collection):
-		r_arguments["source"] = QuerySequences[query_id]
-	else:
-		r_arguments["source"] = mdb.Object(**query_id)
+		r = mdb.Relationship(Reads[read_id], Contigs[contig_id], type = "part-of")
 
-	try:
-		for hit in iteration.Iteration_hits.Hit:
-			hit_id = get_hit_id(hit)
+		if (p.dry_run):
+			print pprint.pformat(r)
+		else:
+			r.commit()
 
-			if (p.hits_collection):
-				r_arguments["target"] = HitSequences[hit_id]
-			else:
-				r_arguments["target"] = mdb.Object(**hit_id)
+		c += 1
+		pb.display(c)
 
-			for hsp in hit.Hit_hsps.Hsp:
-				r = mdb.Relationship(**r_arguments)
-
-				r["source_coordinates"] = (int_(hsp["Hsp_query-from"]), int_(hsp["Hsp_query-to"]))
-				r["target_coordinates"] = (int_(hsp["Hsp_hit-from"]), int_(hsp["Hsp_hit-to"]))
-
-				r["run.date"] = {"year": p.date[0], "month": p.date[1], "day": p.date[2]}
-				r["run.algorithm"] = {
-					"name": str(document.BlastOutput.BlastOutput_program),
-					"version": str(document.BlastOutput.BlastOutput_version),
-					"parameters": parameters,
-				}
-
-				r["alignment"] = {
-					"source": str(hsp["Hsp_qseq"]),
-					"conservation": str(hsp["Hsp_midline"]),
-					"target": str(hsp["Hsp_hseq"]),
-				}
-
-				r["score"] =  {
-					"fraction_identical": 100 * float_(hsp["Hsp_identity"]) / float_(hsp["Hsp_align-len"]),
-					"fraction_conserved": 100 * float_(hsp["Hsp_positive"]) / float_(hsp["Hsp_align-len"]),
-					"expectation": {
-						"e_value": float_(hsp["Hsp_evalue"]),
-						"search_space": {
-							"database_name": str(document.BlastOutput.BlastOutput_db),
-							"number_of_sequences": int_(iteration.Iteration_stat.Statistics["Statistics_db-num"]),
-							"number_of_residues": int_(iteration.Iteration_stat.Statistics["Statistics_db-len"]),
-						}
-					}
-				}
-
-				if (p.dry_run):
-					print pprint.pformat(r)
-				else:
-					r.commit()
-
-	except AttributeError:
-		continue
+pb.clear()
 
 print "    done."

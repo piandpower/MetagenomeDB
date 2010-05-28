@@ -3,7 +3,7 @@
 # TODO: I read somewhere there is a limit of 4Mb per object. Check this value,
 #   and ensure an error is thrown when a sequence is too big
 
-import optparse, sys, os
+import optparse, sys, os, pprint
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
 Imports nucleotide or aminoacid sequences into the database. Those sequences
@@ -36,6 +36,7 @@ g.add_option("-r", "--relationship-property", dest = "relationship_properties", 
 p.add_option_group(g)
 
 p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
 
 (p, a) = p.parse_args()
 
@@ -164,6 +165,11 @@ for record in read():
 			entry[key] = value
 
 	sequence = mdb.Sequence(**entry)
+
+	if (p.dry_run):
+		print pprint.pformat(sequence.get_properties())
+		continue
+
 	sequence.commit()
 
 	p.relationship_properties["source"] = sequence

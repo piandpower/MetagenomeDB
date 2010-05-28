@@ -192,7 +192,7 @@ for iteration in document.BlastOutput.BlastOutput_iterations.Iteration:
 				else:
 					r.commit()
 
-	except AttributeError:
+	except AttributeError: # in case there is no iteration.Iteration_hits.Hit path (because there is no hit)
 		continue
 
 print "    done."

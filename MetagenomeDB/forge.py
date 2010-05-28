@@ -97,6 +97,9 @@ def find (collection, query, find_one = False, count = False):
 OUTGOING = 1
 INGOING = 2
 
+def has_neighbor (object, direction, neighbor_collection, neighbor_filter):
+	pass
+
 # Find neighbors of a given object
 def find_neighbors (object, direction, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
 	if (direction == OUTGOING):
@@ -116,9 +119,10 @@ def find_neighbors (object, direction, neighbor_collection, neighbor_filter = No
 		relationship_filter = __clean_query(relationship_filter)
 
 	relationship_filter[here] = pymongo.dbref.DBRef(object.__class__.__name__, object["_id"])
-	r = connection.connection()["Relationship"]
 
 	candidate_neighbors = {}
+
+	r = connection.connection()["Relationship"]
 
 	for relationship in r.find(relationship_filter):
 		dbref = relationship[there]
@@ -136,18 +140,27 @@ def find_neighbors (object, direction, neighbor_collection, neighbor_filter = No
 	else:
 		neighbor_filter = __clean_query(neighbor_filter)
 
-	neighbor_filter["_id"] = { "$in": candidate_neighbors.keys() }
 	n = connection.connection()[neighbor_collection]
 
 	if (count):
-		return n.find(neighbor_filter).count()
+		c = 0
+		for i in range(0, len(candidate_neighbors), 100):
+			neighbor_filter["_id"] = { "$in": candidate_neighbors.keys()[i:i+100] }
 
-	def iterator():
-		for neighbor in n.find(neighbor_filter):
-			for relationship in candidate_neighbors[neighbor["_id"]]:
-				yield __forge_from_entry(neighbor_collection, neighbor), __forge_from_entry("Relationship", relationship)
+			c += n.find(neighbor_filter).count()
 
-	return iterator()
+		return c
+
+	else:
+		def iterator():
+			for i in range(0, len(candidate_neighbors), 100):
+				neighbor_filter["_id"] = { "$in": candidate_neighbors.keys()[i:i+100] }
+
+				for neighbor in n.find(neighbor_filter):
+					for relationship in candidate_neighbors[neighbor["_id"]]:
+						yield __forge_from_entry(neighbor_collection, neighbor), __forge_from_entry("Relationship", relationship)
+
+		return iterator()
 
 def __clean_query (query):
 	query = tree.traverse(
