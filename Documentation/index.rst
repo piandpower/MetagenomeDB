@@ -10,7 +10,7 @@ Welcome to the `MetagenomeDB <http://github.com/ajmazurie/MetagenomeDB>`_ toolki
 Getting started
 ---------------
 
-`TO DO: Short description of how to install MetagenomeDB and load the API`
+*TO DO: Short description of how to install MetagenomeDB and load the API*
 
 Basics
 ------
@@ -76,6 +76,10 @@ Nested properties are useful to group related properties; e.g., information abou
 	>>> sequence["author.institution"] = "my employer"
 	>>> print sequence["author"]
 	{'name': 'me', 'institution': 'my employer'}
+
+.. note::
+
+   By convention you cannot create, delete or modify properties whose name starts with an underscore (_). Those are for reserved properties.
 
 Commit (``commit()`` method)
 ____________________________
@@ -239,6 +243,8 @@ In addition to the methods mentioned earlier, ``Collection`` classes have these 
 Related collections
 ___________________
 
+*To write*
+
 Related sequences
 _________________
 
@@ -273,16 +279,83 @@ The ``get_collections()`` method accepts two arguments: a filter for the ``Colle
 Relationships (``Relationship`` class)
 ......................................
 
-Bla
-
+*To write*
 
 Tools
 -----
 
-In addition to the Python API provided by MetagenomeDB, several command-line tools are available to perform basic operations in batch.
+In addition to the Python API provided by MetagenomeDB, several command-line tools are available to perform basic operations in batch. They are located in the ``Tools/`` directory of your MetagenomeDB installation.
 
 Adding and removing objects
 ...........................
+
+To quickly add or remove a large number of objects in the database two tools are provided, ``add`` and ``remove``. They are an alternative to writing a Python script to perform the same operations.
+
+The ``add`` tool
+________________
+
+The ``add`` command-line tool accepts as an argument a file, either in `CSV <http://en.wikipedia.org/wiki/Comma-separated_values>`_ or `JSON <http://en.wikipedia.org/wiki/JSON>`_ format, which describe the objects you want to create::
+
+	$ Tools/add --help
+	Usage: add [options]
+	
+	Part of the MetagenomeDB toolkit. Import objects (Sequence, Collection and
+	Relationship) into the database. Those objects are provided as JSON- or CSV-
+	formatted descriptions.
+	
+	Options:
+	  -h, --help            show this help message and exit
+	  -i FILENAME, --input=FILENAME
+	                        Name of the file containing a description of the
+	                        objects to import
+	  -f STRING, --format=STRING
+	                        Format of the input file, either 'json' or 'csv'
+	                        (default: json)
+	  --ignore-duplicates   If set, ignore duplicate objects errors
+	  --ignore-missing      If set, ignore relationships that points to missing
+	                        objects
+	  --dry-run             If set, process the input file but does not actually
+	                        import the objects
+	  -v VERBOSITY, --verbosity=VERBOSITY
+
+CSV format
+~~~~~~~~~~
+
+The convention for the CSV format is the following:
+
+- each line in the file describes one distinct object
+- each column of the line describes one property of this object. The syntax is the property name (no space allowed) followed by an equal sign, followed by the value for this property; e.g., ``property=value``. The ordering of the properties is not important
+- at least one column must contain the special property ``_type`` to tell the ``add`` tool which type of object it is. The legit values are ``Object``, ``Sequence``, ``Collection`` or ``Relationship``
+
+For example, to create a sequence of name 'my_sequence' you would have to write the following line::
+
+	_type=Sequence,name=my_sequence,sequence=ATGC
+
+Relationships are slightly more complex. You have to describe at least the source, target and the type of relationship between source and target. The source is described by two properties, ``source._type`` and ``source.name``, to indicate the type and name of the source object, respectively. The target is described the exact same way. Hence, to connect two collections named A and B you would type::
+
+	_type=Relationship,source._type=Collection,source.name=A,target._type=Collection,target.name=B,type=part-of
+
+.. note::
+
+   The objects that the relationship is linking have to be declared *before* the relationship itself.
+
+Relationships between sequences add another property to the mix: ``source._collection`` and/or ``target._collection``, to indicate the collection the ``Sequence`` at the source and/or the target belong to, respectively.
+
+For example, to link two sequences X and Y belonging to collections x and y, respectively, you would type::
+
+	_type=Relationship,source._type=Sequence,source._collection=x,source.name=X,target._type=Sequence,target._collection=y,target.name=X,type=part-of
+
+.. note::
+
+   Declaring a relationship between an existing ``Sequence`` and another object implies this sequence already belong to a ``Collection``. Hence, you cannot use the ``add`` tool to link a ``Sequence`` to a ``Collection``. You needs to do this programmatically, or through the use of the ``import.sequences`` tool.
+
+JSON format
+~~~~~~~~~~~
+
+*To write*
+
+The ``remove`` tool
+___________________
 
 ``add`` and ``remove`` utilities.
 
