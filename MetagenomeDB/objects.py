@@ -2,7 +2,7 @@
 
 import forge, tree, errors, commons
 import pymongo
-import sys, datetime, itertools
+import sys, datetime, itertools, copy
 
 # Base object.
 class Object (object):
@@ -104,7 +104,7 @@ class Object (object):
 	#	default -- default value to return if the property is not set.
 	def get_property (self, key, default = None):
 		try:
-			return self.__getitem__(key)
+			return copy.deepcopy(self.__getitem__(key))
 
 		except KeyError:
 			return default
@@ -177,7 +177,7 @@ class Object (object):
 
 	def __getitem__ (self, key):
 		keys = tree.validate_key(key)
-		return tree.get(self.__properties, keys)
+		return copy.deepcopy(tree.get(self.__properties, keys))
 
 	def __delitem__ (self, key):
 		keys = tree.validate_key(key)

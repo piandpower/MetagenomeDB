@@ -13,11 +13,20 @@ g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 g.add_option("--reads-collection", dest = "reads_collection", metavar = "STRING",
 	help = "Name of the collection the reads belong to.")
 
+g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%.rd.name",
+	help = "Python command to reformat read identifiers (optional).")
+
+g.add_option("--ignore-missing-reads", dest = "ignore_missing_reads", action = "store_true", default = False,
+	help = "If set, ignore reads that are not found in the reads collection.")
+
 g.add_option("--contigs-collection", dest = "contigs_collection", metavar = "STRING",
 	help = "Name of the collection the contigs belong to.")
 
-g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%.rd.name")
-g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON CODE", default = "%.name")
+g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON CODE", default = "%.name",
+	help = "Python command to reformat contigs identifiers (optional).")
+
+g.add_option("--ignore-missing-contigs", dest = "ignore_missing_contigs", action = "store_true", default = False,
+	help = "If set, ignore contigs that are not found in the contigs collection.")
 
 p.add_option_group(g)
 
@@ -84,12 +93,22 @@ c = 0
 for contig in i:
 	contig_id = get_contig_id(contig)
 	if (not contig_id in Contigs):
-		error("Unknown contig '%s'" % contig_id)
+		msg = "Unknown contig '%s'" % contig_id
+		if (p.ignore_missing_contigs):
+			print >>sys.stderr, "WARNING: " + msg
+			continue
+		else:
+			error(msg)
 
 	for read in contig.reads:
 		read_id = get_read_id(read)
 		if (not read_id in Reads):
-			error("Unknown read '%s'" % read_id)
+			msg = "Unknown read '%s' (mapped to contig '%s')" % (read_id, contig_id)
+			if (p.ignore_missing_reads):
+				print >>sys.stderr, "WARNING: " + msg
+				continue
+			else:
+				error(msg)
 
 		c += 1
 
@@ -120,14 +139,14 @@ c = 0
 for contig in i:
 	contig_id = get_contig_id(contig)
 	if (not contig_id in Contigs):
-		error("Unknown contig '%s'" % contig_id)
+		continue
 
 	for read in contig.reads:
 		read_id = get_read_id(read)
 		if (not read_id in Reads):
-			error("Unknown read '%s'" % read_id)
+			continue
 
-		r = mdb.Relationship(Reads[read_id], Contigs[contig_id], type = "part-of")
+		r = mdb.Relationship(source = Reads[read_id], target = Contigs[contig_id], type = "part-of")
 
 		if (p.dry_run):
 			print pprint.pformat(r)

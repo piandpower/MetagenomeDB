@@ -51,21 +51,26 @@ class NotFound (Exception):
 
 def key_filter (key):
 	for k in key:
-		if (k.startswith('@')):
+		if (k.startswith('_')):
 			return False
 
 	return True
 
+def pull (map, key):
+	value = map[key]
+	del map[key]
+	return value
+
 n = 0
 for entry in mdb.tools.parser(p.input_fn, p.input_format):
 	try:
-		type = entry["@type"]
+		type = pull(entry, "_type")
 
 		if (not type in COLLECTIONS):
 			raise Exception("Unknown object type '%s'" % type)
 
 		if (type == "Sequence"):
-			collection, name = entry["@collection"], entry["@name"]
+			collection, name = pull(entry, "_collection"), pull(entry, "_name")
 
 			# we first list all sequences having this name,
 			candidates = mdb.Sequence.find(name = name)
@@ -80,7 +85,7 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (name, collection))
 
 		if (type == "Collection"):
-			name = entry["@name"]
+			name = pull(entry, "_name")
 
 			objects = [mdb.Collection.find_one(name = name)]
 
@@ -90,13 +95,10 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 		if (type == "Relationship"):
 			raise NotImplementedError
 		
-		if (p.dry_run):
-			continue
-
 		for object in objects:
 			for key, value in mdb.tree.items(entry):
 				# we ignore any key hierarchy which contains a
-				# special key (i.e., key starting with a '@')
+				# special key (i.e., key starting with a '_')
 				if (not key_filter(key)):
 					continue
 
@@ -105,7 +107,8 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 			if (not object.is_committed()):
 				n += 1
 
-			object.commit()
+				if (not p.dry_run):
+					object.commit()
 
 	except mdb.errors.ConnectionError as msg:
 		error(str(msg))

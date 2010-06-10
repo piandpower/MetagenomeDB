@@ -23,9 +23,9 @@ __FORMATTER = {
 	"boolean": __formatter_boolean
 }
 
-def parse (value, separator = '!'):
+def parse (value, separator = '^'):
 	if (separator in value):
-		value, modifier = value.split(separator)
+		value, modifier = value.rsplit(separator, 1)
 
 		m = __PROPERTY.match(modifier.lower())
 		if (m == None):
@@ -71,7 +71,7 @@ def parser (fn, format):
 			value_modifier = lambda x: parse(x)
 		) for entry in data]
 
-		returndata
+		return data
 
 	elif (format == "csv"):
 		def generator():

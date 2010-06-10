@@ -144,8 +144,8 @@ def find_neighbors (object, direction, neighbor_collection, neighbor_filter = No
 
 	if (count):
 		c = 0
-		for i in range(0, len(candidate_neighbors), 100):
-			neighbor_filter["_id"] = { "$in": candidate_neighbors.keys()[i:i+100] }
+		for i in range(0, len(candidate_neighbors), 15000):
+			neighbor_filter["_id"] = { "$in": candidate_neighbors.keys()[i:i+15000] }
 
 			c += n.find(neighbor_filter).count()
 
@@ -153,8 +153,8 @@ def find_neighbors (object, direction, neighbor_collection, neighbor_filter = No
 
 	else:
 		def iterator():
-			for i in range(0, len(candidate_neighbors), 100):
-				neighbor_filter["_id"] = { "$in": candidate_neighbors.keys()[i:i+100] }
+			for i in range(0, len(candidate_neighbors), 15000):
+				neighbor_filter["_id"] = { "$in": candidate_neighbors.keys()[i:i+15000] }
 
 				for neighbor in n.find(neighbor_filter):
 					for relationship in candidate_neighbors[neighbor["_id"]]:
@@ -174,6 +174,12 @@ def __clean_query (query):
 		selector = lambda x: (x == "$id"),
 		key_modifier = lambda x: "_id",
 		value_modifier = lambda x: pymongo.objectid.ObjectId(x),
+	)
+
+	query = tree.traverse(
+		query,
+		selector = lambda x: (x == "clazz"),
+		key_modifier = lambda x: "class",
 	)
 
 	return query

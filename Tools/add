@@ -57,26 +57,26 @@ class NotFound (Exception):
 # a Sequence)
 def retrieve_xref (xref):
 	try:
-		collection = xref["@type"]
+		collection = xref["_type"]
 
 		# the xref refers to a Collection
 		if (collection == "Collection"):
-			object = getattr(mdb, collection).find_one(name = xref["@name"])
+			object = getattr(mdb, collection).find_one(name = xref["_name"])
 			if (object == None):
-				raise Exception("Unknown Collection '%s'" % xref["@name"])
+				raise Exception("Unknown Collection '%s'" % xref["_name"])
 
 		# the xref refers to a Sequence
 		elif (collection == "Sequence"):
 			# we first list all sequences having this name,
-			candidates = mdb.Sequence.find(name = xref["@name"])
+			candidates = mdb.Sequence.find(name = xref["_name"])
 			# then we filter out those that are not linked to this collection
-			object = filter(lambda x: len(list(x.get_collections({ "name": xref["@collection"] }))) > 0, candidates)
+			object = filter(lambda x: len(list(x.get_collections({ "name": xref["_collection"] }))) > 0, candidates)
 
 			if (len(object) == 0):
-				raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (xref["@name"], xref["@collection"]))
+				raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (xref["_name"], xref["_collection"]))
 
 			if (len(object) > 1):
-				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (xref["@name"], xref["@collection"]))
+				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (xref["_name"], xref["_collection"]))
 
 			object = object[0]
 
@@ -91,8 +91,8 @@ def retrieve_xref (xref):
 n = 0
 for entry in mdb.tools.parser(p.input_fn, p.input_format):
 	try:
-		type = entry["@type"]
-		del entry["@type"]
+		type = entry["_type"]
+		del entry["_type"]
 
 		if (not type in BUILDER):
 			raise Exception("Unknown object type '%s'" % type)
