@@ -103,6 +103,10 @@ if (p.relationship_properties):
 else:
 	p.relationship_properties = {}
 
+if (p.sequence_properties):
+	for key in p.sequence_properties:
+		p.sequence_properties[key] = mdb.tools.parse(p.sequence_properties[key])
+
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 try:
