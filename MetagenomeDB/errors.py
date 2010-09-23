@@ -10,12 +10,16 @@ class ConnectionError (Exception):
 		return "Unable to connect to database '%s' on %s:%s. Reason: %s" % (self.database, self.host, self.port, self.message)
 
 class DuplicateObject (Exception):
-	def __init__ (self, collection, key):
+	def __init__ (self, collection, properties):
 		self.collection = collection
-		self.key = key
+		self.properties = properties
 
 	def __str__ (self):
-		return "An object of type '%s' with key '%s' already exists" % (self.collection, self.key)
+		return "An object of type '%s' with propert%s %s already exists" % (
+			self.collection,
+			{ True: "ies", False: "y" }[len(self.properties) > 1],
+			', '.join(["%s = '%s'" % property for property in self.properties])
+		)
 
 class UncommittedObject (Exception):
 	def __init__ (self, name):

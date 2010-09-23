@@ -1,4 +1,4 @@
-# tools.py: Routines for MetagenomeDB tools (see Tools/)
+# tools.py: Routines for MetagenomeDB tools (see tools/)
 
 import re, json, csv
 import tree
@@ -23,6 +23,14 @@ __FORMATTER = {
 	"boolean": __formatter_boolean
 }
 
+# Parse a string-formatted value into the corresponding Python object
+# Format: "value^([)type(,type)" with type in 'string', 'integer', 'float' or 'boolean'
+# Examples:
+#	"5^integer" -> 5
+#	"3,4^[integer" -> [3, 4]
+#	"1^integer,string" -> 1
+#	"a^integer,string" -> "a"
+#	"true^boolean" -> True
 def parse (value, separator = '^'):
 	if (separator in value):
 		value, modifier = value.rsplit(separator, 1)
@@ -50,6 +58,8 @@ def parse (value, separator = '^'):
 
 	return value
 
+# Parse either a JSON-formatted or CSV-formatted file, returning key/values
+# as an iterator. 'format' must be either 'json' or 'csv'.
 def parser (fn, format):
 	if (format == "json"):
 		try:
@@ -62,7 +72,7 @@ def parser (fn, format):
 				raise ValueError("Unexpected JSON type: %s" % type(data))
 
 		except Exception as msg:
-			error("Error while reading '%s': %s" % (fn, msg))
+			raise Exception("Error while reading '%s': %s" % (fn, msg))
 
 		data = [tree.traverse(
 			entry,

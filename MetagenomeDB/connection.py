@@ -1,8 +1,13 @@
 
-import os, sys, ConfigParser
-import commons, errors
+import os, sys, ConfigParser, logging
 import pymongo
 
+from utils import tree
+import errors
+
+logger = logging.getLogger("MetagenomeDB.connection")
+
+# Retrieve a value from a .cfg file
 def __property (cp, section, key, default = None, coerce = None):
 	try:
 		if (coerce == "int"):
@@ -15,12 +20,15 @@ def __property (cp, section, key, default = None, coerce = None):
 
 	except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
 		if (default != None):
+			logger.debug("Default value '%s' used for key '%s' in section '%s'" % (default, key, section))
 			return default
 		else:
-			raise Exception("No value found for '%s' in section '%s'" % (key, section))
+			raise Exception("No value found for key '%s' in section '%s'" % (key, section))
 
 __connection = None
 
+# Create a connection to a MongoDB server. Act as a singleton; i.e., if a
+# connection has already been set up, return it rather than creating a new one.
 def connection():
 	global __connection
 
@@ -42,8 +50,7 @@ def connection():
 	except pymongo.errors.ConnectionFailure as msg:
 		raise errors.ConnectionError(db, host, port, msg)
 
-	if (commons.debug_level > 0):
-		commons.log("connection", "Connected to '%s' on %s:%s" % (db, host, port))
+	logger.info("Connected to '%s' on %s:%s" % (db, host, port))
 
 	# use credentials, if any
 	user = __property(cp, "connection", "user", '')
@@ -52,8 +59,7 @@ def connection():
 	if (user != ''):
 		connection.authenticate(user, password)
 
-		if (commons.debug_level):
-			commons.log("connection", "Authenticated as '%s'" % user)
+		logger.info("Authenticated as '%s'" % user)
 
 	# test if the credentials are okay
 	try:

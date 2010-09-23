@@ -1,35 +1,79 @@
-# forge.py: low-level interface with the MongoDB database, with on-the-fly
-# instanciation of objects (with cache) from MongoDB result sets.
+# backend.py: low-level interface with the MongoDB database, with on-the-fly
+# instanciation of objects (with caching) from MongoDB result sets.
 
 # Note: The term 'collection', when used in this file, refers to a MongoDB
 # collection and NOT to the Collection object in objects.py
 
-import commons, connection, objects, tree, errors
+import weakref, datetime, re, logging
 import pymongo
-import weakref, datetime, re
 
+import connection, objects, errors
+from utils import tree
+
+logger = logging.getLogger("MetagenomeDB.backend")
+
+# Object cache, as a map with weak values
 __objects = weakref.WeakValueDictionary()
 
-def exists (id):
-	return (id in __objects)
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-# Drop a whole collection, and remove any corresponding instanciated object
-def remove_all (collection):
-	connection.connection().drop_collection(collection)
+# Commit a CommittableObject to the database. IMPORTANT NOTE: this does not
+# support concurrent modifications. I.e., if another client modifies the
+# backend database after an object has been instanciated, a commit() will
+# overwrite those modifications.
+def commit (object):
+	# first case: the object is already committed; we do nothing and return its identifier
+	if (object._committed):
+		return object["_id"]
 
-	for object in filter(lambda x: x.__class__.__name__ == collection, __objects.values()):
-		object.remove()
+	db = connection.connection()
 
-	if (commons.debug_level > 0):
-		commons.log("remove_all", "'%s' collection dropped" % collection)
+	collection_name = object.__class__.__name__
+	collection = db[collection_name]
 
-# Remove an object from the database
-def remove (object):
-	collection = object.__class__.__name__
-	connection.connection()[collection].remove({ "_id": object["_id"] })
+	# if the collection this object belongs to doesn't exist in
+	# the database, we create it with its indices (if any)
+	if (not collection_name in db.collection_names()):
+		msg = "Collection '%s' created" % collection_name
+		if (len(object._indices) > 0):
+			msg += " with indices %s" % ', '.join(["'%s'" % key for key in sorted(object._indices.keys())])
 
-	if (commons.debug_level > 1):
-		commons.log("remove", "%s removed from '%s'" % (object, collection))
+		logger.info(msg)
+
+		for (index, is_unique) in object._indices.iteritems():
+			collection.create_index(index, unique = is_unique)
+
+	# second case: the object is not committed, and is not in the database
+	if (not "_id" in object):
+		object._properties["_creation_time"] = datetime.datetime.now()
+		verb = "created"
+
+	# third case: the object is not committed, but a former version exists in the database
+	else:
+		object._properties["_modification_time"] = datetime.datetime.now()
+		verb = "updated"
+
+	try:
+		object_id = collection.save(
+			object.get_properties(),
+			safe = True
+		)
+
+		object._properties["_id"] = object_id
+		__objects[object_id] = object
+
+	except pymongo.errors.OperationFailure as msg:
+		if ("E11000" in str(msg)):
+			properties = [(key, object[key]) for key in filter(lambda x: "$%s_" % x in str(msg), object._indices)]
+			raise errors.DuplicateObject(collection_name, properties)
+		else:
+			raise Exception("Unable to commit. Reason: %s" % msg)
+
+	logger.info("Object %s %s in collection '%s'" % (object, verb, collection_name))
+
+	return object_id
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # Count entries in a given collection
 def count (collection, query):
@@ -86,6 +130,8 @@ def find (collection, query, find_one = False, count = False):
 	else:
 		raise ValueError("Invalid query: %s" % query)
 
+	logger.debug("Querying %s in collection '%s'" % (query, collection))
+
 	if (count):
 		return cursor.find(query).count()
 
@@ -93,96 +139,6 @@ def find (collection, query, find_one = False, count = False):
 		return __forge_from_entry(collection, cursor.find_one(query))
 	else:
 		return __forge_from_entries(collection, cursor.find(query))
-
-OUTGOING = 1
-INGOING = 2
-
-def has_neighbor (object, direction, neighbor_collection, neighbor_filter):
-	pass
-
-# Find neighbors of a given object
-def find_neighbors (object, direction, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
-	if (direction == OUTGOING):
-		here, there = "source", "target"
-	elif (direction == INGOING):
-		here, there = "target", "source"
-	else:
-		raise ValueError("Invalid direction '%s'" % direction)
-
-	if (not object.is_committed()):
-		raise errors.UncommittedObject()
-
-	# (1) list all candidate neighbors, based on the relationship filter only
-	if (relationship_filter == None):
-		relationship_filter = {}
-	else:
-		relationship_filter = __clean_query(relationship_filter)
-
-	relationship_filter[here] = pymongo.dbref.DBRef(object.__class__.__name__, object["_id"])
-
-	candidate_neighbors = {}
-
-	r = connection.connection()["Relationship"]
-
-	for relationship in r.find(relationship_filter):
-		dbref = relationship[there]
-		if (dbref.collection != neighbor_collection):
-			continue
-
-		if (dbref.id not in candidate_neighbors):
-			candidate_neighbors[dbref.id] = []
-
-		candidate_neighbors[dbref.id].append(relationship)
-
-	# (2) filter down those eligible neighbors using the neighbor filter
-	if (neighbor_filter == None):
-		neighbor_filter = {}
-	else:
-		neighbor_filter = __clean_query(neighbor_filter)
-
-	n = connection.connection()[neighbor_collection]
-
-	if (count):
-		c = 0
-		for i in range(0, len(candidate_neighbors), 15000):
-			neighbor_filter["_id"] = { "$in": candidate_neighbors.keys()[i:i+15000] }
-
-			c += n.find(neighbor_filter).count()
-
-		return c
-
-	else:
-		def iterator():
-			for i in range(0, len(candidate_neighbors), 15000):
-				neighbor_filter["_id"] = { "$in": candidate_neighbors.keys()[i:i+15000] }
-
-				for neighbor in n.find(neighbor_filter):
-					for relationship in candidate_neighbors[neighbor["_id"]]:
-						yield __forge_from_entry(neighbor_collection, neighbor), __forge_from_entry("Relationship", relationship)
-
-		return iterator()
-
-def __clean_query (query):
-	query = tree.traverse(
-		query,
-		selector = lambda x: x.startswith('_'),
-		key_modifier = lambda x: '$' + x[1:]
-	)
-
-	query = tree.traverse(
-		query,
-		selector = lambda x: (x == "$id"),
-		key_modifier = lambda x: "_id",
-		value_modifier = lambda x: pymongo.objectid.ObjectId(x),
-	)
-
-	query = tree.traverse(
-		query,
-		selector = lambda x: (x == "clazz"),
-		key_modifier = lambda x: "class",
-	)
-
-	return query
 
 # Forge an object from a unique entry
 def __forge_from_entry (collection, entry):
@@ -217,56 +173,78 @@ def __forge_from_entries (collection, resultset):
 
 		return __generator()
 
-def commit (object, indices):
-	# first case: the object is already committed; we do nothing and return its identifier
-	if (object.is_committed()):
-		return object["_id"]
+def __clean_query (query):
+	"""
+	query = tree.traverse(
+		query,
+		selector = lambda x: x.startswith('_'),
+		key_modifier = lambda x: '$' + x[1:]
+	)
 
-	db = connection.connection()
+	query = tree.traverse(
+		query,
+		selector = lambda x: (x == "$id"),
+		key_modifier = lambda x: "_id",
+		value_modifier = lambda x: pymongo.objectid.ObjectId(x),
+	)
+	"""
 
-	collection_name = object.__class__.__name__
-	collection = db[collection_name]
+	query = tree.traverse(
+		query,
+		selector = lambda x: (x == "clazz"),
+		key_modifier = lambda x: "class",
+	)
 
-	# if the collection this object belongs to doesn't exist in
-	# the database, we create it with its indices (if any)
-	if (not collection_name in db.collection_names()):
-		if (commons.debug_level > 0):
-			msg = "'%s' collection created" % collection_name
-			if (len(indexes) > 0):
-				msg += " with indices %s" % ', '.join(["'%s'" % key for key in sorted(indices.keys())])
+	return query
 
-			commons.log("commit", msg)
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-		for (index, is_unique) in indices.iteritems():
-			collection.create_index(index, unique = is_unique)
+def exists (id):
+	return (id in __objects)
 
-	# second case: the object is not committed, and is not in the database
-	if (not "_id" in object):
-		object["_creation_time"] = datetime.datetime.now()
-		verb = "created"
+# Drop a whole collection, and remove any corresponding instanciated object
+def remove_all (collection):
+	connection.connection().drop_collection(collection)
 
-	# third case: the object is not committed, but a former version exists in the database
-	else:
-		object["_modification_time"] = datetime.datetime.now()
-		verb = "updated"
+	for object in filter(lambda x: x.__class__.__name__ == collection, __objects.values()):
+		object.remove()
 
-	try:
-		object_id = collection.save(
-			object.get_properties(),
-			safe = True,
-		)
+	logger.info("Collection '%s' dropped" % collection)
 
-		__objects[object_id] = object
+# Remove an object from the database
+def remove (object):
+	collection = object.__class__.__name__
+	connection.connection()[collection].remove({ "_id": object["_id"] })
 
-	except pymongo.errors.OperationFailure as msg:
-		if ("E11000" in str(msg)):
-			keys = ','.join([object[key] for key in filter(lambda x: indices[x], indices)])
+	logger.info("Object %s removed from collection '%s'" % (object, collection))
 
-			raise errors.DuplicateObject(collection_name, keys)
-		else:
-			raise Exception("Unable to commit: %s" % msg)
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-	if (commons.debug_level > 1):
-		commons.log("commit", "%s %s in collection '%s'" % (object, verb, collection_name))
+def ingoing_neighbors (object, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
+	if (not object.is_committed()):
+		raise errors.UncommittedObject()
 
-	return object_id
+	object_id = str(object._properties["_id"])
+
+	query = { "_relationship_with": object_id }
+
+	if (neighbor_filter != None):
+		for key in neighbor_filter:
+			query[key] = neighbor_filter[key]
+
+	if (relationship_filter != None):
+		query["_relationships"] = { object_id: __clean_query(relationship_filter) }
+
+	return find(neighbor_collection, query, count = count)
+
+def outgoing_neighbors (object, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
+	query = { "_id": { "$in": [pymongo.objectid.ObjectId(id) for id in object._properties["_relationship_with"]] }}
+
+	if (neighbor_filter != None):
+		for key in neighbor_filter:
+			query[key] = neighbor_filter[key]
+
+	if (relationship_filter != None):
+		query["_relationships"] = { object_id: __clean_query(relationship_filter) }
+
+	return find(neighbor_collection, query, count = count)
