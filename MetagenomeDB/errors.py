@@ -1,5 +1,9 @@
 
-class ConnectionError (Exception):
+# Base class for all MetagenomeDB exceptions.
+class MetagenomeDBError (Exception):
+	pass
+
+class ConnectionError (MetagenomeDBError):
 	def __init__ (self, database, host, port, message):
 		self.database = database
 		self.host = host
@@ -9,7 +13,7 @@ class ConnectionError (Exception):
 	def __str__ (self):
 		return "Unable to connect to database '%s' on %s:%s. Reason: %s" % (self.database, self.host, self.port, self.message)
 
-class DuplicateObject (Exception):
+class DuplicateObject (MetagenomeDBError):
 	def __init__ (self, collection, properties):
 		self.collection = collection
 		self.properties = properties
@@ -21,16 +25,16 @@ class DuplicateObject (Exception):
 			', '.join(["%s = '%s'" % property for property in self.properties])
 		)
 
-class UncommittedObject (Exception):
-	def __init__ (self, name):
-		self.name = name
+# Exception thrown when an object is removed from the database or its
+# relationships are explored without this object having been committed.
+class UncommittedObject (MetagenomeDBError):
+	pass
 
-	def __str__ (self):
-		return self.name
+# Exception thrown when an object is created with incorrect initial parameters.
+class MalformedObject (MetagenomeDBError):
+	pass
 
-class MalformedObject (Exception):
-	def __init__ (self, msg):
-		self.msg = msg
-
-	def __str__ (self):
-		return self.msg
+# Exception thrown when an object is removed while having other objects
+# maintaining relationships to it.
+class LinkedObject (MetagenomeDBError):
+	pass

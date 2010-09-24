@@ -36,7 +36,7 @@ def commit (object):
 	if (not collection_name in db.collection_names()):
 		msg = "Collection '%s' created" % collection_name
 		if (len(object._indices) > 0):
-			msg += " with indices %s" % ', '.join(["'%s'" % key for key in sorted(object._indices.keys())])
+			msg += " with indices %s." % ', '.join(["'%s'" % key for key in sorted(object._indices.keys())])
 
 		logger.info(msg)
 
@@ -69,7 +69,7 @@ def commit (object):
 		else:
 			raise Exception("Unable to commit. Reason: %s" % msg)
 
-	logger.info("Object %s %s in collection '%s'" % (object, verb, collection_name))
+	logger.info("Object %s %s in collection '%s'." % (object, verb, collection_name))
 
 	return object_id
 
@@ -127,10 +127,10 @@ def find (collection, query, find_one = False, count = False):
 		else:
 			query = __clean_query(query)
 
-	else:
+	elif (query != None):
 		raise ValueError("Invalid query: %s" % query)
 
-	logger.debug("Querying %s in collection '%s'" % (query, collection))
+	logger.debug("Querying %s in collection '%s'." % (query, collection))
 
 	if (count):
 		return cursor.find(query).count()
@@ -202,27 +202,61 @@ def __clean_query (query):
 def exists (id):
 	return (id in __objects)
 
-# Drop a whole collection, and remove any corresponding instanciated object
+# Drop a whole collection, and remove any corresponding instanciated object.
 def remove_all (collection):
+	objects = find(collection, None)
+	n_objects = find(collection, None, count = True)
+
+	n = 0
+	for object in objects:
+		try:
+			object.remove()
+			n += 1
+		except:
+			continue
+
+	if (n < n_objects):
+		logger.warning("%s out of %s objects in collection '%s' were not removed." % (n_objects - n, n_objects, collection))
+		return
+
 	connection.connection().drop_collection(collection)
+	logger.info("Collection '%s' dropped." % collection)
 
-	for object in filter(lambda x: x.__class__.__name__ == collection, __objects.values()):
-		object.remove()
-
-	logger.info("Collection '%s' dropped" % collection)
-
-# Remove an object from the database
+# Remove an object from the database.
 def remove (object):
+	if (not object.is_committed()):
+		raise errors.UncommittedObject(object)
+
+	if (has_ingoing_neighbors(object)):
+		raise errors.LinkedObject(object)
+
 	collection = object.__class__.__name__
 	connection.connection()[collection].remove({ "_id": object["_id"] })
 
-	logger.info("Object %s removed from collection '%s'" % (object, collection))
+	logger.info("Object %s removed from collection '%s'." % (object, collection))
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+def has_ingoing_neighbors (object):
+	if (not object.is_committed()):
+		raise errors.UncommittedObject(object)
+
+	object_id = str(object._properties["_id"])
+
+	query = { "_relationship_with": object_id }
+
+	for collection in connection.connection().collection_names():
+		if (collection == "system.indexes"):
+			continue
+
+		if (find(collection, query, count = count) > 0):
+			return True
+
+	return False
+
 def ingoing_neighbors (object, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
 	if (not object.is_committed()):
-		raise errors.UncommittedObject()
+		raise errors.UncommittedObject(object)
 
 	object_id = str(object._properties["_id"])
 

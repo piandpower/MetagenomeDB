@@ -22,7 +22,7 @@ p.add_option("--ignore-missing", dest = "ignore_missing", action = "store_true",
 p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False,
 	help = "If set, process the input file but does not actually import the objects")
 
-p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
 
 (p, a) = p.parse_args()
 
@@ -38,15 +38,12 @@ if (not os.path.exists(p.input_fn)):
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-if (p.verbosity > 0):
-	mdb.set_debug_level(p.verbosity)
-
-mdb.show_warnings(False)
+if (p.verbose):
+	mdb.max_verbosity()
 
 BUILDER = {
 	"Collection": mdb.Collection,
 	"Sequence": mdb.Sequence,
-	"Relationship": mdb.Relationship,
 }
 
 class NotFound (Exception):

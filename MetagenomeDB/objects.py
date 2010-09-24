@@ -221,17 +221,12 @@ class CommittableObject (MutableObject):
 		else:
 			return None
 
-	# Remove this object from the database. Also remove all relationships
-	# between other objects and this object.
+	# Remove this object from the database. Throw an exception if the object
+	# has not been committed, or if other objects have a relationship with it.
 	# Note: The object remains in memory, flagged as uncommitted.
 	def remove (self):
-		if (not self._committed):
-			raise errors.UncommittedObject()
-
-		for neighbor in backend.neighbors(self):
-			neighbor._disconnect_from(self)
-
 		backend.remove(self)
+
 		del self._properties["_id"]
 		self._committed = False
 
@@ -248,7 +243,7 @@ class CommittableObject (MutableObject):
 			return
 
 		if (not self._committed):
-			logger.warning("Object %s has been destroyed without having been committed" % self)
+			logger.warning("Object %s has been destroyed without having been committed." % self)
 
 	def __repr__ (self):
 		return self.__str__()
@@ -280,25 +275,36 @@ class Sequence (CommittableObject):
 #		super(Sequence, self).__init__(indices, **properties)
 		CommittableObject.__init__(self, indices, **properties)
 
+	# Add this sequence to an existing collection
+	#	collection -- Collection to add this sequence to
+	#	relationship -- Properties of the relationship between
+	#		this sequence and the collection
 	def add_to_collection (self, collection, relationship):
 		self._connect_to(collection, relationship)
 
+	# Remove this sequence from an existing collection
+	#	collection -- Collection to remove this sequence from
 	def remove_from_collection (self, collection):
 		self._disconnect_from(collection)
 
+	# List all collections this sequence is part of
+	#	collection_filter -- Filter for the collection (optional)
+	#	relationship_filter -- Filter for the relationship between this
+	#		sequence and any collection (optional)
 	def list_collections (self, collection_filter = None, relationship_filter = None):
 		return backend.outgoing_neighbors(self, "Collection", collection_filter, relationship_filter)
 
+	# Count all collections this sequence is part of
+	#	collection_filter -- Filter for the collection (optional)
+	#	relationship_filter -- Filter for the relationship between this
+	#		sequence and any collection (optional)
 	def count_collections (self, collection_filter = None, relationship_filter = None):
 		return backend.outgoing_neighbors(self, "Collection", collection_filter, relationship_filter, True)
 
-	def part_of_sequence (self, sequence, relationship):
+	def add_to_sequence (self, sequence, relationship):
 		pass
 
-	def similar_to (self, sequence, relationship):
-		pass
-
-	def disconnect_from_sequence (self, sequence):
+	def remove_from_sequence (self, sequence):
 		pass
 
 	def __str__ (self):
@@ -324,12 +330,6 @@ class Collection (CommittableObject):
 #		super(Collection, self).__init__(indices, **properties)
 		CommittableObject.__init__(self, indices, **properties)
 
-	def add_sequence (self, sequence, **relationship):
-		sequence._connect_to(self, relationship)
-
-	def remove_sequence (self, sequence):
-		sequence._disconnect_from(self)
-
 	def list_sequences (self, sequence_filter = None, relationship_filter = None):
 		return backend.ingoing_neighbors(self, "Sequence", sequence_filter, relationship_filter)
 
@@ -341,9 +341,6 @@ class Collection (CommittableObject):
 
 	def remove_from_collection (self, collection):
 		self._disconnect_from(collection)
-
-	def remove_collection (self, collection):
-		collection._disconnect_from(self)
 
 	def list_super_collections (self, collection_filter = None, relationship_filter = None):
 		return backend.outgoing_neighbors(self, "Collection", collection_filter, relationship_filter)
