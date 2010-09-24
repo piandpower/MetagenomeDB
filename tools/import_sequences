@@ -87,7 +87,7 @@ if (p.collection_properties):
 
 # Retrieval of an existing collection
 elif (p.collection_name):
-	collection = mdb.Collection.find_one(name = p.collection_name)
+	collection = mdb.Collection.find_one({"name": p.collection_name})
 
 	if (collection == None):
 		error("Unknown collection with name '%s'" % p.collection_name)
@@ -169,7 +169,7 @@ for record in read():
 
 			entry[key] = value
 
-	sequence = mdb.Sequence(**entry)
+	sequence = mdb.Sequence(entry)
 
 	if (p.dry_run):
 		print pprint.pformat(sequence.get_properties())

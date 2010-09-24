@@ -4,13 +4,13 @@ import optparse, sys, os, pprint
 import MetagenomeDB as mdb
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
-Import objects (Sequence, Collection and Relationship) into the database. Those
+Import objects (Sequence and/or Collection) into the database. Those
 objects are provided as JSON- or CSV-formatted descriptions.""")
 
 p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "Name of the file containing a description of the objects to import")
 
-p.add_option("-f", "--format", dest = "input_format", choices = ("json", "csv"), metavar = "STRING", default = "json",
+p.add_option("-f", "--format", dest = "input_format", choices = ("json", "csv"), metavar = "STRING", default = "csv",
 	help = "Format of the input file, either 'json' or 'csv' (default: %default)")
 
 p.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
@@ -27,13 +27,15 @@ p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default
 (p, a) = p.parse_args()
 
 def error (msg):
+	if msg.endswith('.'):
+		msg = msg[:-1]
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
 if (p.input_fn == None):
 	error("An input file must be provided")
 
-if (not os.path.exists(p.input_fn)):
+if (p.input_fn != '-') and (not os.path.exists(p.input_fn)):
 	error("File '%s' does not exists" % p.input_fn)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -42,8 +44,8 @@ if (p.verbose):
 	mdb.max_verbosity()
 
 BUILDER = {
-	"Collection": mdb.Collection,
-	"Sequence": mdb.Sequence,
+	"collection": mdb.Collection,
+	"sequence": mdb.Sequence,
 }
 
 class NotFound (Exception):
@@ -52,60 +54,70 @@ class NotFound (Exception):
 # retrieve an object based on its xref (object name if the object
 # if a Collection, Collection name and object name if the object is
 # a Sequence)
-def retrieve_xref (xref):
+def retrieve_xref (entry):
 	try:
-		collection = xref["_type"]
+		type = entry["_type"].lower()
+		if (not type in BUILDER):
+			raise Exception("Unknown object type '%s'" % type)
 
 		# the xref refers to a Collection
-		if (collection == "Collection"):
-			object = getattr(mdb, collection).find_one(name = xref["_name"])
+		if (type == "collection"):
+			object = mdb.Collection.find_one({"name": entry["name"]})
 			if (object == None):
-				raise Exception("Unknown Collection '%s'" % xref["_name"])
+				raise Exception("Unknown Collection '%s'" % entry["name"])
+
+			return object
 
 		# the xref refers to a Sequence
-		elif (collection == "Sequence"):
+		if (type == "sequence"):
+			raise NotImplementedError ##### TO DO
+
+			"""
 			# we first list all sequences having this name,
-			candidates = mdb.Sequence.find(name = xref["_name"])
+			candidates = mdb.Sequence.find({"name": entry["name"]})
 			# then we filter out those that are not linked to this collection
-			object = filter(lambda x: len(list(x.get_collections({ "name": xref["_collection"] }))) > 0, candidates)
+			object = filter(lambda x: len(list(x.get_collections({ "name": entry["_collection"] }))) > 0, candidates)
 
 			if (len(object) == 0):
-				raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (xref["_name"], xref["_collection"]))
+				raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (entry["_name"], entry["_collection"]))
 
 			if (len(object) > 1):
-				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (xref["_name"], xref["_collection"]))
+				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (entry["_name"], entry["_collection"]))
 
-			object = object[0]
-
-		else:
-			raise ValueError("A relationship many only exists among collection and/or sequences")
+			return object[0]
+			"""
 
 	except KeyError as msg:
 		raise Exception("Invalid entry: %s" % msg)
 
-	return object
+n_created, n_connected = 0, 0
 
-n = 0
 for entry in mdb.tools.parser(p.input_fn, p.input_format):
 	try:
-		type = entry["_type"]
+		type = entry["_type"].lower()
 		del entry["_type"]
-
-		if (not type in BUILDER):
-			raise Exception("Unknown object type '%s'" % type)
 
 		# if the object to build is a relationship, we
 		# first retrieve its source and target objects
-		if (type == "Relationship"):
-			entry["source"] = retrieve_xref(entry["source"])
-			entry["target"] = retrieve_xref(entry["target"])
+		if (type == "relationship"):
+			source = retrieve_xref(entry["_source"])
+			target = retrieve_xref(entry["_target"])
 
-		object = BUILDER[type](**entry)
+			if (not p.dry_run):
+				source._connect_to(target, entry)
+				source.commit()
 
-		if (not p.dry_run):
-			object.commit()
+			n_connected += 1
+		else:
+			if (not type in BUILDER):
+				raise Exception("Unknown object type '%s'" % type)
 
-		n += 1
+			object = BUILDER[type](entry)
+
+			if (not p.dry_run):
+				object.commit()
+
+			n_created += 1
 
 	except mdb.errors.ConnectionError as msg:
 		error(str(msg))
@@ -125,7 +137,10 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 	except Exception as msg:
 		error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
 
-print "%s object%s added." % (n, { True: 's', False: '' }[n > 1])
+print "%s object%s added, %s connection%s added." % (
+	n_created, { True: 's', False: '' }[n_created > 1],
+	n_connected, { True: 's', False: '' }[n_connected > 1]
+)
 
 if (p.dry_run):
 	print "(dry run)"

@@ -14,7 +14,7 @@ class MutableObject (object):
 	# Create a new object.
 	#	properties -- (dictionary) object annotations. Nested properties can
 	#		be expressed using dot notation.
-	def __init__ (self, **properties):
+	def __init__ (self, properties):
 		self._properties = {}
 
 		for key, value in properties.iteritems():
@@ -70,8 +70,8 @@ class CommittableObject (MutableObject):
 	# Create a new object.
 	#	properties -- (dictionary) object annotations. Nested properties can
 	#		be expressed using dot notation.
-	def __init__ (self, indices, **properties):
-		MutableObject.__init__(self, **properties)
+	def __init__ (self, indices, properties):
+		MutableObject.__init__(self, properties)
 
 		# if the object is provided with an identifier,
 		# we check if this identifier is present in the
@@ -147,7 +147,7 @@ class CommittableObject (MutableObject):
 	# Count the number of object of this type in the database.
 	#	filter -- (dictionary) optional filter.
 	@classmethod
-	def count (cls, **filter):
+	def count (cls, filter):
 		return backend.count(cls.__name__, query = filter)
 
 	# Count instances of this object having distinct values for a given property.
@@ -162,64 +162,185 @@ class CommittableObject (MutableObject):
 	#	filter -- (dictionary) query, or None if all objects are to be returned.
 	# Return the objects selected, as a generator.
 	@classmethod
-	def find (cls, **filter):
+	def find (cls, filter):
 		return backend.find(cls.__name__, query = filter)
 
 	# Find the first (or only) instance of this object that match a query.
 	#	filter -- (dictionary) query, or None if all objects are to be returned.
 	@classmethod
-	def find_one (cls, **filter):
+	def find_one (cls, filter):
 		return backend.find(cls.__name__, query = filter, find_one = True)
 
 	# Connect this object to another through a directed,
 	# annotated relationship (from this object to the target)
 	def _connect_to (self, target, relationship):
-		if (not target._committed):
-			raise Exception("Unable to connect %s to %s: the target is not committed" % (self, target))
+		if (not "_id" in target._properties):
+			raise Exception("Unable to connect %s to %s: the target has never been committed." % (self, target))
 
 		target_id = str(target._properties["_id"])
 
-		# case where this object has no connection yet
+		# case where this object has no connection with the target yet
 		if (not target_id in self._properties["_relationships"]):
 			assert (not target_id in self._properties["_relationship_with"]) ###
+
 			self._properties["_relationship_with"].append(target_id)
+			self._properties["_relationships"][target_id] = [relationship]
+			self._committed = False
+			return
 
 		# case where this object has a connection with the target
 		else:
 			assert (target_id in self._properties["_relationship_with"]) ###
-			if (self._properties["_relationships"][target_id] == relationship):
+
+			if (relationship in self._properties["_relationships"][target_id]):
+				logger.warning("A relationship %s already exists between objects %s and %s." % (relationship, self, target))
 				return
 
-		self._properties["_relationships"][target_id] = relationship
-		self._committed = False
+			self._properties["_relationships"][target_id].append(relationship)
 
 	# Disconnect this object from another
-	def _disconnect_from (self, target):
-		if (not target._committed):
-			raise Exception("Object %s is not connected to %s" % (self, target))
+	def _disconnect_from (self, target, relationship_filter):
+		if (not "_id" in target._properties):
+			raise Exception("Object %s is not connected to %s, as the later never has been committed." % (self, target))
+			return
 
 		target_id = str(target._properties["_id"])
 
 		if (not target_id in self._properties["_relationships"]):
-			raise Exception("Object %s is not connected to %s" % (self, target))
+			raise Exception("Object %s is not connected to %s." % (self, target))
 
-		del self._properties["_relationships"][target_id]
-		self._properties["_relationship_with"].remove(target_id)
-		self._committed = False
+		# case 1: we remove all relationships between the object and target
+		if (relationship_filter == None):
+			del self._properties["_relationships"][target_id]
+			self._properties["_relationship_with"].remove(target_id)
+			self._committed = False
 
-	# Return a description of the relationship between this object and another
-	# object, if any.
+		# case 2: we remove all relationships matching a criteria
+		else:
+			n_relationships = len(self._properties["_relationships"][target_id])
+			clazz = self.__class__.__name__
+			to_remove = []
+
+			for n in range(n_relationships):
+				query = tree.traverse(
+					relationship_filter,
+					selector = lambda x: not x.startswith('$'),
+					key_modifier = lambda x: "_relationships.%s.%s.%s" % (target_id, n, x)
+				)
+
+				query["_id"] = self._properties["_id"]
+
+				if (backend.find(clazz, query, count = True) == 0):
+					continue
+
+				to_remove.append(n)
+
+			if (len(to_remove) == 0):
+				raise Exception("Relationship %s not found between %s and %s." % (relationship_filter, self, target))
+
+			for n in sorted(to_remove, reverse = True):
+				del self._properties["_relationships"][target_id][n]
+
+			if (len(to_remove) == n_relationships):
+				del self._properties["_relationships"][target_id]
+				self._properties["_relationship_with"].remove(target_id)
+
+			self._committed = False
+
+	def _in_vertices (self, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
+		if (not "_id" in self._properties):
+			logger.warning("Attempt to list neighbors of %s while this object has never been committed." % self)
+			if (count):
+				return 0
+			else:
+				return []
+
+		object_id = str(self._properties["_id"])
+
+		query = {"_relationship_with": object_id}
+
+		if (relationship_filter != None):
+			query["_relationships.%s" % object_id] = {"$elemMatch": relationship_filter}
+
+		if (neighbor_filter != None):
+			for key in neighbor_filter:
+				query[key] = neighbor_filter[key]
+
+		return backend.find(neighbor_collection, query, count = count)
+
+	def _out_vertices (self, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
+		if (not "_id" in self._properties):
+			logger.warning("Attempt to list neighbors of %s while this object has never been committed." % self)
+			if (count):
+				return 0
+			else:
+				return []
+
+		object_id = str(self._properties["_id"])
+		clazz = self.__class__.__name__
+		targets = self._properties["_relationship_with"]
+
+		if (len(targets) == 0):
+			if (count):
+				return 0
+			else:
+				return []
+
+		# select candidate neighbors using relationship_filter
+		if (relationship_filter != None):
+			candidates = []
+			for target_id in targets:
+				query = tree.traverse(
+					relationship_filter,
+					selector = lambda x: not x.startswith('$'),
+					key_modifier = lambda x: "_relationships.%s.%s" % (target_id, x)
+				)
+
+				query["_id"] = self._properties["_id"]
+
+				if (backend.find(clazz, query, count = True) == 0):
+					continue
+
+				candidates.append(target_id)
+		else:
+			candidates = targets
+
+		if (len(candidates) == 0):
+			if (count):
+				return 0
+			else:
+				return []
+
+		# then select among candidates using neighbor_filter
+		query = {"_id": {"$in": [pymongo.objectid.ObjectId(id) for id in candidates]}}
+
+		if (neighbor_filter != None):
+			for key in neighbor_filter:
+				query[key] = neighbor_filter[key]
+
+		return backend.find(neighbor_collection, query, count = count)
+
+	def has_relationships_with (self, target):
+		if (not "_id" in target._properties):
+			logger.debug("Attempt to test a relationship between %s and %s while the later has never been committed." % (self, target))
+			return False
+
+		return (str(target._properties["_id"]) in self._properties["_relationships"])
+
+	# Return a description of the relationships between this object and another
+	# object, as a list. If none, return an empty list.
 	#	target -- Object with which this object has a relationship
-	def relationship_with (self, target):
-		if (not target._committed):
-			return None
+	def list_relationships_with (self, target):
+		if (not "_id" in target._properties):
+			logger.debug("Attempt to list relationships between %s and %s while the later has never been committed." % (self, target))
+			return []
 
 		target_id = str(target._properties["_id"])
 
 		if (target_id in self._properties["_relationships"]):
 			return copy.deepcopy(self._properties["_relationships"][target_id])
 		else:
-			return None
+			return []
 
 	# Remove this object from the database. Throw an exception if the object
 	# has not been committed, or if other objects have a relationship with it.
@@ -253,7 +374,7 @@ class CommittableObject (MutableObject):
 # Sequence object.
 class Sequence (CommittableObject):
 
-	def __init__ (self, **properties):
+	def __init__ (self, properties):
 		if (not "name" in properties):
 			raise errors.MalformedObject("Property 'name' is missing")
 
@@ -272,8 +393,8 @@ class Sequence (CommittableObject):
 			"class": False,
 		}
 
-#		super(Sequence, self).__init__(indices, **properties)
-		CommittableObject.__init__(self, indices, **properties)
+#		super(Sequence, self).__init__(indices, properties)
+		CommittableObject.__init__(self, indices, properties)
 
 	# Add this sequence to an existing collection
 	#	collection -- Collection to add this sequence to
@@ -284,22 +405,24 @@ class Sequence (CommittableObject):
 
 	# Remove this sequence from an existing collection
 	#	collection -- Collection to remove this sequence from
-	def remove_from_collection (self, collection):
-		self._disconnect_from(collection)
+	#	relationship_filter -- If set, remove only those relationships that
+	#		 match the filter. If not set, all relationships will be removed
+	def remove_from_collection (self, collection, relationship_filter = None):
+		self._disconnect_from(collection, relationship_filter)
 
 	# List all collections this sequence is part of
 	#	collection_filter -- Filter for the collection (optional)
 	#	relationship_filter -- Filter for the relationship between this
 	#		sequence and any collection (optional)
 	def list_collections (self, collection_filter = None, relationship_filter = None):
-		return backend.outgoing_neighbors(self, "Collection", collection_filter, relationship_filter)
+		return self._out_vertices("Collection", collection_filter, relationship_filter)
 
 	# Count all collections this sequence is part of
 	#	collection_filter -- Filter for the collection (optional)
 	#	relationship_filter -- Filter for the relationship between this
 	#		sequence and any collection (optional)
 	def count_collections (self, collection_filter = None, relationship_filter = None):
-		return backend.outgoing_neighbors(self, "Collection", collection_filter, relationship_filter, True)
+		return self._out_vertices("Collection", collection_filter, relationship_filter, True)
 
 	def add_to_sequence (self, sequence, relationship):
 		pass
@@ -318,7 +441,7 @@ class Sequence (CommittableObject):
 # Collection of Sequence objects.
 class Collection (CommittableObject):
 
-	def __init__ (self, **properties):
+	def __init__ (self, properties):
 		if (not "name" in properties):
 			raise errors.MalformedObject("Property 'name' is missing")
 
@@ -327,32 +450,32 @@ class Collection (CommittableObject):
 			"class": False,
 		}
 
-#		super(Collection, self).__init__(indices, **properties)
-		CommittableObject.__init__(self, indices, **properties)
+#		super(Collection, self).__init__(indices, properties)
+		CommittableObject.__init__(self, indices, properties)
 
 	def list_sequences (self, sequence_filter = None, relationship_filter = None):
-		return backend.ingoing_neighbors(self, "Sequence", sequence_filter, relationship_filter)
+		return self._in_vertices("Sequence", sequence_filter, relationship_filter)
 
 	def count_sequences (self, sequence_filter = None, relationship_filter = None):
-		return backend.ingoing_neighbors(self, "Sequence", sequence_filter, relationship_filter, True)
+		return self._in_vertices("Sequence", sequence_filter, relationship_filter, True)
 
 	def add_to_collection (self, collection, relationship):
 		self._connect_to(collection, relationship)
 
-	def remove_from_collection (self, collection):
-		self._disconnect_from(collection)
+	def remove_from_collection (self, collection, relationship_filter = None):
+		self._disconnect_from(collection, relationship_filter)
 
 	def list_super_collections (self, collection_filter = None, relationship_filter = None):
-		return backend.outgoing_neighbors(self, "Collection", collection_filter, relationship_filter)
+		return self._out_vertices("Collection", collection_filter, relationship_filter)
 
 	def count_super_collections (self, collection_filter = None, relationship_filter = None):
-		return backend.outgoing_neighbors(self, "Collection", collection_filter, relationship_filter, True)
+		return self._out_vertices("Collection", collection_filter, relationship_filter, True)
 
 	def list_sub_collections (self, collection_filter = None, relationship_filter = None):
-		return backend.ingoing_neighbors(self, "Collection", collection_filter, relationship_filter)
+		return self._in_vertices("Collection", collection_filter, relationship_filter)
 
 	def count_sub_collections (self, collection_filter = None, relationship_filter = None):
-		return backend.ingoing_neighbors(self, "Collection", collection_filter, relationship_filter, True)
+		return self._in_vertices("Collection", collection_filter, relationship_filter, True)
 
 	def __str__ (self):
 		return "<Collection id:%s name:'%s' state:'%s'>" % (

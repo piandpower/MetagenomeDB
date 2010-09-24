@@ -20,10 +20,10 @@ def __property (cp, section, key, default = None, coerce = None):
 
 	except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
 		if (default != None):
-			logger.debug("Default value '%s' used for key '%s' in section '%s'" % (default, key, section))
+			logger.debug("Default value '%s' used for key '%s' in section '%s'." % (default, key, section))
 			return default
 		else:
-			raise Exception("No value found for key '%s' in section '%s'" % (key, section))
+			raise Exception("No value found for key '%s' in section '%s'." % (key, section))
 
 __connection = None
 
@@ -50,7 +50,7 @@ def connection():
 	except pymongo.errors.ConnectionFailure as msg:
 		raise errors.ConnectionError(db, host, port, msg)
 
-	logger.info("Connected to '%s' on %s:%s" % (db, host, port))
+	logger.info("Connected to '%s' on %s:%s." % (db, host, port))
 
 	# use credentials, if any
 	user = __property(cp, "connection", "user", '')
@@ -59,7 +59,7 @@ def connection():
 	if (user != ''):
 		connection.authenticate(user, password)
 
-		logger.info("Authenticated as '%s'" % user)
+		logger.info("Authenticated as '%s'." % user)
 
 	# test if the credentials are okay
 	try:

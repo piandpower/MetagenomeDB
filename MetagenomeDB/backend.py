@@ -124,8 +124,6 @@ def find (collection, query, find_one = False, count = False):
 		# no query argument: returns all objects in this collection
 		if (query == {}):
 			query = None
-		else:
-			query = __clean_query(query)
 
 	elif (query != None):
 		raise ValueError("Invalid query: %s" % query)
@@ -157,7 +155,7 @@ def __forge_from_entry (collection, entry):
 	__objects[id] = object
 
 	# instanciate this class
-	instance = object(**tree.traverse(entry, lambda x: True, lambda x: str(x)))
+	instance = object(tree.traverse(entry, lambda x: True, lambda x: str(x)))
 
 	__objects[id] = instance
 	return instance
@@ -172,30 +170,6 @@ def __forge_from_entries (collection, resultset):
 				yield __forge_from_entry(collection, object)
 
 		return __generator()
-
-def __clean_query (query):
-	"""
-	query = tree.traverse(
-		query,
-		selector = lambda x: x.startswith('_'),
-		key_modifier = lambda x: '$' + x[1:]
-	)
-
-	query = tree.traverse(
-		query,
-		selector = lambda x: (x == "$id"),
-		key_modifier = lambda x: "_id",
-		value_modifier = lambda x: pymongo.objectid.ObjectId(x),
-	)
-	"""
-
-	query = tree.traverse(
-		query,
-		selector = lambda x: (x == "clazz"),
-		key_modifier = lambda x: "class",
-	)
-
-	return query
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -267,18 +241,7 @@ def ingoing_neighbors (object, neighbor_collection, neighbor_filter = None, rela
 			query[key] = neighbor_filter[key]
 
 	if (relationship_filter != None):
-		query["_relationships"] = { object_id: __clean_query(relationship_filter) }
+		query["_relationships"] = { object_id: relationship_filter }
 
 	return find(neighbor_collection, query, count = count)
 
-def outgoing_neighbors (object, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
-	query = { "_id": { "$in": [pymongo.objectid.ObjectId(id) for id in object._properties["_relationship_with"]] }}
-
-	if (neighbor_filter != None):
-		for key in neighbor_filter:
-			query[key] = neighbor_filter[key]
-
-	if (relationship_filter != None):
-		query["_relationships"] = { object_id: __clean_query(relationship_filter) }
-
-	return find(neighbor_collection, query, count = count)

@@ -22,7 +22,7 @@ def set_verbosity (level):
 	}.get(level.lower().strip(), logging.NOTSET)
 
 	logger.setLevel(level_code)
-	logger.info("Verbosity set to '%s'" % level)
+	logger.info("Verbosity set to '%s'." % level)
 
 def min_verbosity():
 	set_verbosity("error")

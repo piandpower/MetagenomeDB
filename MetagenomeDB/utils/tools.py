@@ -1,6 +1,6 @@
 # tools.py: Routines for MetagenomeDB tools (see tools/)
 
-import re, json, csv
+import re, json, csv, sys
 import tree
 
 __PROPERTY = re.compile("^(\[)?((?:,?(?:string|integer|float|boolean))+)$")
@@ -61,9 +61,14 @@ def parse (value, separator = '^'):
 # Parse either a JSON-formatted or CSV-formatted file, returning key/values
 # as an iterator. 'format' must be either 'json' or 'csv'.
 def parser (fn, format):
+	if (fn == '-'):
+		i = sys.stdin
+	else:
+		i = open(fn, 'r')
+
 	if (format == "json"):
 		try:
-			data = json.load(open(fn, 'r'))
+			data = json.load(i)
 
 			if (type(data) == dict):
 				data = [data]
@@ -85,7 +90,7 @@ def parser (fn, format):
 
 	elif (format == "csv"):
 		def generator():
-			for line in csv.reader(open(fn, 'r'), delimiter = ',', quotechar='"'):
+			for line in csv.reader(i, delimiter = ',', quotechar='"'):
 				map = {}
 				for item in line:
 					key, value = item.split('=')
