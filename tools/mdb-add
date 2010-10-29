@@ -8,7 +8,7 @@ Import objects (Sequence and/or Collection) into the database. Those
 objects are provided as JSON- or CSV-formatted descriptions.""")
 
 p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
-	help = "Name of the file containing a description of the objects to import")
+	help = "Name of the file containing a description of the objects to import, or '-' to read from the standard input")
 
 p.add_option("-f", "--format", dest = "input_format", choices = ("json", "csv"), metavar = "STRING", default = "csv",
 	help = "Format of the input file, either 'json' or 'csv' (default: %default)")
@@ -102,6 +102,9 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 		if (type == "relationship"):
 			source = retrieve_xref(entry["_source"])
 			target = retrieve_xref(entry["_target"])
+
+			del entry["_source"]
+			del entry["_target"]
 
 			if (not p.dry_run):
 				source._connect_to(target, entry)

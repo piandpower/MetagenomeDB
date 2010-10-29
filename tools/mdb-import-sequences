@@ -15,7 +15,7 @@ g.add_option("-f", "--format", dest = "input_format", metavar = "STRING", defaul
 	help = "Format of the sequences file. Default: %default")
 
 g.add_option("-s", "--sequence-property", dest = "sequence_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
-	help = "Custom sequence property (optional).")
+	help = "Sequence property (optional).")
 
 p.add_option_group(g)
 
@@ -25,10 +25,10 @@ g.add_option("-C", "--collection-name", dest = "collection_name", metavar = "STR
 	help = "Name of the collection the sequences belong to.")
 
 g.add_option("-c", "--collection-property", dest = "collection_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
-	help = "Description of the collection the sequences belong to, as a key/value (optional).")
+	help = "Collection property (optional).")
 
 g.add_option("-r", "--relationship-property", dest = "relationship_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
-	help = "Custom sequence-to-collection relationship property (optional).")
+	help = "Sequence to collection relationship property (optional).")
 
 p.add_option_group(g)
 
@@ -53,11 +53,6 @@ if (not p.input_format):
 if (not p.collection_name) and (not p.collection_properties):
 	error("A collection name or description must be provided")
 
-if (p.sequence_properties):
-	for key, value in p.sequence_properties:
-		if (key in ("name", "description", "length", "sequence", "type")):
-			error("The key '%s' is reserved" % key)
-
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 import MetagenomeDB as mdb
@@ -75,7 +70,7 @@ if (p.collection_properties):
 		print >>sys.stderr, "WARNING: A '_id' field was found in the collection description and ignored."
 		del m["_id"]
 
-	if ("name" in m) and (mdb.Collection.find_one(name = m["name"]) != None):
+	if ("name" in m) and (mdb.Collection.find_one({"name": m["name"]}) != None):
 		error("Duplicate collection '%s'" % m["name"])
 
 	try:

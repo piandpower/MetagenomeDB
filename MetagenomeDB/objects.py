@@ -8,6 +8,14 @@ from utils import tree
 
 logger = logging.getLogger("MetagenomeDB.objects")
 
+def parse_properties (properties):
+	properties_ = {}
+	for key, value in properties.iteritems():
+		key = tree.validate_key(key)
+		tree.set(properties_, key, value)
+
+	return properties_
+
 # MutableObject: Base object that can receive arbitrary properties.
 class MutableObject (object):
 
@@ -15,12 +23,7 @@ class MutableObject (object):
 	#	properties -- (dictionary) object annotations. Nested properties can
 	#		be expressed using dot notation.
 	def __init__ (self, properties):
-		self._properties = {}
-
-		for key, value in properties.iteritems():
-			key = tree.validate_key(key)
-			tree.set(self._properties, key, value)
-
+		self._properties = parse_properties(properties)
 		self._modified = False
 
 	# Return a copy of all of this object's properties, as a dictionary.
@@ -178,6 +181,7 @@ class CommittableObject (MutableObject):
 			raise Exception("Unable to connect %s to %s: the target has never been committed." % (self, target))
 
 		target_id = str(target._properties["_id"])
+		relationship = parse_properties(relationship)
 
 		# case where this object has no connection with the target yet
 		if (not target_id in self._properties["_relationships"]):
@@ -193,7 +197,7 @@ class CommittableObject (MutableObject):
 			assert (target_id in self._properties["_relationship_with"]) ###
 
 			if (relationship in self._properties["_relationships"][target_id]):
-				logger.warning("A relationship %s already exists between objects %s and %s." % (relationship, self, target))
+				logger.warning("A relationship %s already exists between objects %s and %s, and has been ignored." % (relationship, self, target))
 				return
 
 			self._properties["_relationships"][target_id].append(relationship)
@@ -223,7 +227,7 @@ class CommittableObject (MutableObject):
 
 			for n in range(n_relationships):
 				query = tree.traverse(
-					relationship_filter,
+					parse_properties(relationship_filter),
 					selector = lambda x: not x.startswith('$'),
 					key_modifier = lambda x: "_relationships.%s.%s.%s" % (target_id, n, x)
 				)
@@ -260,9 +264,10 @@ class CommittableObject (MutableObject):
 		query = {"_relationship_with": object_id}
 
 		if (relationship_filter != None):
-			query["_relationships.%s" % object_id] = {"$elemMatch": relationship_filter}
+			query["_relationships.%s" % object_id] = {"$elemMatch": parse_properties(relationship_filter)}
 
 		if (neighbor_filter != None):
+			neighbor_filter = parse_properties(neighbor_filter)
 			for key in neighbor_filter:
 				query[key] = neighbor_filter[key]
 
@@ -291,7 +296,7 @@ class CommittableObject (MutableObject):
 			candidates = []
 			for target_id in targets:
 				query = tree.traverse(
-					relationship_filter,
+					parse_properties(relationship_filter),
 					selector = lambda x: not x.startswith('$'),
 					key_modifier = lambda x: "_relationships.%s.%s" % (target_id, x)
 				)
@@ -315,6 +320,7 @@ class CommittableObject (MutableObject):
 		query = {"_id": {"$in": [pymongo.objectid.ObjectId(id) for id in candidates]}}
 
 		if (neighbor_filter != None):
+			neighbor_filter = parse_properties(neighbor_filter)
 			for key in neighbor_filter:
 				query[key] = neighbor_filter[key]
 
@@ -369,6 +375,42 @@ class CommittableObject (MutableObject):
 	def __repr__ (self):
 		return self.__str__()
 
+class Direction:
+	INGOING = 1
+	OUTGOING = 2
+	BOTH = 0
+
+	@classmethod
+	def _validate (cls, value):
+		value_t = type(value)
+
+		if (value_t == int):
+			if (value < 0) or (value > 2):
+				raise ValueError("Invalid direction '%s'" % value)
+			return value
+
+		if (value_t == str):
+			try:
+				return {
+					"ingoing": 1,
+					"outgoing": 2,
+					"both": 0
+				}[value.lower().strip()]
+			except:
+				raise ValueError("Invalid direction '%s'" % value)
+
+		raise ValueError("Invalid direction '%s'" % value)
+
+	@classmethod
+	def _has_ingoing (cls, value):
+		value = Direction._validate(value)
+		return (value == Direction.INGOING) or (value == Direction.BOTH)
+
+	@classmethod
+	def _has_outgoing (cls, value):
+		value = Direction._validate(value)
+		return (value == Direction.OUTGOING) or (value == Direction.BOTH)
+
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # Sequence object.
@@ -393,7 +435,6 @@ class Sequence (CommittableObject):
 			"class": False,
 		}
 
-#		super(Sequence, self).__init__(indices, properties)
 		CommittableObject.__init__(self, indices, properties)
 
 	# Add this sequence to an existing collection
@@ -401,6 +442,9 @@ class Sequence (CommittableObject):
 	#	relationship -- Properties of the relationship between
 	#		this sequence and the collection
 	def add_to_collection (self, collection, relationship):
+		if (not isinstance(collection, Collection)):
+			raise ValueError("The 'collection' parameter must be a Collection object.")
+
 		self._connect_to(collection, relationship)
 
 	# Remove this sequence from an existing collection
@@ -408,6 +452,9 @@ class Sequence (CommittableObject):
 	#	relationship_filter -- If set, remove only those relationships that
 	#		 match the filter. If not set, all relationships will be removed
 	def remove_from_collection (self, collection, relationship_filter = None):
+		if (not isinstance(collection, Collection)):
+			raise ValueError("The 'collection' parameter must be a Collection object.")
+
 		self._disconnect_from(collection, relationship_filter)
 
 	# List all collections this sequence is part of
@@ -424,11 +471,39 @@ class Sequence (CommittableObject):
 	def count_collections (self, collection_filter = None, relationship_filter = None):
 		return self._out_vertices("Collection", collection_filter, relationship_filter, True)
 
-	def add_to_sequence (self, sequence, relationship):
-		pass
+	def relate_to_sequence (self, sequence, relationship):
+		if (not isinstance(sequence, Sequence)):
+			raise ValueError("The 'sequence' parameter must be a Sequence object.")
 
-	def remove_from_sequence (self, sequence):
-		pass
+		self._connect_to(sequence, relationship)
+
+	def dissociate_from_sequence (self, sequence):
+		if (not isinstance(sequence, Sequence)):
+			raise ValueError("The 'sequence' parameter must be a Sequence object.")
+
+		self._disconnect_from(sequence)
+
+	def list_related_sequences (self, direction = Direction.BOTH, sequence_filter = None, relationship_filter = None):
+		related_sequences = []
+
+		if Direction._has_ingoing(direction):
+			related_sequences.append(self._in_vertices("Sequence", sequence_filter, relationship_filter))
+
+		if Direction._has_outgoing(direction):
+			related_sequences.append(self._out_vertices("Sequence", sequence_filter, relationship_filter))
+
+		return itertools.chain(*related_sequences)
+
+	def count_related_sequences (self, direction = Direction.BOTH, sequence_filter = None, relationship_filter = None):
+		related_sequences_c = 0
+
+		if Direction._has_ingoing(direction):
+			related_sequences_c += self._in_vertices("Sequence", sequence_filter, relationship_filter, count = True)
+
+		if Direction._has_outgoing(direction):
+			related_sequences_c += self._out_vertices("Sequence", sequence_filter, relationship_filter, count = True)
+
+		return related_sequences_c
 
 	def __str__ (self):
 		return "<Sequence id:%s name:'%s' length:%s state:'%s'>" % (
@@ -450,7 +525,6 @@ class Collection (CommittableObject):
 			"class": False,
 		}
 
-#		super(Collection, self).__init__(indices, properties)
 		CommittableObject.__init__(self, indices, properties)
 
 	def list_sequences (self, sequence_filter = None, relationship_filter = None):
@@ -460,22 +534,38 @@ class Collection (CommittableObject):
 		return self._in_vertices("Sequence", sequence_filter, relationship_filter, True)
 
 	def add_to_collection (self, collection, relationship):
+		if (not isinstance(collection, Collection)):
+			raise ValueError("The 'collection' parameter must be a Collection object.")
+
 		self._connect_to(collection, relationship)
 
 	def remove_from_collection (self, collection, relationship_filter = None):
+		if (not isinstance(collection, Collection)):
+			raise ValueError("The 'collection' parameter must be a Collection object.")
+
 		self._disconnect_from(collection, relationship_filter)
 
-	def list_super_collections (self, collection_filter = None, relationship_filter = None):
-		return self._out_vertices("Collection", collection_filter, relationship_filter)
+	def list_collections (self, direction = Direction.BOTH, collection_filter = None, relationship_filter = None):
+		collections = []
 
-	def count_super_collections (self, collection_filter = None, relationship_filter = None):
-		return self._out_vertices("Collection", collection_filter, relationship_filter, True)
+		if Direction._has_ingoing(direction):
+			collections.append(self._in_vertices("Collection", collection_filter, relationship_filter))
 
-	def list_sub_collections (self, collection_filter = None, relationship_filter = None):
-		return self._in_vertices("Collection", collection_filter, relationship_filter)
+		if Direction._has_outgoing(direction):
+			collections.append(self._out_vertices("Collection", collection_filter, relationship_filter))
 
-	def count_sub_collections (self, collection_filter = None, relationship_filter = None):
-		return self._in_vertices("Collection", collection_filter, relationship_filter, True)
+		return itertools.chain(*collections)
+
+	def count_collections (self, direction = Direction.BOTH, collection_filter = None, relationship_filter = None):
+		collections_c = 0
+
+		if Direction._has_ingoing(direction):
+			collections_c += self._in_vertices("Collection", collection_filter, relationship_filter, count = True)
+
+		if Direction._has_outgoing(direction):
+			collections_c += self._out_vertices("Collection", collection_filter, relationship_filter, count = True)
+
+		return collections_c
 
 	def __str__ (self):
 		return "<Collection id:%s name:'%s' state:'%s'>" % (

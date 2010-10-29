@@ -93,7 +93,7 @@ def parser (fn, format):
 			for line in csv.reader(i, delimiter = ',', quotechar='"'):
 				map = {}
 				for item in line:
-					key, value = item.split('=')
+					key, value = item.strip().split('=')
 					tree.set(map, key.split('.'), parse(value))
 
 				yield map

@@ -131,12 +131,12 @@ def find (collection, query, find_one = False, count = False):
 	logger.debug("Querying %s in collection '%s'." % (query, collection))
 
 	if (count):
-		return cursor.find(query).count()
+		return cursor.find(query, timeout = False).count()
 
 	if (find_one):
 		return __forge_from_entry(collection, cursor.find_one(query))
 	else:
-		return __forge_from_entries(collection, cursor.find(query))
+		return __forge_from_entries(collection, cursor.find(query, timeout = False))
 
 # Forge an object from a unique entry
 def __forge_from_entry (collection, entry):
@@ -227,21 +227,3 @@ def has_ingoing_neighbors (object):
 			return True
 
 	return False
-
-def ingoing_neighbors (object, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
-	if (not object.is_committed()):
-		raise errors.UncommittedObject(object)
-
-	object_id = str(object._properties["_id"])
-
-	query = { "_relationship_with": object_id }
-
-	if (neighbor_filter != None):
-		for key in neighbor_filter:
-			query[key] = neighbor_filter[key]
-
-	if (relationship_filter != None):
-		query["_relationships"] = { object_id: relationship_filter }
-
-	return find(neighbor_collection, query, count = count)
-

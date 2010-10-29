@@ -10,27 +10,31 @@ g = optparse.OptionGroup(p, "ACE")
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "ACE file.")
 
-g.add_option("--reads-collection", dest = "reads_collection", metavar = "STRING",
+g.add_option("-R", "--reads-collection", dest = "reads_collection", metavar = "STRING",
 	help = "Name of the collection the reads belong to.")
 
 g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%.rd.name",
-	help = "Python command to reformat read identifiers (optional).")
+	help = "Python code to reformat read identifiers (optional); '%s' will be replaced by a Biopython ACE read object. Default: %default")
+
+g.add_option("--read-id-patch", dest = "read_id_patch_fn", metavar = "FILENAME",
+	help = """Tab-delimited file with patches for read identifiers; the first column is
+the original identifier from the ACE file, and the second is the replacement (optional).""")
 
 g.add_option("--ignore-missing-reads", dest = "ignore_missing_reads", action = "store_true", default = False,
 	help = "If set, ignore reads that are not found in the reads collection.")
 
-g.add_option("--contigs-collection", dest = "contigs_collection", metavar = "STRING",
+g.add_option("-C", "--contigs-collection", dest = "contigs_collection", metavar = "STRING",
 	help = "Name of the collection the contigs belong to.")
 
 g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON CODE", default = "%.name",
-	help = "Python command to reformat contigs identifiers (optional).")
+	help = "Python code to reformat contigs identifiers (optional); '%s' will be replaced by a Biopython ACE record object. Default: %default")
 
 g.add_option("--ignore-missing-contigs", dest = "ignore_missing_contigs", action = "store_true", default = False,
 	help = "If set, ignore contigs that are not found in the contigs collection.")
 
 p.add_option_group(g)
 
-p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
 p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
 
 (p, a) = p.parse_args()
@@ -55,6 +59,24 @@ try:
 except SyntaxError, e:
 	error("Invalid getter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
 
+read_id_patch = {}
+
+if (p.read_id_patch_fn):
+	if (not os.path.exists(p.read_id_patch_fn)):
+		error("File '%s' not found" % p.read_id_patch_fn)
+
+	fh = open(p.read_id_patch_fn, 'r')
+	while True:
+		line = fh.readline()
+		if (line == ''):
+			break
+
+		original_id, replacement_id = line.split('	')
+		if (original_id in read_id_patch):
+			error("Invalid read identifier patch: identifier '%s' is provided with more than one replacement" % original_id)
+
+		read_id_patch[original_id] = replacement_id
+
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 import MetagenomeDB as mdb
@@ -64,8 +86,8 @@ try:
 except:
 	error("The Biopython library must be installed\nTry 'easy_install Biopython'")
 
-if (p.verbosity > 0):
-	mdb.set_debug_level(p.verbosity)
+if (p.verbose):
+	mdb.max_verbosity()
 
 print "Importing '%s' ..." % p.input_fn
 
@@ -73,18 +95,18 @@ print "  validating read and contig sequences ..."
 
 Reads, Contigs = {}, {}
 
-reads = mdb.Collection.find_one(name = p.reads_collection)
+reads = mdb.Collection.find_one({"name": p.reads_collection})
 if (reads == None):
 	error("Unknown collection '%s'" % p.reads_collection)
 
-for read, relationship in reads.get_sequences():
+for read in reads.list_sequences():
 	Reads[str(read["name"])] = read
 
-contigs = mdb.Collection.find_one(name = p.contigs_collection)
+contigs = mdb.Collection.find_one({"name": p.contigs_collection})
 if (contigs == None):
 	error("Unknown collection '%s'" % p.contigs_collection)
 
-for contig, relationship in contigs.get_sequences():
+for contig in contigs.list_sequences():
 	Contigs[str(contig["name"])] = contig
 
 i = Ace.parse(open(p.input_fn, 'r'))
@@ -92,6 +114,7 @@ c = 0
 
 for contig in i:
 	contig_id = get_contig_id(contig)
+
 	if (not contig_id in Contigs):
 		msg = "Unknown contig '%s'" % contig_id
 		if (p.ignore_missing_contigs):
@@ -102,6 +125,8 @@ for contig in i:
 
 	for read in contig.reads:
 		read_id = get_read_id(read)
+		read_id = read_id_patch.get(read_id, read_id)
+
 		if (not read_id in Reads):
 			msg = "Unknown read '%s' (mapped to contig '%s')" % (read_id, contig_id)
 			if (p.ignore_missing_reads):
@@ -138,20 +163,26 @@ c = 0
 
 for contig in i:
 	contig_id = get_contig_id(contig)
+
 	if (not contig_id in Contigs):
 		continue
 
-	for read in contig.reads:
+	contig_ = Contigs[contig_id]
+
+	for read_idx, read in enumerate(contig.reads):
 		read_id = get_read_id(read)
+		read_id = read_id_patch.get(read_id, read_id)
+
 		if (not read_id in Reads):
 			continue
 
-		r = mdb.Relationship(source = Reads[read_id], target = Contigs[contig_id], type = "part-of")
+		read_ = Reads[read_id]
 
 		if (p.dry_run):
-			print pprint.pformat(r)
+			print "    read '%s' to contig '%s'" % (read_id, contig_id)
 		else:
-			r.commit()
+			read_.relate_to_sequence(contig_, {"type": "part-of", "position": contig.af[read_idx].padded_start})
+			read_.commit()
 
 		c += 1
 		pb.display(c)
@@ -159,3 +190,6 @@ for contig in i:
 pb.clear()
 
 print "    done."
+
+if (p.dry_run):
+	print "(dry run)"
