@@ -22,12 +22,12 @@ Objects of type ``Sequence`` or ``Collection`` can be connected to each other in
 - sequence that is similar to another sequence (relationship between two ``Sequence`` objects)
 - collection that is part of a bigger collection (relationship between two ``Collection`` objects)
 
-The result is a network of sequences and collection, which can be browsed using dedicated methods; i.e.g., ``Collection.list_sequences()``, ``Sequence.list_collections()``, ``Sequence.list_related_sequences()``. Each one of those methods allow for sophisticated filters:
+The result is a network of sequences and collection, which can be browsed using dedicated methods; i.e.g., ``Collection.list_sequences()``, ``Sequence.list_collections()``, ``Sequence.list_related_sequences()``. Each one of those methods allow for sophisticated filters::
 
 	# list all collections of type 'collection_of_reads'
 	# this sequence belong to
 	s.list_collections({"type": "collection_of_reads"})
-
+	
 	# list all sequences that also belong to these collections
 	# with a length of at least 50 bp
 	for c in s.list_collections():
