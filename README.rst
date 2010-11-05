@@ -6,7 +6,7 @@ MetagenomeDB is a Python_ library acting as an abstraction layer on top of a Mon
 - **sequences** (``Sequence`` class); e.g., reads, contigs, PCR clones
 - **collections** of sequences (``Collection`` class); e.g., reads resulting from the sequencing of a sample, contigs assembled from a set of reads, PCR library
 
-Any object can be annotated using a dictionary-like syntax:
+Any object can be annotated using a dictionary-like syntax::
 
 	import MetagenomeDB as mdb
 	s = mdb.Sequence(name = "My sequence", sequence = "atgc")

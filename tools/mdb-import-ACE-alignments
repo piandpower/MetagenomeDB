@@ -178,10 +178,18 @@ for contig in i:
 
 		read_ = Reads[read_id]
 
+		r = {
+			"type": "part-of",
+
+			"position": contig.af[read_idx].padded_start
+		}
+
 		if (p.dry_run):
 			print "    read '%s' to contig '%s'" % (read_id, contig_id)
+			for line in pprint.pformat(r).split('\n'):
+				print "      %s" % line
 		else:
-			read_.relate_to_sequence(contig_, {"type": "part-of", "position": contig.af[read_idx].padded_start})
+			read_.relate_to_sequence(contig_, r)
 			read_.commit()
 
 		c += 1

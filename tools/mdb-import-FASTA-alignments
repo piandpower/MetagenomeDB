@@ -10,11 +10,11 @@ g = optparse.OptionGroup(p, "FASTA")
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "Results of a FASTA sequence alignment (note: the file MUST be formatted with the '-m 10' option).")
 
-g.add_option("--query-collection", dest = "queries_collection", metavar = "STRING",
+g.add_option("-Q", "--query-collection", dest = "queries_collection", metavar = "STRING",
 	help = """Name of the collection the query sequences belong to. If not
 provided, the query sequences are assumed to be external to the database.""")
 
-g.add_option("--hit-collection", dest = "hits_collection", metavar = "STRING",
+g.add_option("-H", "--hit-collection", dest = "hits_collection", metavar = "STRING",
 	help = """Name of the collection the hit sequences belong to. If not
 provided, the hit sequences are assumed to be external to the database.""")
 
@@ -23,7 +23,7 @@ g.add_option("--date", dest = "date", nargs = 3, type = "int",
 
 p.add_option_group(g)
 
-p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
 p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
 
 (p, a) = p.parse_args()
@@ -59,8 +59,8 @@ else:
 
 import MetagenomeDB as mdb
 
-if (p.verbosity > 0):
-	mdb.set_debug_level(p.verbosity)
+if (p.verbose):
+	mdb.max_verbosity()
 
 print "Importing '%s' ..." % p.input_fn
 
@@ -69,7 +69,7 @@ print "  validating query and hit sequences ..."
 QuerySequences, HitSequences = {}, {}
 
 if (p.queries_collection):
-	queries = mdb.Collection.find_one(name = p.queries_collection)
+	queries = mdb.Collection.find_one({"name": p.queries_collection})
 	if (queries == None):
 		error("Unknown collection '%s'" % p.queries_collection)
 
@@ -77,7 +77,7 @@ if (p.queries_collection):
 		QuerySequences[str(sequence["name"])] = sequence
 
 if (p.hits_collection):
-	hits = mdb.Collection.find_one(name = p.hits_collection)
+	hits = mdb.Collection.find_one({"name": p.hits_collection})
 	if (hits == None):
 		error("Unknown collection '%s'" % p.hits_collection)
 
@@ -187,14 +187,8 @@ while True:
 print "  importing HSPs ..."
 
 for query_id in HSP:
-	r_arguments = {"type": "similar-to"}
-
-	if (p.queries_collection):
-		r_arguments["source"] = QuerySequences[query_id]
-	else:
-		r_arguments["source"] = mdb.Object(id = query_id)
-
 	run, hits = HSP[query_id]
+	query = QuerySequences[query_id]
 
 	parameters = {}
 	for key in filter(lambda x: x not in ("pg_name", "pg_ver", "pg_name_alg", "pg_ver_rel", "database", "mp_Algorithm"), run):
@@ -202,62 +196,68 @@ for query_id in HSP:
 
 	for hit_key in hits:
 		hit_id = hit_key[1]
-
-		if (p.hits_collection):
-			r_arguments["target"] = HitSequences[hit_id]
-		else:
-			r_arguments["target"] = mdb.Object(id = hit_id)
-
-		r = mdb.Relationship(**r_arguments)
-
-		r["run.date"] = {"year": p.date[0], "month": p.date[1], "day": p.date[2]}
-		r["run.algorithm"] = {
-			"name": run["pg_name"],
-			"version": run["pg_ver"],
-			"parameters": parameters,
-		}
-
+		hit = HitSequences[hit_id]
+		
 		hsp = hits[hit_key]
 
 		query_alignment = ''.join([hsp["query"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_display_start"), hsp["query"]), lambda x, y: cmp(x[1], y[1]))])
 		hit_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_display_start"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
 		cons_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_cons"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
 
-		r["source_coordinates"] = (int(hsp["query"]["al_start"]), int(hsp["query"]["al_stop"]))
-		r["target_coordinates"] = (int(hsp["hit"]["al_start"]), int(hsp["hit"]["al_stop"]))
+		source_coordinates = (int(hsp["query"]["al_start"]), int(hsp["query"]["al_stop"]))
+		target_coordinates = (int(hsp["hit"]["al_start"]), int(hsp["hit"]["al_stop"]))
 
 		source_offset = int(hsp["query"]["al_display_start"])
 		target_offset = int(hsp["hit"]["al_display_start"])
 
-		offset1 = abs(source_offset - r["source_coordinates"][0])
-		offset2 = abs(target_offset - r["target_coordinates"][0])
+		offset1 = abs(source_offset - source_coordinates[0])
+		offset2 = abs(target_offset - target_coordinates[0])
 
 		start = max(offset1, offset2)
 		stop = len(cons_alignment.strip()) + start
 		assert (cons_alignment[start] != ' ') ###
 
-		r["alignment"] = {
-			"source": query_alignment[start:stop],
-			"conservation": cons_alignment[start:stop],
-			"target": hit_alignment[start:stop],
-		}
+		r = {
+			"type": "similar-to",
 
-		r["score"] = {
-			"fraction_identical": 100 * float(hsp["bs_ident"]),
-			"fraction_conserved": 100 * float(hsp["bs_sim"]),
-			"expectation": {
-				"e_value": float(hsp["fa_expect"]),
-				"search_space": {
-					"database_name": run["database"],
-					"number_of_sequences": n_sequences,
-					"number_of_residues": n_residues,
+			"run.date": {"year": p.date[0], "month": p.date[1], "day": p.date[2]},
+			"run.algorithm": {
+				"name": run["pg_name"],
+				"version": run["pg_ver"],
+				"parameters": parameters,
+			},
+
+			"alignment": {
+				"source_coordinates": source_coordinates,
+				"source": query_alignment[start:stop],
+				"match": cons_alignment[start:stop],
+				"target": hit_alignment[start:stop],
+				"target_coordinates": target_coordinates,
+			},
+
+			"score": {
+				"fraction_identical": 100 * float(hsp["bs_ident"]),
+				"fraction_conserved": 100 * float(hsp["bs_sim"]),
+				"expectation": {
+					"e_value": float(hsp["fa_expect"]),
+					"search_space": {
+						"database_name": run["database"],
+						"number_of_sequences": n_sequences,
+						"number_of_residues": n_residues,
+					}
 				}
 			}
 		}
 
 		if (p.dry_run):
-			print pprint.pformat(r)
+			print "    query '%s' to hit '%s'" % (query_id, hit_id)
+			for line in pprint.pformat(r).split('\n'):
+				print "      %s" % line
 		else:
-			r.commit()
+			query.relate_to_sequence(hit, r)
+			query.commit()
 
 print "    done."
+
+if (p.dry_run):
+	print "(dry run)"
