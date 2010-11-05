@@ -70,11 +70,9 @@ def retrieve_xref (entry):
 
 		# the xref refers to a Sequence
 		if (type == "sequence"):
-			raise NotImplementedError ##### TO DO
-
-			"""
 			# we first list all sequences having this name,
 			candidates = mdb.Sequence.find({"name": entry["name"]})
+
 			# then we filter out those that are not linked to this collection
 			object = filter(lambda x: len(list(x.get_collections({ "name": entry["_collection"] }))) > 0, candidates)
 
@@ -85,7 +83,6 @@ def retrieve_xref (entry):
 				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (entry["_name"], entry["_collection"]))
 
 			return object[0]
-			"""
 
 	except KeyError as msg:
 		raise Exception("Invalid entry: %s" % msg)

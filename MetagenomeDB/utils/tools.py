@@ -64,7 +64,7 @@ def parser (fn, format):
 	if (fn == '-'):
 		i = sys.stdin
 	else:
-		i = open(fn, 'r')
+		i = open(fn, 'rU')
 
 	if (format == "json"):
 		try:
@@ -91,10 +91,18 @@ def parser (fn, format):
 	elif (format == "csv"):
 		def generator():
 			for line in csv.reader(i, delimiter = ',', quotechar='"'):
+				line = filter(lambda x: x != '', line)
+
+				if (len(line) == 0): # empty lines
+					continue
+
+				if (line[0].startswith('#')): # commented lines
+					continue
+
 				map = {}
 				for item in line:
-					key, value = item.strip().split('=')
-					tree.set(map, key.split('.'), parse(value))
+					key, value = item.split('=', 1)
+					tree.set(map, tree.validate_key(key.strip()), parse(value.strip()))
 
 				yield map
 

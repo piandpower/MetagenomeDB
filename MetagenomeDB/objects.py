@@ -376,8 +376,8 @@ class CommittableObject (MutableObject):
 		return self.__str__()
 
 class Direction:
-	INGOING = 1
-	OUTGOING = 2
+	INGOING, SUB = 1, 1
+	OUTGOING, SUPER = 2, 2
 	BOTH = 0
 
 	@classmethod
@@ -545,7 +545,13 @@ class Collection (CommittableObject):
 
 		self._disconnect_from(collection, relationship_filter)
 
-	def list_collections (self, direction = Direction.BOTH, collection_filter = None, relationship_filter = None):
+	def list_sub_collections (self, collection_filter = None, relationship_filter = None):
+		return self.list_related_collections(Direction.INGOING, collection_filter, relationship_filter)
+
+	def list_super_collections (self, collection_filter = None, relationship_filter = None):
+		return self.list_related_collections(Direction.OUTGOING, collection_filter, relationship_filter)
+
+	def list_related_collections (self, direction = Direction.BOTH, collection_filter = None, relationship_filter = None):
 		collections = []
 
 		if Direction._has_ingoing(direction):
@@ -556,7 +562,13 @@ class Collection (CommittableObject):
 
 		return itertools.chain(*collections)
 
-	def count_collections (self, direction = Direction.BOTH, collection_filter = None, relationship_filter = None):
+	def count_sub_collections (self, collection_filter = None, relationship_filter = None):
+		return self.count_related_collections(Direction.INGOING, collection_filter, relationship_filter)
+
+	def count_super_collections (self, collection_filter = None, relationship_filter = None):
+		return self.count_related_collections(Direction.OUTGOING, collection_filter, relationship_filter)
+
+	def count_related_collections (self, direction = Direction.BOTH, collection_filter = None, relationship_filter = None):
 		collections_c = 0
 
 		if Direction._has_ingoing(direction):
