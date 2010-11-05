@@ -1,13 +1,20 @@
 MetagenomeDB
 ============
 
-MetagenomeDB is a Python_ library acting as an abstraction layer on top of a MongoDB_ database. Its purpose is to simplify the storage, annotation and querying of metagenomic data. It achieves this by exposing three Python classes representing the following biological information:
+MetagenomeDB is a Python_ library acting as an abstraction layer on top of a MongoDB_ database. Its purpose is to simplify the storage, annotation and querying of metagenomic data. It achieves this by exposing two Python classes representing the following biological information:
 
 - **sequences** (``Sequence`` class); e.g., reads, contigs, PCR clones
 - **collections** of sequences (``Collection`` class); e.g., reads resulting from the sequencing of a sample, contigs assembled from a set of reads, PCR library
-- **relationships** between sequences and/or collections (``Relationship`` class)
 
-Objects of type ``Sequence`` or ``Collection`` can be connected through a ``Relationship`` to represent various metagenomic datasets. Examples include, but are not limited to:
+Any object can be annotated using a dictionary-like syntax:
+
+	import MetagenomeDB as mdb
+	s = mdb.Sequence(name = "My sequence", sequence = "atgc")
+	print s["length"]
+	s["type"] = "read"
+	s.commit()
+
+Objects of type ``Sequence`` or ``Collection`` can be connected to each other in order to represent various metagenomic datasets. Examples include, but are not limited to:
 
 - collection of reads resulting from a sequencing run (relationship between multiple ``Sequence`` objects and one ``Collection``)
 - set of contigs resulting from the assembly of a set of reads (relationship between two ``Collection`` objects)
@@ -15,16 +22,18 @@ Objects of type ``Sequence`` or ``Collection`` can be connected through a ``Rela
 - sequence that is similar to another sequence (relationship between two ``Sequence`` objects)
 - collection that is part of a bigger collection (relationship between two ``Collection`` objects)
 
-Connections between objects are visitable using dedicated methods; e.g., ``Collection.get_sequences()``, ``Sequence.get_collections()``, ``Relationship.get_source()``
+The result is a network of sequences and collection, which can be browsed using dedicated methods; i.e.g., ``Collection.list_sequences()``, ``Sequence.list_collections()``, ``Sequence.list_related_sequences()``. Each one of those methods allow for sophisticated filters:
 
-Object properties can be accessed and modified using a dictionary-like syntax::
+	# list all collections of type 'collection_of_reads'
+	# this sequence belong to
+	s.list_collections({"type": "collection_of_reads"})
 
-	s = mdb.Sequence.find_one(name = "my_sequence")
-	print s["sequence"]
-	s["annotation"] = "An example of sequence"
-	s.commit()
+	# list all sequences that also belong to these collections
+	# with a length of at least 50 bp
+	for c in s.list_collections():
+		print c.list_sequences({"length": {"$gt": 50}})
 
-MetagenomeDB is provided with a set of command-line tools to import nucleotide sequences, protein sequences, and BLAST and FASTA alignment algorithms output. Other tools are provided to add or remove multiple objects, or to annotate them.
+MetagenomeDB also provides a set of command-line tools to import nucleotide sequences, protein sequences, BLAST and FASTA alignment algorithms output, and ACE assembly files. Other tools are provided to add or remove multiple objects, or to annotate them.
 
 Keywords
 --------
@@ -48,13 +57,10 @@ From then you only have to import ``MetagenomeDB`` to start storing and retrievi
 
 	import MetagenomeDB as mdb
 
-	c = mdb.Collection.find(name = "my_collection")
+	c = mdb.Collection.find({"name": "my_collection"})
 
-	for sequence, relationship in c.get_sequences():
+	for sequence in c.list_sequences():
 		print sequence["name"], sequence["sequence"]
-
-		relationship["reviewed_by"] = "me"
-		relationship.commit()
 
 .. _Python: http://www.python.org/
 .. _MongoDB: http://www.mongodb.org/
