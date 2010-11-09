@@ -92,7 +92,7 @@ Optionally, you can provide those information when importing MetagenomeDB in you
 
 From then you can store and retrieve objects::
 
-	c = mdb.Collection.find({"name": "my_collection"})
+	c = mdb.Collection.find_one({"name": "my_collection"})
 
 	for sequence in c.list_sequences():
 		print sequence["name"], sequence["sequence"]

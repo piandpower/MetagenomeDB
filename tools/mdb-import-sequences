@@ -66,9 +66,6 @@ if (p.input_fn == None):
 if (not os.path.exists(p.input_fn)):
 	error("File '%s' not found" % p.input_fn)
 
-if (not p.input_format):
-	error("A sequence format name must be provided (see http://biopython.org/wiki/SeqIO)")
-
 if (not p.collection_name) and (not p.collection_properties):
 	error("A collection name or description must be provided")
 
@@ -96,7 +93,7 @@ if (p.collection_properties):
 		error("Duplicate collection '%s'" % m["name"])
 
 	try:
-		collection = mdb.Collection(**m)
+		collection = mdb.Collection(m)
 		collection.commit()
 
 	except ValueError, msg:
