@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import optparse, sys, os, pprint
-import MetagenomeDB as mdb
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
 Import objects (Sequence and/or Collection) into the database. Those
@@ -24,11 +23,30 @@ p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = Fal
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
 
+g = optparse.OptionGroup(p, "Connection")
+
+g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME", default = "localhost",
+	help = "Host name or IP address of the MongoDB server (optional; default: %default)")
+
+g.add_option("--port", dest = "connection_port", metavar = "INTEGER", default = 27017,
+	help = "Port of the MongoDB server (optional; default: %default)")
+
+g.add_option("--db", dest = "connection_db", metavar = "STRING", default = "MetagenomeDB",
+	help = "Name of the database in the MongoDB server (optional; default: '%default')")
+
+g.add_option("--user", dest = "connection_user", metavar = "STRING", default = '',
+	help = "User for the MongoDB server connection (optional; default: '%default')")
+
+g.add_option("--password", dest = "connection_password", metavar = "STRING", default = '',
+	help = "Password for the MongoDB server connection (optional; default: '%default')")
+
+p.add_option_group(g)
+
 (p, a) = p.parse_args()
 
 def error (msg):
-	if msg.endswith('.'):
-		msg = msg[:-1]
+	if str(msg).endswith('.'):
+		msg = str(msg[:-1])
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
@@ -40,8 +58,13 @@ if (p.input_fn != '-') and (not os.path.exists(p.input_fn)):
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+import MetagenomeDB as mdb
+
 if (p.verbose):
 	mdb.max_verbosity()
+
+if (p.connection_host or p.connection_port or p.connection_db or p.connection_user or p.connection_password):
+	mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
 
 BUILDER = {
 	"collection": mdb.Collection,
@@ -57,6 +80,7 @@ class NotFound (Exception):
 def retrieve_xref (entry):
 	try:
 		type = entry["_type"].lower()
+
 		if (not type in BUILDER):
 			raise Exception("Unknown object type '%s'" % type)
 
@@ -74,36 +98,41 @@ def retrieve_xref (entry):
 			candidates = mdb.Sequence.find({"name": entry["name"]})
 
 			# then we filter out those that are not linked to this collection
-			object = filter(lambda x: len(list(x.get_collections({ "name": entry["_collection"] }))) > 0, candidates)
+			candidates_ = filter(lambda s: s.count_collections({"name": entry["_collection"]}) > 0, candidates)
 
-			if (len(object) == 0):
+			if (len(candidates_) == 0):
 				raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (entry["_name"], entry["_collection"]))
 
-			if (len(object) > 1):
+			if (len(candidates_) > 1):
 				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (entry["_name"], entry["_collection"]))
 
-			return object[0]
+			return candidates_[0]
 
 	except KeyError as msg:
 		raise Exception("Invalid entry: %s" % msg)
+
+def pull (map, key):
+	value = map[key]
+	del map[key]
+	return value
 
 n_created, n_connected = 0, 0
 
 for entry in mdb.tools.parser(p.input_fn, p.input_format):
 	try:
-		type = entry["_type"].lower()
-		del entry["_type"]
+		type = pull(entry, "_type").lower()
 
 		# if the object to build is a relationship, we
 		# first retrieve its source and target objects
 		if (type == "relationship"):
-			source = retrieve_xref(entry["_source"])
-			target = retrieve_xref(entry["_target"])
+			source = retrieve_xref(pull(entry, "_source"))
+			target = retrieve_xref(pull(entry, "_target"))
 
-			del entry["_source"]
-			del entry["_target"]
-
-			if (not p.dry_run):
+			if (p.dry_run):
+				print "import: connection between %s and %s" % (source, target)
+				for line in pprint.pformat(entry).split('\n'):
+					print "  %s" % line
+			else:
 				source._connect_to(target, entry)
 				source.commit()
 
@@ -112,9 +141,12 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 			if (not type in BUILDER):
 				raise Exception("Unknown object type '%s'" % type)
 
-			object = BUILDER[type](entry)
-
-			if (not p.dry_run):
+			if (p.dry_run):
+				print "import: %s" % type
+				for line in pprint.pformat(entry).split('\n'):
+					print "  %s" % line
+			else:
+				object = BUILDER[type](entry)
 				object.commit()
 
 			n_created += 1
@@ -138,8 +170,8 @@ for entry in mdb.tools.parser(p.input_fn, p.input_format):
 		error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
 
 print "%s object%s added, %s connection%s added." % (
-	n_created, { True: 's', False: '' }[n_created > 1],
-	n_connected, { True: 's', False: '' }[n_connected > 1]
+	n_created, {True: 's', False: ''}[n_created > 1],
+	n_connected, {True: 's', False: ''}[n_connected > 1]
 )
 
 if (p.dry_run):

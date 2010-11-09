@@ -2,29 +2,48 @@
 
 import optparse, os, sys
 
-p = optparse.OptionParser()
+p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
+Remove objects from the database. EXPERIMENTAL.""")
 
 g = optparse.OptionGroup(p, "Target")
 
 g.add_option("--all", dest = "remove_all", action = "store_true", default = False,
 	help = "Remove all content in the database.")
 
-g.add_option("--type", dest = "remove_collection", metavar = "STRING",
+g.add_option("--type", dest = "remove_type", metavar = "STRING",
 	help = "Remove all objects of a given type.")
-
-g.add_option("--orphan-relationships", dest = "remove_orphan_relationships", action = "store_true", default = False,
-	help = "Remove all relationships of which either the source or the target are missing.")
 
 g.add_option("--date-range", dest = "remove_by_date_range", nargs = 2, metavar = "DATE1 DATE2",
 	help = "Remove all objects which creation date is between two given dates (or 'now')")
 
 p.add_option_group(g)
 
-p.add_option("-v", "--verbosity", dest = "verbosity", type = "int", default = 0)
+p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+
+g = optparse.OptionGroup(p, "Connection")
+
+g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME", default = "localhost",
+	help = "Host name or IP address of the MongoDB server (optional; default: %default)")
+
+g.add_option("--port", dest = "connection_port", metavar = "INTEGER", default = 27017,
+	help = "Port of the MongoDB server (optional; default: %default)")
+
+g.add_option("--db", dest = "connection_db", metavar = "STRING", default = "MetagenomeDB",
+	help = "Name of the database in the MongoDB server (optional; default: '%default')")
+
+g.add_option("--user", dest = "connection_user", metavar = "STRING", default = '',
+	help = "User for the MongoDB server connection (optional; default: '%default')")
+
+g.add_option("--password", dest = "connection_password", metavar = "STRING", default = '',
+	help = "Password for the MongoDB server connection (optional; default: '%default')")
+
+p.add_option_group(g)
 
 (p, a) = p.parse_args()
 
 def error (msg):
+	if msg.endswith('.'):
+		msg = msg[:-1]
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
@@ -33,15 +52,15 @@ def error (msg):
 import MetagenomeDB as mdb
 import datetime, re
 
-if (p.verbosity > 0):
-	mdb.set_debug_level(p.verbosity)
+if (p.verbose):
+	mdb.max_verbosity()
 
-mdb.set_debug_level(1)
+if (p.connection_host or p.connection_port or p.connection_db or p.connection_user or p.connection_password):
+	mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
 
 collections = {
 	"Collection": mdb.Collection,
 	"Sequence": mdb.Sequence,
-	"Relationship": mdb.Relationship,
 }
 
 DATE = re.compile("([0-9]+)([ywdhms])")
@@ -76,18 +95,18 @@ try:
 	if (p.remove_all):
 		print "Removing all content."
 
-		for collection in collections.values():
-			collection.remove_all()
+		for collection in collections:
+			mdb.connection().drop_collection(collection)
 
 		sys.exit(0)
 
-	if (p.remove_collection):
-		print "Removing all content from '%s'" % p.remove_collection
+	if (p.remove_type):
+		print "Removing all content from '%s'" % p.remove_type
 
 		try:
-			collection = collections[p.remove_collection]
+			collection = collections[p.remove_type]
 		except AttributeError:
-			raise Exception("Unknown object type '%s'" % p.remove_collection)
+			raise Exception("Unknown object type '%s'" % p.remove_type)
 
 		collection.remove_all()
 		sys.exit(0)

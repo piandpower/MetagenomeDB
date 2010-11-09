@@ -18,7 +18,7 @@ setup(
 		"Topic :: Database :: Front-Ends",
 		"Topic :: Scientific/Engineering :: Bio-Informatics",
 	],
-	version = "0.2.0",
+	version = "0.2.0b",
 	license = "LICENSE.txt",
 	author = "Aurelien Mazurie",
 	author_email = "ajmazurie@oenone.net",
