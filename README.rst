@@ -1,17 +1,26 @@
 MetagenomeDB
 ============
 
-MetagenomeDB is a Python_ library acting as an abstraction layer on top of a MongoDB_ database. Its purpose is to simplify the storage, annotation and querying of metagenomic data. It achieves this by exposing two Python classes representing the following biological information:
+MetagenomeDB is a Python_-based toolkit designed to easily store, retrieve and annotate metagenomic sequences. MetagenomeDB act as an abstraction layer on top of a MongoDB_ database. It provides an API to create and modify and connect two types of objects, namely sequences and collections:
 
-- **sequences** (``Sequence`` class); e.g., reads, contigs, PCR clones
-- **collections** of sequences (``Collection`` class); e.g., reads resulting from the sequencing of a sample, contigs assembled from a set of reads, PCR library
+- **sequences** (``Sequence`` class) can be reads, contigs, PCR clones, etc.
+- **collections** (``Collection`` class) represents sets of sequences; e.g., reads resulting from the sequencing of a sample, contigs assembled from a set of reads, PCR library
 
 Any object can be annotated using a dictionary-like syntax::
 
+	# first, we import the library
 	import MetagenomeDB as mdb
-	s = mdb.Sequence(name = "My sequence", sequence = "atgc")
+
+	# then we create a new Sequence object with two
+	# (mandatory) properties, 'name' and 'sequence'
+	s = mdb.Sequence({"name": "My sequence", "sequence": "atgc"})
+
+	# the object can now be annotated
 	print s["length"]
 	s["type"] = "read"
+
+	# once modified, the object need to be committed
+	# to the database for the modifications to remain
 	s.commit()
 
 Objects of type ``Sequence`` or ``Collection`` can be connected to each other in order to represent various metagenomic datasets. Examples include, but are not limited to:
@@ -22,15 +31,15 @@ Objects of type ``Sequence`` or ``Collection`` can be connected to each other in
 - sequence that is similar to another sequence (relationship between two ``Sequence`` objects)
 - collection that is part of a bigger collection (relationship between two ``Collection`` objects)
 
-The result is a network of sequences and collection, which can be browsed using dedicated methods; i.e.g., ``Collection.list_sequences()``, ``Sequence.list_collections()``, ``Sequence.list_related_sequences()``. Each one of those methods allow for sophisticated filters::
+The result is a network of sequences and collection, which can be explored using dedicated methods; i.e.g., ``Collection.list_sequences()``, ``Sequence.list_collections()``, ``Sequence.list_related_sequences()``. Each one of those methods allow for sophisticated filters using the MongoDB `querying syntax <http://www.mongodb.org/display/DOCS/Advanced+Queries>`_::
 
 	# list all collections of type 'collection_of_reads'
-	# this sequence belong to
-	s.list_collections({"type": "collection_of_reads"})
+	# the sequence 's' belong to
+	collections = s.list_collections({"type": "collection_of_reads"})
 	
 	# list all sequences that also belong to these collections
 	# with a length of at least 50 bp
-	for c in s.list_collections():
+	for c in collections:
 		print c.list_sequences({"length": {"$gt": 50}})
 
 MetagenomeDB also provides a set of command-line tools to import nucleotide sequences, protein sequences, BLAST and FASTA alignment algorithms output, and ACE assembly files. Other tools are provided to add or remove multiple objects, or to annotate them.
@@ -48,14 +57,40 @@ Aurelien Mazurie, ajmazurie@oenone.net
 Getting started
 ---------------
 
-- Install a MongoDB_ server, version 1.2.1 or above and start the server
-- Install the Pymongo_ library, version 1.6 or above
-- Install MetagenomeDB so that it is visible from your ``PYTHONPATH``
-- Rename ``MetagenomeDB/connection.cfg.edit_me`` to ``MetagenomeDB/connection.cfg`` and edit it so that it properly describe how to connect to the MongoDB server
+MetagenomeDB relies on another Python library to function, Pymongo_. The latest version of Pymongo must be installed, for example by typing ``sudo easy_install Pymongo`` on the command line.
 
-From then you only have to import ``MetagenomeDB`` to start storing and retrieving objects::
+That's it. The only other requirement is, of course, a working MongoDB_ server, either on your computer or on a computer that can be accessed through TCP/IP.
+
+MetagenomeDB can be installed using two methods:
+
+Using GitHub
+''''''''''''
+
+All versions of MetagenomeDB, including the latest developer releases, can be downloaded at https://github.com/ajmazurie/MetagenomeDB
+
+Once the archive in your computer, installing it can be done by typing ``sudo easy_install [path to your archive]`` in a console (see the ``easy_install`` documentation: http://packages.python.org/distribute/easy_install.html).
+
+If you want more control (such as requesting the library and the tools to be installed in specific directories), you should first unzip the archive, then type ``sudo python setup.py`` plus any needed option from the archive's content directory (see the ``setup.py`` documentation: http://docs.python.org/install/index.html).
+
+GitHub is the preferred source if you are interested in the most recent, albeit potentially unstable, releases of MetagenomeDB.
+
+Using PyPI
+''''''''''
+
+All production-ready versions of MetagenomeDB are registered against the PyPI_ package manager. Thanks to this, you can install the toolkit by typing ``sudo easy_install MetagenomeDB`` on the command line.
+
+Final step
+''''''''''
+
+By default MetagenomeDB will read a file named ``connection.cfg`` in the ``MetagenomeDB/`` subdirectory of your installation to know how to access the MongoDB database. A template file named ``connection.cfg.EDIT_ME`` is provided. Change its name to ``connection.cfg``, then update it with your own parameters.
+
+Optionally, you can provide those information when importing MetagenomeDB in your script::
 
 	import MetagenomeDB as mdb
+
+	mdb.connect(host = "localhost", port = 1234, database = "MyDatabase")
+
+From then you can store and retrieve objects::
 
 	c = mdb.Collection.find({"name": "my_collection"})
 
@@ -65,3 +100,4 @@ From then you only have to import ``MetagenomeDB`` to start storing and retrievi
 .. _Python: http://www.python.org/
 .. _MongoDB: http://www.mongodb.org/
 .. _Pymongo: http://api.mongodb.org/python
+.. _PyPI: http://pypi.python.org/
