@@ -1,0 +1,8 @@
+# This is an example configuration file. Fill in the blank, rename it to '.MetagenomeDB' and move
+# it in your home directory. MetagenomeDB needs to know the IP address of the MongoDB server, as
+# well as the port and the name of the database.
+
+[connection]
+host: localhost
+port: 27017
+database: YOUR DATABASE NAME

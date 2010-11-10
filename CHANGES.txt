@@ -1,8 +1,8 @@
-v0.2.1b (November 10, 2010) -- Minor updates
-	- the library now attempt to read the connection information from '~/.MetagenomeDB' rather than '[install path]/MetagenomeDB/connection.cfg'
-	- TO DO: a bug in the installation process has been fixed.
-	- added 'mdb-export-sequences'
-	- now requires Pymongo v1.9+
+v0.2.1b (November 10, 2010)
+- now requires Pymongo v1.9 or more recent
+- now attempts to read the connection information from '~/.MetagenomeDB' rather than '[install path]/MetagenomeDB/connection.cfg'
+- new tool added: 'mdb-export-sequences'
+- TO DO: a bug in the installation process has been fixed.
 
 v0.2.0b (November 9, 2010) -- First beta version, with installer.
 
