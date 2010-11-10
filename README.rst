@@ -57,7 +57,7 @@ Aurelien Mazurie, ajmazurie@oenone.net
 Getting started
 ---------------
 
-MetagenomeDB relies on another Python library to function, Pymongo_. The latest version of Pymongo must be installed, for example by typing ``sudo easy_install Pymongo`` on the command line.
+MetagenomeDB relies on another Python library to function, Pymongo_ (version 1.9 or above). The latest version of Pymongo must be installed, for example by typing ``sudo easy_install Pymongo`` on the command line.
 
 That's it. The only other requirement is, of course, a working MongoDB_ server, either on your computer or on a computer that can be accessed through TCP/IP.
 
@@ -70,7 +70,7 @@ All versions of MetagenomeDB, including the latest developer releases, can be do
 
 Once the archive in your computer, installing it can be done by typing ``sudo easy_install [path to your archive]`` in a console (see the ``easy_install`` documentation: http://packages.python.org/distribute/easy_install.html).
 
-If you want more control (such as requesting the library and the tools to be installed in specific directories), you should first unzip the archive, then type ``sudo python setup.py`` plus any needed option from the archive's content directory (see the ``setup.py`` documentation: http://docs.python.org/install/index.html).
+If you want more control (such as requesting the library and the tools to be installed in specific directories), you should first unzip the archive, then type ``sudo python setup.py`` plus any needed option from the archive's content directory (see the ``setup.py`` documentation: http://docs.python.org/install/index.html). For example, to ensure the various mdb-* tools are installed in /usr/local/bin/ you can type ``sudo python setup.py install --install-scripts=/usr/local/bin/``.
 
 GitHub is the preferred source if you are interested in the most recent, albeit potentially unstable, releases of MetagenomeDB.
 

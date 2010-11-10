@@ -23,7 +23,7 @@ setup(
 	author = "Aurelien Mazurie",
 	author_email = "ajmazurie@oenone.net",
 	url = "https://github.com/ajmazurie/MetagenomeDB",
-	packages = ["MetagenomeDB"],
+	packages = ["MetagenomeDB", "MetagenomeDB.utils"],
 	scripts = glob("tools/*"),
 )
 
