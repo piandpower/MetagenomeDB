@@ -45,6 +45,8 @@ p.add_option_group(g)
 (p, a) = p.parse_args()
 
 def error (msg):
+	if str(msg).endswith('.'):
+		msg = str(msg)[:-1]
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
@@ -59,9 +61,16 @@ if (p.verbose):
 	mdb.max_verbosity()
 
 if (p.connection_host or p.connection_port or p.connection_db or p.connection_user or p.connection_password):
-	mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	try:
+		mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	except Exception as msg:
+		error(msg)
 
-collection = mdb.Collection.find_one({"name": p.collection_name})
+try:
+	collection = mdb.Collection.find_one({"name": p.collection_name})
+
+except Exception as msg:
+	error(msg)
 
 if (collection == None):
 	error("Unknown collection with name '%s'" % p.collection_name)
@@ -110,34 +119,39 @@ class ProgressBar:
 		sys.stdout.flush()
 
 N = 0
-for collection in collections:
-	n_sequences = collection.count_sequences()
 
-	print "  from %scollection '%s' (%s sequences)" % ({True: '', False: "sub"}[N == 0], collection["name"], n_sequences)
+try:
+	for collection in collections:
+		n_sequences = collection.count_sequences()
 
-	pb = ProgressBar(n_sequences)
-	n = 0
+		print "  from %scollection '%s' (%s sequences)" % ({True: '', False: "sub"}[N == 0], collection["name"], n_sequences)
 
-	def sequences():
-		global n
+		pb = ProgressBar(n_sequences)
+		n = 0
 
-		for sequence in collection.list_sequences():
-			record = SeqRecord(
-				id = sequence["name"],
-				seq = Seq(sequence["sequence"]),
-				description = sequence.get_property("description", ''),
-			)
+		def sequences():
+			global n
 
-			yield record
+			for sequence in collection.list_sequences():
+				record = SeqRecord(
+					id = sequence["name"],
+					seq = Seq(sequence["sequence"]),
+					description = sequence.get_property("description", ''),
+				)
 
-			n += 1
-			pb.display(n)
+				yield record
 
-		pb.clear()
+				n += 1
+				pb.display(n)
 
-	SeqIO.write(sequences(), output_fh, p.output_format)
+			pb.clear()
 
-	print "    %s sequences exported." % n
-	N += n
+		SeqIO.write(sequences(), output_fh, p.output_format)
 
-print "done (%s sequences exported total)." % N
+		print "    %s sequences exported." % n
+		N += n
+
+	print "done (%s sequences exported total)." % N
+
+except Exception as msg:
+	error(msg)

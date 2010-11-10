@@ -54,6 +54,8 @@ p.add_option_group(g)
 (p, a) = p.parse_args()
 
 def error (msg):
+	if str(msg).endswith('.'):
+		msg = str(msg)[:-1]
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
@@ -100,7 +102,10 @@ if (p.verbose):
 	mdb.max_verbosity()
 
 if (p.connection_host or p.connection_port or p.connection_db or p.connection_user or p.connection_password):
-	mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	try:
+		mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	except Exception as msg:
+		error(msg)
 
 print "Importing '%s' ..." % p.input_fn
 
@@ -109,21 +114,25 @@ print "  validating query and hit sequences ..."
 
 QuerySequences, HitSequences = {}, {}
 
-if (p.queries_collection):
-	queries = mdb.Collection.find_one({"name": p.queries_collection})
-	if (queries == None):
-		error("Unknown collection '%s'" % p.queries_collection)
+try:
+	if (p.queries_collection):
+		queries = mdb.Collection.find_one({"name": p.queries_collection})
+		if (queries == None):
+			error("Unknown collection '%s'" % p.queries_collection)
 
-	for sequence in queries.list_sequences():
-		QuerySequences[str(sequence["name"])] = sequence
+		for sequence in queries.list_sequences():
+			QuerySequences[str(sequence["name"])] = sequence
 
-if (p.hits_collection):
-	hits = mdb.Collection.find_one({"name": p.hits_collection})
-	if (hits == None):
-		error("Unknown collection '%s'" % p.hits_collection)
+	if (p.hits_collection):
+		hits = mdb.Collection.find_one({"name": p.hits_collection})
+		if (hits == None):
+			error("Unknown collection '%s'" % p.hits_collection)
 
-	for sequence in hits.list_sequences():
-		HitSequences[str(sequence["name"])] = sequence
+		for sequence in hits.list_sequences():
+			HitSequences[str(sequence["name"])] = sequence
+
+except Exception as msg:
+	error(msg)
 
 for record in NCBIXML.parse(open(p.input_fn, 'r')):
 	query_id = get_query_id(record.query)

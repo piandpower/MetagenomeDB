@@ -5,7 +5,7 @@
 # collection and NOT to the Collection object in objects.py
 
 import weakref, datetime, re, logging
-import pymongo
+import pymongo, bson
 
 import connection, objects, errors
 from utils import tree
@@ -105,19 +105,19 @@ def distinct (collection, field):
 # a JSON tree; see http://www.mongodb.org/display/DOCS/Querying
 # Special keys:
 #   - any '_xxx' key will be changed to '$xxx' (e.g., $where), except '_id'
-#   - value for '_id' will be cast into a pymongo.objectid.ObjectId
+#   - value for '_id' will be cast into a bson.objectid.ObjectId
 def find (collection, query, find_one = False, count = False):
 	cursor = connection.connection()[collection]
 	query_t = type(query)
 
 	if (query_t == str):
 		try:
-			query = { "_id": pymongo.objectid.ObjectId(query) }
+			query = { "_id": bson.objectid.ObjectId(query) }
 
-		except pymongo.errors.InvalidId:
+		except bson.errors.InvalidId:
 			raise ValueError("Invalid identifier: %s" % query)
 
-	if (query_t == pymongo.objectid.ObjectId):
+	if (query_t == bson.objectid.ObjectId):
 		query = { "_id": query }
 
 	elif (query_t == dict):

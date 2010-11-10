@@ -42,8 +42,8 @@ p.add_option_group(g)
 (p, a) = p.parse_args()
 
 def error (msg):
-	if msg.endswith('.'):
-		msg = msg[:-1]
+	if str(msg).endswith('.'):
+		msg = str(msg[:-1])
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
@@ -56,7 +56,10 @@ if (p.verbose):
 	mdb.max_verbosity()
 
 if (p.connection_host or p.connection_port or p.connection_db or p.connection_user or p.connection_password):
-	mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	try:
+		mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	except Exception as msg:
+		error(msg)
 
 collections = {
 	"Collection": mdb.Collection,

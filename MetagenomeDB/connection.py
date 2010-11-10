@@ -37,22 +37,23 @@ def __connect (host, port, db, user, password):
 	return __connection
 
 # Specify the access parameters to a MongoDB server. If not used, MetagenomeDB
-# will read those parameters from the 'MetagenomeDB/connection.cfg' file.
+# will read those parameters from the '~/.MetagenomeDB' file.
 def connect (host = "localhost", port = 27017, database = "MetagenomeDB", user = '', password = ''):
 	__connect(host, port, database, user, password)
 
 # Return a connection to a MongoDB server. If no connection information has
 # been provided by a previous call to connect(), those information are
-# extracted from 'MetagenomeDB/connection.cfg'. Act as a singleton; i.e., all
-# subsequent calls to this function will return the existing connection.
+# extracted from '~/.MetagenomeDB'. Act as a singleton; i.e., all subsequent
+# calls to this function will return the existing connection.
 def connection():
 	if (__connection != None):
 		return __connection
 
 	cp = ConfigParser.RawConfigParser()
+	fn = os.path.expanduser(os.path.join("~", ".MetagenomeDB"))
 
-	if (cp.read(os.path.join(os.path.dirname(os.path.abspath(__file__)), "connection.cfg")) == []):
-		raise Exception("Unable to locate 'connection.cfg'.")
+	if (cp.read(fn) == []):
+		raise Exception("Unable to find the configuration file '%s'." % fn)
 
 	host = __property(cp, "connection", "host", "localhost")
 	port = __property(cp, "connection", "port", 27017, "int")

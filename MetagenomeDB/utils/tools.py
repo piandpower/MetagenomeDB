@@ -37,7 +37,7 @@ def parse (value, separator = '^'):
 
 		m = __PROPERTY.match(modifier.lower())
 		if (m == None):
-			raise ValueError("Malformed property modifier: '%s'" % modifier)
+			raise ValueError("Malformed value modifier: '%s'" % modifier)
 
 		is_list = (m.group(1) == '[')
 		types = m.group(2).split(',')

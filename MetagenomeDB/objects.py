@@ -1,7 +1,7 @@
 # objects.py: object representation of the MongoDB content
 
 import sys, datetime, itertools, copy, logging
-import pymongo
+import bson
 
 import backend, errors
 from utils import tree
@@ -83,7 +83,7 @@ class CommittableObject (MutableObject):
 			id = self._properties["_id"]
 
 			if (type(id) == str):
-				id = pymongo.objectid.ObjectId(id)
+				id = bson.objectid.ObjectId(id)
 				self._properties["_id"] = id
 
 			if (not backend.exists(id)):
@@ -317,7 +317,7 @@ class CommittableObject (MutableObject):
 				return []
 
 		# then select among candidates using neighbor_filter
-		query = {"_id": {"$in": [pymongo.objectid.ObjectId(id) for id in candidates]}}
+		query = {"_id": {"$in": [bson.objectid.ObjectId(id) for id in candidates]}}
 
 		if (neighbor_filter != None):
 			neighbor_filter = parse_properties(neighbor_filter)

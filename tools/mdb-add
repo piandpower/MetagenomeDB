@@ -46,7 +46,7 @@ p.add_option_group(g)
 
 def error (msg):
 	if str(msg).endswith('.'):
-		msg = str(msg[:-1])
+		msg = str(msg)[:-1]
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
@@ -64,7 +64,10 @@ if (p.verbose):
 	mdb.max_verbosity()
 
 if (p.connection_host or p.connection_port or p.connection_db or p.connection_user or p.connection_password):
-	mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	try:
+		mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	except Exception as msg:
+		error(msg)
 
 BUILDER = {
 	"collection": mdb.Collection,
@@ -118,61 +121,65 @@ def pull (map, key):
 
 n_created, n_connected = 0, 0
 
-for entry in mdb.tools.parser(p.input_fn, p.input_format):
-	try:
-		type = pull(entry, "_type").lower()
+try:
+	for entry in mdb.tools.parser(p.input_fn, p.input_format):
+		try:
+			type = pull(entry, "_type").lower()
 
-		# if the object to build is a relationship, we
-		# first retrieve its source and target objects
-		if (type == "relationship"):
-			source = retrieve_xref(pull(entry, "_source"))
-			target = retrieve_xref(pull(entry, "_target"))
+			# if the object to build is a relationship, we
+			# first retrieve its source and target objects
+			if (type == "relationship"):
+				source = retrieve_xref(pull(entry, "_source"))
+				target = retrieve_xref(pull(entry, "_target"))
 
-			if (p.dry_run):
-				print "import: connection between %s and %s" % (source, target)
-				for line in pprint.pformat(entry).split('\n'):
-					print "  %s" % line
+				if (p.dry_run):
+					print "import: connection between %s and %s" % (source, target)
+					for line in pprint.pformat(entry).split('\n'):
+						print "  %s" % line
+				else:
+					source._connect_to(target, entry)
+					source.commit()
+
+				n_connected += 1
 			else:
-				source._connect_to(target, entry)
-				source.commit()
+				if (not type in BUILDER):
+					raise Exception("Unknown object type '%s'" % type)
 
-			n_connected += 1
-		else:
-			if (not type in BUILDER):
-				raise Exception("Unknown object type '%s'" % type)
+				if (p.dry_run):
+					print "import: %s" % type
+					for line in pprint.pformat(entry).split('\n'):
+						print "  %s" % line
+				else:
+					object = BUILDER[type](entry)
+					object.commit()
 
-			if (p.dry_run):
-				print "import: %s" % type
-				for line in pprint.pformat(entry).split('\n'):
-					print "  %s" % line
-			else:
-				object = BUILDER[type](entry)
-				object.commit()
+				n_created += 1
 
-			n_created += 1
-
-	except mdb.errors.ConnectionError as msg:
-		error(str(msg))
-
-	except mdb.errors.DuplicateObject as msg:
-		if (p.ignore_duplicates):
-			print >>sys.stderr, "WARNING: %s" % str(msg)
-		else:
+		except mdb.errors.ConnectionError as msg:
 			error(str(msg))
 
-	except NotFound as msg:
-		if (p.ignore_missing):
-			print >>sys.stderr, "WARNING: %s" % msg
-		else:
-			error(msg)
+		except mdb.errors.DuplicateObject as msg:
+			if (p.ignore_duplicates):
+				print >>sys.stderr, "WARNING: %s" % str(msg)
+			else:
+				error(str(msg))
 
-	except Exception as msg:
-		error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
+		except NotFound as msg:
+			if (p.ignore_missing):
+				print >>sys.stderr, "WARNING: %s" % msg
+			else:
+				error(msg)
 
-print "%s object%s added, %s connection%s added." % (
-	n_created, {True: 's', False: ''}[n_created > 1],
-	n_connected, {True: 's', False: ''}[n_connected > 1]
-)
+		except Exception as msg:
+			error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
 
-if (p.dry_run):
-	print "(dry run)"
+	print "%s object%s added, %s connection%s added." % (
+		n_created, {True: 's', False: ''}[n_created > 1],
+		n_connected, {True: 's', False: ''}[n_connected > 1]
+	)
+
+	if (p.dry_run):
+		print "(dry run)"
+
+except Exception as msg:
+	error("Error when processing the input: %s." % msg)

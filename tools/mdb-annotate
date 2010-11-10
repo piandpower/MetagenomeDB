@@ -43,7 +43,7 @@ p.add_option_group(g)
 
 def error (msg):
 	if str(msg).endswith('.'):
-		msg = str(msg[:-1])
+		msg = str(msg)[:-1]
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
@@ -61,7 +61,10 @@ if (p.verbose):
 	mdb.max_verbosity()
 
 if (p.connection_host or p.connection_port or p.connection_db or p.connection_user or p.connection_password):
-	mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	try:
+		mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	except Exception as msg:
+		error(msg)
 
 COLLECTIONS = {
 	"collection": mdb.Collection,
@@ -85,77 +88,81 @@ def pull (map, key):
 
 n_annotated = 0
 
-for entry in mdb.tools.parser(p.input_fn, p.input_format):
-	try:
-		type = pull(entry, "_type").lower()
+try:
+	for entry in mdb.tools.parser(p.input_fn, p.input_format):
+		try:
+			type = pull(entry, "_type").lower()
 
-		if (not type in COLLECTIONS):
-			raise Exception("Unknown object type '%s'" % type)
+			if (not type in COLLECTIONS):
+				raise Exception("Unknown object type '%s'" % type)
 
-		# _type=sequence, _collection='...', name='...', ...
-		if (type == "sequence"):
-			collection, name = pull(entry, "_collection"), entry["name"]
+			# _type=sequence, _collection='...', name='...', ...
+			if (type == "sequence"):
+				collection, name = pull(entry, "_collection"), entry["name"]
 
-			# we first list all sequences having this name,
-			candidates = mdb.Sequence.find({"name": name})
+				# we first list all sequences having this name,
+				candidates = mdb.Sequence.find({"name": name})
 
-			# then we filter out those that are not linked to this collection
-			candidates_ = filter(lambda s: s.count_collections({"name": collection}) > 0, candidates)
+				# then we filter out those that are not linked to this collection
+				candidates_ = filter(lambda s: s.count_collections({"name": collection}) > 0, candidates)
 
-			if (len(candidates_) == 0):
-				raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (name, collection))
+				if (len(candidates_) == 0):
+					raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (name, collection))
 
-			if (len(candidates_) > 1):
-				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (name, collection))
+				if (len(candidates_) > 1):
+					raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (name, collection))
 
-			objects = candidates_
+				objects = candidates_
 
-		# _type=collection, name='...', ...
-		elif (type == "collection"):
-			candidate = mdb.Collection.find_one({"name": entry["name"]})
+			# _type=collection, name='...', ...
+			elif (type == "collection"):
+				candidate = mdb.Collection.find_one({"name": entry["name"]})
 
-			if (candidate == None):
-				raise NotFound("Unknown Collection '%s'" % entry["name"])
-			else:
-				objects = [candidate]
-
-		for object in objects:
-			entry_ = {}
-			for key, value in mdb.tree.items(entry):
-				# we ignore any key hierarchy which contains a
-				# special key (i.e., key starting with a '_')
-				if (not key_filter(key)):
-					continue
-
-				object[key] = value
-				mdb.tree.set(entry_, key, value)
-
-			if (object.is_committed()):
-				print >>sys.stderr, "WARNING: Object %s has not been modified; annotations match database content." % object
-
-			else:
-				n_annotated += 1
-
-				if (p.dry_run):
-					print "annotate: %s" % type
-					for line in pprint.pformat(entry_).split('\n'):
-						print "  %s" % line
+				if (candidate == None):
+					raise NotFound("Unknown Collection '%s'" % entry["name"])
 				else:
-					object.commit()
+					objects = [candidate]
 
-	except mdb.errors.ConnectionError as msg:
-		error(str(msg))
+			for object in objects:
+				entry_ = {}
+				for key, value in mdb.tree.items(entry):
+					# we ignore any key hierarchy which contains a
+					# special key (i.e., key starting with a '_')
+					if (not key_filter(key)):
+						continue
 
-	except NotFound as msg:
-		if (p.ignore_missing):
-			print >>sys.stderr, "WARNING: %s" % msg
-		else:
-			error(msg)
+					object[key] = value
+					mdb.tree.set(entry_, key, value)
 
-	except Exception as msg:
-		error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
+				if (object.is_committed()):
+					print >>sys.stderr, "WARNING: Object %s has not been modified; annotations match database content." % object
 
-print "%s object%s annotated." % (n_annotated, {True: 's', False: ''}[n_annotated > 1])
+				else:
+					n_annotated += 1
 
-if (p.dry_run):
-	print "(dry run)"
+					if (p.dry_run):
+						print "annotate: %s" % type
+						for line in pprint.pformat(entry_).split('\n'):
+							print "  %s" % line
+					else:
+						object.commit()
+
+		except mdb.errors.ConnectionError as msg:
+			error(str(msg))
+
+		except NotFound as msg:
+			if (p.ignore_missing):
+				print >>sys.stderr, "WARNING: %s" % msg
+			else:
+				error(msg)
+
+		except Exception as msg:
+			error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
+
+	print "%s object%s annotated." % (n_annotated, {True: 's', False: ''}[n_annotated > 1])
+
+	if (p.dry_run):
+		print "(dry run)"
+
+except Exception as msg:
+	error("Error when processing the input: %s." % msg)

@@ -22,7 +22,7 @@ class DuplicateObject (MetagenomeDBError):
 		return "An object of type '%s' with propert%s %s already exists." % (
 			self.collection,
 			{ True: "ies", False: "y" }[len(self.properties) > 1],
-			', '.join(["'%s' = '%s'" % property for property in self.properties])
+			', '.join(["'%s' and value '%s'" % property for property in self.properties])
 		)
 
 # Exception thrown when an object is removed from the database or its
