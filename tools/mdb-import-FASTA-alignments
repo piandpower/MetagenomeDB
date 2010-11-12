@@ -8,18 +8,16 @@ Imports FASTA alignments into the database.""")
 g = optparse.OptionGroup(p, "FASTA")
 
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
-	help = "Results of a FASTA sequence alignment (note: the file MUST be formatted with the '-m 10' option).")
+	help = "Results of a FASTA sequence alignment (mandatory). Note: the file MUST be formatted with the '-m 10' option.")
 
 g.add_option("-Q", "--query-collection", dest = "queries_collection", metavar = "STRING",
-	help = """Name of the collection the query sequences belong to. If not
-provided, the query sequences are assumed to be external to the database.""")
+	help = "Name of the collection the query sequences belong to (mandatory).")
 
 g.add_option("-H", "--hit-collection", dest = "hits_collection", metavar = "STRING",
-	help = """Name of the collection the hit sequences belong to. If not
-provided, the hit sequences are assumed to be external to the database.""")
+	help = "Name of the collection the hit sequences belong to (mandatory).")
 
-g.add_option("--date", dest = "date", nargs = 3, type = "int",
-	help = "Date of the FASTA run (year, month, day). By default, creation date of the input file.")
+g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
+	help = "Date of the FASTA run (optional). By default, creation date of the input file.")
 
 p.add_option_group(g)
 
@@ -29,19 +27,19 @@ p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = Fal
 g = optparse.OptionGroup(p, "Connection")
 
 g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME", default = "localhost",
-	help = "Host name or IP address of the MongoDB server (optional; default: %default)")
+	help = "Host name or IP address of the MongoDB server (optional). Default: %default")
 
 g.add_option("--port", dest = "connection_port", metavar = "INTEGER", default = 27017,
-	help = "Port of the MongoDB server (optional; default: %default)")
+	help = "Port of the MongoDB server (optional). Default: %default")
 
 g.add_option("--db", dest = "connection_db", metavar = "STRING", default = "MetagenomeDB",
-	help = "Name of the database in the MongoDB server (optional; default: '%default')")
+	help = "Name of the database in the MongoDB server (optional). Default: '%default'")
 
 g.add_option("--user", dest = "connection_user", metavar = "STRING", default = '',
-	help = "User for the MongoDB server connection (optional; default: '%default')")
+	help = "User for the MongoDB server connection (optional). Default: '%default'")
 
 g.add_option("--password", dest = "connection_password", metavar = "STRING", default = '',
-	help = "Password for the MongoDB server connection (optional; default: '%default')")
+	help = "Password for the MongoDB server connection (optional). Default: '%default'")
 
 p.add_option_group(g)
 
@@ -59,8 +57,8 @@ if (p.input_fn == None):
 if (not os.path.exists(p.input_fn)):
 	error("File '%s' not found" % p.input_fn)
 
-if ((p.queries_collection == None) + (p.hits_collection == None) == 2):
-	error("A collection must be provided for either query or hit sequences")
+if (p.queries_collection == None) or (p.hits_collection == None):
+	error("A collection must be provided for both query and hit sequences")
 
 if (not p.date):
 	date = time.localtime(os.path.getmtime(p.input_fn))
@@ -96,21 +94,19 @@ print "  validating query and hit sequences ..."
 QuerySequences, HitSequences = {}, {}
 
 try:
-	if (p.queries_collection):
-		queries = mdb.Collection.find_one({"name": p.queries_collection})
-		if (queries == None):
-			error("Unknown collection '%s'" % p.queries_collection)
+	queries = mdb.Collection.find_one({"name": p.queries_collection})
+	if (queries == None):
+		error("Unknown collection '%s'" % p.queries_collection)
 
-		for sequence, relationship in queries.get_sequences():
-			QuerySequences[str(sequence["name"])] = sequence
+	for sequence, relationship in queries.get_sequences():
+		QuerySequences[str(sequence["name"])] = sequence
 
-	if (p.hits_collection):
-		hits = mdb.Collection.find_one({"name": p.hits_collection})
-		if (hits == None):
-			error("Unknown collection '%s'" % p.hits_collection)
+	hits = mdb.Collection.find_one({"name": p.hits_collection})
+	if (hits == None):
+		error("Unknown collection '%s'" % p.hits_collection)
 
-		for sequence, relationship in hits.get_sequences():
-			HitSequences[str(sequence["name"])] = sequence
+	for sequence, relationship in hits.get_sequences():
+		HitSequences[str(sequence["name"])] = sequence
 
 except Exception as msg:
 	error(msg)
@@ -149,7 +145,7 @@ while True:
 		assert (m != None), line
 		query_id, database = m.group(1), os.path.basename(m.group(2))
 
-		if (p.queries_collection) and (not query_id in QuerySequences):
+		if (not query_id in QuerySequences):
 			error("Unknown query sequence '%s'" % query_id)
 
 		run = {"database": database}
@@ -171,7 +167,7 @@ while True:
 				hit_n += 1
 				hit_key = (hit_n, hit_id)
 
-				if (p.hits_collection) and (not hit_id in HitSequences):
+				if (not hit_id in HitSequences):
 					error("Unknown hit sequence '%s'" % hit_id)
 
 				block_n += 1
@@ -219,7 +215,7 @@ print "  importing HSPs ..."
 
 for query_id in HSP:
 	run, hits = HSP[query_id]
-	query = QuerySequences[query_id]
+	query_o = QuerySequences[query_id]
 
 	parameters = {}
 	for key in filter(lambda x: x not in ("pg_name", "pg_ver", "pg_name_alg", "pg_ver_rel", "database", "mp_Algorithm"), run):
@@ -227,7 +223,7 @@ for query_id in HSP:
 
 	for hit_key in hits:
 		hit_id = hit_key[1]
-		hit = HitSequences[hit_id]
+		hit_o = HitSequences[hit_id]
 		
 		hsp = hits[hit_key]
 
@@ -285,8 +281,8 @@ for query_id in HSP:
 			for line in pprint.pformat(r).split('\n'):
 				print "      %s" % line
 		else:
-			query.relate_to_sequence(hit, r)
-			query.commit()
+			query_o.relate_to_sequence(hit_o, r)
+			query_o.commit()
 
 print "    done."
 

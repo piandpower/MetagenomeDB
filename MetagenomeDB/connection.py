@@ -13,7 +13,11 @@ def __connect (host, port, db, user, password):
 	global __connection
 
 	try:
-		connection = pymongo.connection.Connection(host, port)[db]
+		connection = pymongo.connection.Connection(host, port)
+		if (not db in connection.database_names()):
+			logger.warning("The database '%s' doesn't exist and has been created." % db)
+
+		connection = connection[db]
 
 	except pymongo.errors.ConnectionFailure as msg:
 		raise errors.ConnectionError(db, host, port, msg)

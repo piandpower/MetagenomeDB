@@ -7,38 +7,36 @@ Import objects (Sequence and/or Collection) into the database. Those
 objects are provided as JSON- or CSV-formatted descriptions.""")
 
 p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
-	help = "Name of the file containing a description of the objects to import, or '-' to read from the standard input")
+	help = "Name of the file containing a description of the objects to import, or '-' to read from the standard input (mandatory).")
 
 p.add_option("-f", "--format", dest = "input_format", choices = ("json", "csv"), metavar = "STRING", default = "csv",
-	help = "Format of the input file, either 'json' or 'csv' (default: %default)")
+	help = "Format of the input file, either 'json' or 'csv' (optional). Default: %default")
 
 p.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
-	help = "If set, ignore duplicate objects errors")
+	help = "If set, ignore duplicate objects errors.")
 
 p.add_option("--ignore-missing", dest = "ignore_missing", action = "store_true", default = False,
-	help = "If set, ignore relationships that points to missing objects")
-
-p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False,
-	help = "If set, process the input file but does not actually import the objects")
+	help = "If set, ignore relationships that points to missing objects.")
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
 
 g = optparse.OptionGroup(p, "Connection")
 
 g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME", default = "localhost",
-	help = "Host name or IP address of the MongoDB server (optional; default: %default)")
+	help = "Host name or IP address of the MongoDB server (optional). Default: %default")
 
 g.add_option("--port", dest = "connection_port", metavar = "INTEGER", default = 27017,
-	help = "Port of the MongoDB server (optional; default: %default)")
+	help = "Port of the MongoDB server (optional). Default: %default")
 
 g.add_option("--db", dest = "connection_db", metavar = "STRING", default = "MetagenomeDB",
-	help = "Name of the database in the MongoDB server (optional; default: '%default')")
+	help = "Name of the database in the MongoDB server (optional). Default: '%default'")
 
 g.add_option("--user", dest = "connection_user", metavar = "STRING", default = '',
-	help = "User for the MongoDB server connection (optional; default: '%default')")
+	help = "User for the MongoDB server connection (optional). Default: '%default'")
 
 g.add_option("--password", dest = "connection_password", metavar = "STRING", default = '',
-	help = "Password for the MongoDB server connection (optional; default: '%default')")
+	help = "Password for the MongoDB server connection (optional). Default: '%default'")
 
 p.add_option_group(g)
 

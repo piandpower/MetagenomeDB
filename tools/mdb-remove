@@ -23,19 +23,19 @@ p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default
 g = optparse.OptionGroup(p, "Connection")
 
 g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME", default = "localhost",
-	help = "Host name or IP address of the MongoDB server (optional; default: %default)")
+	help = "Host name or IP address of the MongoDB server (optional). Default: %default")
 
 g.add_option("--port", dest = "connection_port", metavar = "INTEGER", default = 27017,
-	help = "Port of the MongoDB server (optional; default: %default)")
+	help = "Port of the MongoDB server (optional). Default: %default")
 
 g.add_option("--db", dest = "connection_db", metavar = "STRING", default = "MetagenomeDB",
-	help = "Name of the database in the MongoDB server (optional; default: '%default')")
+	help = "Name of the database in the MongoDB server (optional). Default: '%default'")
 
 g.add_option("--user", dest = "connection_user", metavar = "STRING", default = '',
-	help = "User for the MongoDB server connection (optional; default: '%default')")
+	help = "User for the MongoDB server connection (optional). Default: '%default'")
 
 g.add_option("--password", dest = "connection_password", metavar = "STRING", default = '',
-	help = "Password for the MongoDB server connection (optional; default: '%default')")
+	help = "Password for the MongoDB server connection (optional). Default: '%default'")
 
 p.add_option_group(g)
 

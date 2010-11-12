@@ -9,10 +9,10 @@ can be in any format supported by Biopython (see http://biopython.org/wiki/SeqIO
 g = optparse.OptionGroup(p, "Sequences")
 
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
-	help = "Sequences to import.")
+	help = "Sequences to import (mandatory).")
 
 g.add_option("-f", "--format", dest = "input_format", metavar = "STRING", default = "fasta",
-	help = "Format of the sequences file. Default: %default")
+	help = "Format of the sequences file (optional). Default: %default")
 
 g.add_option("-s", "--sequence-property", dest = "sequence_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
 	help = "Sequence property (optional).")
@@ -22,7 +22,7 @@ p.add_option_group(g)
 g = optparse.OptionGroup(p, "Collection")
 
 g.add_option("-C", "--collection-name", dest = "collection_name", metavar = "STRING",
-	help = "Name of the collection the sequences belong to.")
+	help = "Name of the collection the sequences belong to (mandatory).")
 
 g.add_option("-c", "--collection-property", dest = "collection_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
 	help = "Collection property (optional).")
@@ -38,19 +38,19 @@ p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = Fal
 g = optparse.OptionGroup(p, "Connection")
 
 g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME", default = "localhost",
-	help = "Host name or IP address of the MongoDB server (optional; default: %default)")
+	help = "Host name or IP address of the MongoDB server (optional). Default: %default")
 
 g.add_option("--port", dest = "connection_port", metavar = "INTEGER", default = 27017,
-	help = "Port of the MongoDB server (optional; default: %default)")
+	help = "Port of the MongoDB server (optional). Default: %default")
 
 g.add_option("--db", dest = "connection_db", metavar = "STRING", default = "MetagenomeDB",
-	help = "Name of the database in the MongoDB server (optional; default: '%default')")
+	help = "Name of the database in the MongoDB server (optional). Default: '%default'")
 
 g.add_option("--user", dest = "connection_user", metavar = "STRING", default = '',
-	help = "User for the MongoDB server connection (optional; default: '%default')")
+	help = "User for the MongoDB server connection (optional). Default: '%default'")
 
 g.add_option("--password", dest = "connection_password", metavar = "STRING", default = '',
-	help = "Password for the MongoDB server connection (optional; default: '%default')")
+	help = "Password for the MongoDB server connection (optional). Default: '%default'")
 
 p.add_option_group(g)
 

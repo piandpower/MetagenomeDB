@@ -8,24 +8,24 @@ Imports XML-formatted NCBI BLAST alignments into the database.""")
 g = optparse.OptionGroup(p, "BLAST")
 
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
-	help = "XML-formatted output of a NCBI BLAST sequence alignment.")
+	help = "XML-formatted output of a NCBI BLAST sequence alignment (mandatory).")
 
 g.add_option("-Q", "--query-collection", dest = "queries_collection", metavar = "STRING",
-	help = """Name of the collection the query sequences belong to. If not
-provided, the query sequences are assumed to be external to the database.""")
+	help = "Name of the collection the query sequences belong to (mandatory).")
 
 g.add_option("--query-id-getter", dest = "query_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
 	help = "Python code to reformat query identifers (optional); '%' will be replaced by the query identifier. Default: %default")
 
 g.add_option("-H", "--hit-collection", dest = "hits_collection", metavar = "STRING",
-	help = """Name of the collection the hit sequences belong to. If not
-provided, the hit sequences are assumed to be external to the database.""")
+	help = """Name of the collection the hit sequences belong to (optional). If not
+provided, the hit sequences are assumed to be external to the database, and only
+a summary of those hits will be stored: hit identifer, description and E-value.""")
 
 g.add_option("--hit-id-getter", dest = "hit_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
 	help = "Python code to reformat hit identifers (optional); '%' will be replaced by the hit identifier. Default: %default")
 
-g.add_option("--date", dest = "date", nargs = 3, type = "int",
-	help = "Date of the BLAST run (year, month, day). By default, creation date of the input file.")
+g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
+	help = "Date of the BLAST run (optional). By default, creation date of the input file.")
 
 p.add_option_group(g)
 
@@ -35,19 +35,19 @@ p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = Fal
 g = optparse.OptionGroup(p, "Connection")
 
 g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME", default = "localhost",
-	help = "Host name or IP address of the MongoDB server (optional; default: %default)")
+	help = "Host name or IP address of the MongoDB server (optional). Default: %default")
 
 g.add_option("--port", dest = "connection_port", metavar = "INTEGER", default = 27017,
-	help = "Port of the MongoDB server (optional; default: %default)")
+	help = "Port of the MongoDB server (optional). Default: %default")
 
 g.add_option("--db", dest = "connection_db", metavar = "STRING", default = "MetagenomeDB",
-	help = "Name of the database in the MongoDB server (optional; default: '%default')")
+	help = "Name of the database in the MongoDB server (optional). Default: '%default'")
 
 g.add_option("--user", dest = "connection_user", metavar = "STRING", default = '',
-	help = "User for the MongoDB server connection (optional; default: '%default')")
+	help = "User for the MongoDB server connection (optional). Default: '%default'")
 
 g.add_option("--password", dest = "connection_password", metavar = "STRING", default = '',
-	help = "Password for the MongoDB server connection (optional; default: '%default')")
+	help = "Password for the MongoDB server connection (optional). Default: '%default'")
 
 p.add_option_group(g)
 
@@ -65,8 +65,8 @@ if (p.input_fn == None):
 if (not os.path.exists(p.input_fn)):
 	error("File '%s' not found" % p.input_fn)
 
-if ((p.queries_collection == None) + (p.hits_collection == None) == 2):
-	error("A collection must be provided for either query or hit sequences")
+if (p.queries_collection == None):
+	error("A collection must be provided for query sequences")
 
 if (not p.date):
 	date = time.localtime(os.path.getmtime(p.input_fn))
@@ -115,13 +115,12 @@ print "  validating query and hit sequences ..."
 QuerySequences, HitSequences = {}, {}
 
 try:
-	if (p.queries_collection):
-		queries = mdb.Collection.find_one({"name": p.queries_collection})
-		if (queries == None):
-			error("Unknown collection '%s'" % p.queries_collection)
+	queries = mdb.Collection.find_one({"name": p.queries_collection})
+	if (queries == None):
+		error("Unknown collection '%s'" % p.queries_collection)
 
-		for sequence in queries.list_sequences():
-			QuerySequences[str(sequence["name"])] = sequence
+	for sequence in queries.list_sequences():
+		QuerySequences[str(sequence["name"])] = sequence
 
 	if (p.hits_collection):
 		hits = mdb.Collection.find_one({"name": p.hits_collection})
@@ -137,7 +136,7 @@ except Exception as msg:
 for record in NCBIXML.parse(open(p.input_fn, 'r')):
 	query_id = get_query_id(record.query)
 
-	if (p.queries_collection) and (not query_id in QuerySequences):
+	if (not query_id in QuerySequences):
 		error("Unknown query sequence '%s'" % query_id)
 
 	for hit in record.alignment:
@@ -151,56 +150,75 @@ print "  importing HSPs ..."
 
 for record in NCBIXML.parse(open(p.input_fn, 'r')):
 	query_id = get_query_id(record.query)
-	query = QuerySequences[query_id]
+	query_o = QuerySequences[query_id]
 
 	for hit in record.alignments:
 		hit_id = get_hit_id(hit.title)
-		hit = HitSequences[hit_id]
+
+		if (p.hits_collection):
+			hit_o = HitSequences[hit_id]
+		else:
+			hit_o = None
 
 		for hsp in hit.hsps:
-			r = {
-				"type": "similar-to",
 
-				"run.date": {"year": p.date[0], "month": p.date[1], "day": p.date[2]},
-				"run.algorithm": {
-					"name": record.application,
-					"version": record.version,
-					"parameters": {
-						"matrix": record.matrix,
-						"gap_open": record.gap_penalties[0],
-						"gap_extend": record.gap_penalties[1],
+			# the hit should be in the database. In this case, we store a full
+			# description of it as a relationship between query and hit sequences.
+			if (hit_o != None):
+				r = {
+					"type": "similar-to",
+
+					"run.date": {"year": p.date[0], "month": p.date[1], "day": p.date[2]},
+					"run.algorithm": {
+						"name": record.application,
+						"version": record.version,
+						"parameters": {
+							"matrix": record.matrix,
+							"gap_open": record.gap_penalties[0],
+							"gap_extend": record.gap_penalties[1],
+						},
 					},
-				},
 
-				"alignment": {
-					"source_coordinates": (hsp.query_start, hsp.query_end),
-					"source": hsp.query,
-					"match": hsp.match,
-					"target": hsp.sbjct,
-					"target_coordinates": (hsp.sbjct_start, hsp.sbjct_end),
-				},
+					"alignment": {
+						"source_coordinates": (hsp.query_start, hsp.query_end),
+						"source": hsp.query,
+						"match": hsp.match,
+						"target": hsp.sbjct,
+						"target_coordinates": (hsp.sbjct_start, hsp.sbjct_end),
+					},
 
-				"score": {
-					"fraction_identical": 100.0 * hsp.identities / hit.length,
-					"fraction_conserved": 100.0 * hsp.positives / hit.length,
-					"expectation": {
-						"e_value": hsp.expect,
-						"search_space": {
-							"database_name": record.database,
-							"number_of_sequences": record.database_sequences,
-							"number_of_letters": record.num_letters_in_database,
+					"score": {
+						"fraction_identical": 100.0 * hsp.identities / hit.length,
+						"fraction_conserved": 100.0 * hsp.positives / hit.length,
+						"expectation": {
+							"e_value": hsp.expect,
+							"search_space": {
+								"database_name": record.database,
+								"number_of_sequences": record.database_sequences,
+								"number_of_letters": record.num_letters_in_database,
+							}
 						}
 					}
 				}
-			}
 
-			if (p.dry_run):
-				print "    query '%s' to hit '%s'" % (query_id, hit_id)
-				for line in pprint.pformat(r).split('\n'):
-					print "      %s" % line
+				if (p.dry_run):
+					print "    query '%s' to hit '%s'" % (query_id, hit_id)
+					for line in pprint.pformat(r).split('\n'):
+						print "      %s" % line
+				else:
+					query_o.relate_to_sequence(hit_o, r)
+					query_o.commit()
+
+			# the hit is not in the database. In this case, we store a short
+			# description of it as a property of the query sequence.
 			else:
-				query.relate_to_sequence(hit, r)
-				query.commit()
+				r = (hit_id, hit description, hsp.expect)
+
+				if (p.dry_run):
+					print "    query '%s' to external hit '%s'" % (query_id, hit_id)
+				else:
+					query_o["hits"].append(r)
+					query_o.commit()
 
 print "    done."
 
