@@ -105,10 +105,10 @@ try:
 				candidates_ = filter(lambda s: s.count_collections({"name": collection}) > 0, candidates)
 
 				if (len(candidates_) == 0):
-					raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (name, collection))
+					raise NotFound("Unknown sequence '%s' in collection '%s'" % (name, collection))
 
 				if (len(candidates_) > 1):
-					raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (name, collection))
+					raise Exception("Duplicate sequence '%s' in collection '%s'" % (name, collection))
 
 				objects = candidates_
 
@@ -117,7 +117,7 @@ try:
 				candidate = mdb.Collection.find_one({"name": entry["name"]})
 
 				if (candidate == None):
-					raise NotFound("Unknown Collection '%s'" % entry["name"])
+					raise NotFound("Unknown collection '%s'" % entry["name"])
 				else:
 					objects = [candidate]
 

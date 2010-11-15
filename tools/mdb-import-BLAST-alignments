@@ -5,7 +5,7 @@ import optparse, sys, os, re, time, pprint
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
 Imports XML-formatted NCBI BLAST alignments into the database.""")
 
-g = optparse.OptionGroup(p, "BLAST")
+g = optparse.OptionGroup(p, "Input")
 
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "XML-formatted output of a NCBI BLAST sequence alignment (mandatory).")
@@ -13,19 +13,38 @@ g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 g.add_option("-Q", "--query-collection", dest = "queries_collection", metavar = "STRING",
 	help = "Name of the collection the query sequences belong to (mandatory).")
 
-g.add_option("--query-id-getter", dest = "query_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
-	help = "Python code to reformat query identifers (optional); '%' will be replaced by the query identifier. Default: %default")
-
 g.add_option("-H", "--hit-collection", dest = "hits_collection", metavar = "STRING",
 	help = """Name of the collection the hit sequences belong to (optional). If not
 provided, the hit sequences are assumed to be external to the database, and only
 a summary of those hits will be stored: hit identifer, description and E-value.""")
 
+g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
+	help = "Date of the BLAST run (optional). By default, creation date of the input file.")
+
+g.add_option("--query-id-getter", dest = "query_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
+	help = "Python code to reformat query identifers (optional); '%' will be replaced by the query identifier. Default: %default")
+
 g.add_option("--hit-id-getter", dest = "hit_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
 	help = "Python code to reformat hit identifers (optional); '%' will be replaced by the hit identifier. Default: %default")
 
-g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
-	help = "Date of the BLAST run (optional). By default, creation date of the input file.")
+g.add_option("--no-check", dest = "check", action = "store_false", default = True,
+	help = "If set, bypass the query and hit sequences identifier check (not recommended).")
+
+p.add_option_group(g)
+
+g = optparse.OptionGroup(p, "Input filtering")
+
+g.add_option("--max-E-value", dest = "max_e_value", type = "float", metavar = "FLOAT",
+	help = "If set, filter out all hits with a E-value above the provided cut-off.")
+
+g.add_option("--min-identity", dest = "min_identity", type = "int", metavar = "INTEGER",
+	help = "If set, filter out all hits with a percentage of identity below the provided cut-off.")
+
+g.add_option("--max-hits", dest = "max_hits", type = "int", metavar = "INTEGER",
+	help = "If set, keep only the first '--max-hits' hits for each query.")
+
+g.add_option("--ignore-alignment", dest = "include_alignment", action = "store_false", default = True,
+	help = "If set, will not store information about the sequence alignment (HSP coordinates and sequences).")
 
 p.add_option_group(g)
 
@@ -89,6 +108,18 @@ try:
 except SyntaxError, e:
 	error("Invalid getter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
 
+if (p.max_e_value):
+	if (p.max_e_value < 0):
+		error("Invalid E-value cut-off: %s" % p.max_e_value)
+
+if (p.min_identity):
+	if (p.min_identity < 0) or (p.min_identity > 100):
+		error("Invalid percentage of identity cut-off: %s" % p.min_identity)
+
+if (p.max_hits):
+	if (p.max_hits < 0):
+		error("Invalid number of hits cut-off: %s" % p.max_hits)
+
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 import MetagenomeDB as mdb
@@ -133,43 +164,82 @@ try:
 except Exception as msg:
 	error(msg)
 
-for record in NCBIXML.parse(open(p.input_fn, 'r')):
-	query_id = get_query_id(record.query)
+if (p.check):
+	n_records = 0
+	for record in NCBIXML.parse(open(p.input_fn, 'r')):
+		query_id = get_query_id(record.query)
 
-	if (not query_id in QuerySequences):
-		error("Unknown query sequence '%s'" % query_id)
+		if (not query_id in QuerySequences):
+			error("Unknown query sequence '%s'" % query_id)
 
-	for hit in record.alignment:
-		hit_id = get_hit_id(hit.title)
+		for hit in record.alignments:
+			hit_id = get_hit_id(hit.title)
 
-		if (p.hits_collection) and (not hit_id in HitSequences):
-			error("Unknown hit sequence '%s'" % hit_id)
+			if (p.hits_collection) and (not hit_id in HitSequences):
+				error("Unknown hit sequence '%s'" % hit_id)
+
+		n_records += 1
 
 # Import
 print "  importing HSPs ..."
 
+class ProgressBar:
+	def __init__ (self, upper = None):
+		self.__min = 0.0
+		self.__max = upper + 0.0
+
+	def display (self, value):
+		f = (value - self.__min) / (self.__max - self.__min) # fraction
+		p = 100 * f # percentage
+		s = int(round(80 * f)) # bar size
+
+		sys.stdout.write(' ' * 4 + ('.' * s) + " %4.2f%%\r" % p)
+		sys.stdout.flush()
+
+	def clear (self):
+		sys.stdout.write(' ' * (4 + 80 + 8) + "\r")
+		sys.stdout.flush()
+
+show_pb = p.check and (not p.dry_run)
+
+if (show_pb):
+	pb = ProgressBar(n_records)
+
+external_hits = (p.hits_collection == None)
+
+n = 0
 for record in NCBIXML.parse(open(p.input_fn, 'r')):
 	query_id = get_query_id(record.query)
 	query_o = QuerySequences[query_id]
 
+	if (external_hits):
+		hits = []
+
+	m = 0
 	for hit in record.alignments:
 		hit_id = get_hit_id(hit.title)
-
-		if (p.hits_collection):
+		if (not external_hits):
 			hit_o = HitSequences[hit_id]
-		else:
-			hit_o = None
+
+		m += 1
+		if (p.max_hits) and (m > p.max_hits):
+			break
 
 		for hsp in hit.hsps:
+			identity = 100.0 * hsp.identities / hit.length
 
-			# the hit should be in the database. In this case, we store a full
-			# description of it as a relationship between query and hit sequences.
-			if (hit_o != None):
-				r = {
-					"type": "similar-to",
+			if (p.min_identity) and (identity < p.min_identity):
+				continue
 
-					"run.date": {"year": p.date[0], "month": p.date[1], "day": p.date[2]},
-					"run.algorithm": {
+			if (p.max_e_value) and (hsp.expect > p.max_e_value):
+				continue
+
+			r = {
+				"type": "similar-to",
+
+				"run": {
+					"date": {"year": p.date[0], "month": p.date[1], "day": p.date[2]},
+					"algorithm": {
 						"name": record.application,
 						"version": record.version,
 						"parameters": {
@@ -178,29 +248,32 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 							"gap_extend": record.gap_penalties[1],
 						},
 					},
-
-					"alignment": {
-						"source_coordinates": (hsp.query_start, hsp.query_end),
-						"source": hsp.query,
-						"match": hsp.match,
-						"target": hsp.sbjct,
-						"target_coordinates": (hsp.sbjct_start, hsp.sbjct_end),
-					},
-
-					"score": {
-						"fraction_identical": 100.0 * hsp.identities / hit.length,
-						"fraction_conserved": 100.0 * hsp.positives / hit.length,
-						"expectation": {
-							"e_value": hsp.expect,
-							"search_space": {
-								"database_name": record.database,
-								"number_of_sequences": record.database_sequences,
-								"number_of_letters": record.num_letters_in_database,
-							}
-						}
+					"database": {
+						"name": record.database,
+						"number_of_sequences": record.database_sequences,
+						"number_of_letters": record.num_letters_in_database,
 					}
-				}
+				},
 
+				"score": {
+					"fraction_identical": identity,
+					"fraction_conserved": 100.0 * hsp.positives / hit.length,
+					"e_value": hsp.expect,
+				}
+			}
+
+			if (p.include_alignment):
+				r["alignment"] = {
+					"source_coordinates": (hsp.query_start, hsp.query_end),
+					"source": hsp.query,
+					"match": hsp.match,
+					"target": hsp.sbjct,
+					"target_coordinates": (hsp.sbjct_start, hsp.sbjct_end),
+				},
+
+			# the hit should be in the database. In this case, we store a full
+			# description of it as a relationship between query and hit sequences.
+			if (not external_hits):
 				if (p.dry_run):
 					print "    query '%s' to hit '%s'" % (query_id, hit_id)
 					for line in pprint.pformat(r).split('\n'):
@@ -212,13 +285,30 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 			# the hit is not in the database. In this case, we store a short
 			# description of it as a property of the query sequence.
 			else:
-				r = (hit_id, hit description, hsp.expect)
+				r["hit" ] = {
+					"name": hit_id,
+					"description": hit.hit_def,
+					"length": hit.length
+				}
 
 				if (p.dry_run):
 					print "    query '%s' to external hit '%s'" % (query_id, hit_id)
+					for line in pprint.pformat(r).split('\n'):
+						print "      %s" % line
 				else:
-					query_o["hits"].append(r)
-					query_o.commit()
+					hits.append(r)
+
+	if (external_hits) and (not p.dry_run):
+		query_o["alignments"] = query_o.get_property("alignments", []) + [hits]
+		query_o.commit()
+
+	if (show_pb):
+		pb.display(n)
+
+	n += 1
+
+if (show_pb):
+	pb.clear()
 
 print "    done."
 

@@ -109,7 +109,7 @@ elif (p.collection_name):
 	collection = mdb.Collection.find_one({"name": p.collection_name})
 
 	if (collection == None):
-		error("Unknown collection with name '%s'" % p.collection_name)
+		error("Unknown collection '%s'" % p.collection_name)
 
 if (p.relationship_properties):
 	m = {}

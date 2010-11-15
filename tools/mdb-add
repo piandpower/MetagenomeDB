@@ -89,7 +89,7 @@ def retrieve_xref (entry):
 		if (type == "collection"):
 			object = mdb.Collection.find_one({"name": entry["name"]})
 			if (object == None):
-				raise Exception("Unknown Collection '%s'" % entry["name"])
+				raise Exception("Unknown collection '%s'" % entry["name"])
 
 			return object
 
@@ -102,10 +102,10 @@ def retrieve_xref (entry):
 			candidates_ = filter(lambda s: s.count_collections({"name": entry["_collection"]}) > 0, candidates)
 
 			if (len(candidates_) == 0):
-				raise NotFound("Unknown Sequence '%s' in Collection '%s'" % (entry["_name"], entry["_collection"]))
+				raise NotFound("Unknown sequence '%s' in collection '%s'" % (entry["_name"], entry["_collection"]))
 
 			if (len(candidates_) > 1):
-				raise Exception("Duplicate Sequence '%s' in Collection '%s'" % (entry["_name"], entry["_collection"]))
+				raise Exception("Duplicate sequence '%s' in collection '%s'" % (entry["_name"], entry["_collection"]))
 
 			return candidates_[0]
 

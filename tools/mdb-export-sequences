@@ -73,7 +73,7 @@ except Exception as msg:
 	error(msg)
 
 if (collection == None):
-	error("Unknown collection with name '%s'" % p.collection_name)
+	error("Unknown collection '%s'" % p.collection_name)
 
 if (p.output_fn == None):
 	output_fh = sys.stdout
