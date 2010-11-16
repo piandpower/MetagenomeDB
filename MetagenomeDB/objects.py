@@ -181,7 +181,11 @@ class CommittableObject (MutableObject):
 			raise Exception("Unable to connect %s to %s: the target has never been committed." % (self, target))
 
 		target_id = str(target._properties["_id"])
-		relationship = parse_properties(relationship)
+
+		if (relationship == None):
+			relationship = {}
+		else:
+			relationship = parse_properties(relationship)
 
 		# case where this object has no connection with the target yet
 		if (not target_id in self._properties["_relationships"]):
@@ -190,7 +194,6 @@ class CommittableObject (MutableObject):
 			self._properties["_relationship_with"].append(target_id)
 			self._properties["_relationships"][target_id] = [relationship]
 			self._committed = False
-			return
 
 		# case where this object has a connection with the target
 		else:
@@ -201,6 +204,7 @@ class CommittableObject (MutableObject):
 				return
 
 			self._properties["_relationships"][target_id].append(relationship)
+			self._committed = False
 
 	# Disconnect this object from another
 	def _disconnect_from (self, target, relationship_filter):
@@ -441,7 +445,7 @@ class Sequence (CommittableObject):
 	#	collection -- Collection to add this sequence to
 	#	relationship -- Properties of the relationship between
 	#		this sequence and the collection
-	def add_to_collection (self, collection, relationship):
+	def add_to_collection (self, collection, relationship = None):
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
 
@@ -471,17 +475,17 @@ class Sequence (CommittableObject):
 	def count_collections (self, collection_filter = None, relationship_filter = None):
 		return self._out_vertices("Collection", collection_filter, relationship_filter, True)
 
-	def relate_to_sequence (self, sequence, relationship):
+	def relate_to_sequence (self, sequence, relationship = None):
 		if (not isinstance(sequence, Sequence)):
 			raise ValueError("The 'sequence' parameter must be a Sequence object.")
 
 		self._connect_to(sequence, relationship)
 
-	def dissociate_from_sequence (self, sequence):
+	def dissociate_from_sequence (self, sequence, relationship_filter = None):
 		if (not isinstance(sequence, Sequence)):
 			raise ValueError("The 'sequence' parameter must be a Sequence object.")
 
-		self._disconnect_from(sequence)
+		self._disconnect_from(sequence, relationship_filter)
 
 	def list_related_sequences (self, direction = Direction.BOTH, sequence_filter = None, relationship_filter = None):
 		related_sequences = []
@@ -533,7 +537,7 @@ class Collection (CommittableObject):
 	def count_sequences (self, sequence_filter = None, relationship_filter = None):
 		return self._in_vertices("Sequence", sequence_filter, relationship_filter, True)
 
-	def add_to_collection (self, collection, relationship):
+	def add_to_collection (self, collection, relationship = None):
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
 

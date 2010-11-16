@@ -1,10 +1,12 @@
 v0.2.1b (November 10, 2010)
 - now requires Pymongo v1.9 or above
 - now attempts to read the connection information from '~/.MetagenomeDB' rather than '[install path]/MetagenomeDB/connection.cfg'
-- new tool added: 'mdb-export-sequences'
-- new tool added: 'mdb-export-objects'
-- tool updated: 'mdb-import-BLAST-alignments', which can now import alignments against sequences that are not in the database (e.g., NR) and filter alignments according to their E-value and/or percentage of identity
 - a bug in the installation process has been fixed; README.rst has been updated accordingly
+- added: 'mdb-export-sequences'
+- (IN PROGRESS) tool added: 'mdb-export-objects'
+- added: 'mdb-import-CRISPRfinder-annotations'
+- updated: 'mdb-import-BLAST-alignments', which can now import alignments against sequences that are not in the database (e.g., NR) and filter alignments according to their E-value and/or percentage of identity
+- updated: 'mdb-annotate', which can now append and remove property values to objects rather than just overwrite them
 
 v0.2.0b (November 9, 2010) -- First beta version, with installer.
 

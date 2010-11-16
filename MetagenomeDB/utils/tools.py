@@ -58,6 +58,11 @@ def parse (value, separator = '^'):
 
 	return value
 
+REPLACE = 1
+APPEND = 2
+APPEND_IF_UNIQUE = 3
+REMOVE = 4
+
 # Parse either a JSON-formatted or CSV-formatted file, returning key/values
 # as an iterator. 'format' must be either 'json' or 'csv'.
 def parser (fn, format):
@@ -83,12 +88,43 @@ def parser (fn, format):
 			entry,
 			selector = lambda x: True,
 			key_modifier = lambda x: str(x), # hack to work around a bug in Python 2.6, which doesn't allow kwargs with unicode strings.
-			value_modifier = lambda x: parse(x)
+			value_modifier = lambda x: (parse(x), REPLACE)
 		) for entry in data]
 
 		return data
 
 	elif (format == "csv"):
+		def extract_key_value (text):
+			in_quote = False
+			reached_pivot = False
+			key, value = '', ''
+			command = None
+
+			for c in text:
+				if (c == '"'):
+					in_quote = not in_quote
+					continue
+
+				if (not in_quote) and (not reached_pivot) and (c in ('=', '+', '-', '&')):
+					reached_pivot = True
+					command = {
+						'=': REPLACE,
+						'&': APPEND,
+						'+': APPEND_IF_UNIQUE,
+						'-': REMOVE,
+					}[c]
+					continue
+
+				if (reached_pivot):
+					value += c
+				else:
+					key += c
+
+			if (not reached_pivot):
+				raise Exception("Invalid entry (no key/value separator): %s" % text)
+
+			return key.strip(), value.strip(), command
+
 		def generator():
 			for line in csv.reader(i, delimiter = ',', quotechar='"'):
 				line = filter(lambda x: x != '', line)
@@ -101,8 +137,8 @@ def parser (fn, format):
 
 				map = {}
 				for item in line:
-					key, value = item.split('=', 1)
-					tree.set(map, tree.validate_key(key.strip()), parse(value.strip()))
+					key, value, command = extract_key_value(item)
+					tree.set(map, tree.validate_key(key), (parse(value), command))
 
 				yield map
 

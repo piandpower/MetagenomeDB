@@ -5,7 +5,7 @@ import optparse, sys, os, re, time, pprint
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
 Imports FASTA alignments into the database.""")
 
-g = optparse.OptionGroup(p, "FASTA")
+g = optparse.OptionGroup(p, "Input")
 
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "Results of a FASTA sequence alignment (mandatory). Note: the file MUST be formatted with the '-m 10' option.")
@@ -18,6 +18,22 @@ g.add_option("-H", "--hit-collection", dest = "hits_collection", metavar = "STRI
 
 g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
 	help = "Date of the FASTA run (optional). By default, creation date of the input file.")
+
+p.add_option_group(g)
+
+g = optparse.OptionGroup(p, "Input filtering")
+
+g.add_option("--max-E-value", dest = "max_e_value", type = "float", metavar = "FLOAT",
+	help = "If set, filter out all hits with a E-value above the provided cut-off.")
+
+g.add_option("--min-identity", dest = "min_identity", type = "int", metavar = "INTEGER",
+	help = "If set, filter out all hits with a percentage of identity below the provided cut-off.")
+
+g.add_option("--max-hits", dest = "max_hits", type = "int", metavar = "INTEGER",
+	help = "If set, keep only the first '--max-hits' hits for each query.")
+
+g.add_option("--ignore-alignment", dest = "include_alignment", action = "store_false", default = True,
+	help = "If set, will not store information about the sequence alignment (HSP coordinates and sequences).")
 
 p.add_option_group(g)
 
@@ -73,6 +89,18 @@ else:
 
 	except Exception, msg:
 		error("Invalid date: %s" % msg)
+
+if (p.max_e_value):
+	if (p.max_e_value < 0):
+		error("Invalid E-value cut-off: %s" % p.max_e_value)
+
+if (p.min_identity):
+	if (p.min_identity < 0) or (p.min_identity > 100):
+		error("Invalid percentage of identity cut-off: %s" % p.min_identity)
+
+if (p.max_hits):
+	if (p.max_hits < 0):
+		error("Invalid number of hits cut-off: %s" % p.max_hits)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -221,60 +249,75 @@ for query_id in HSP:
 	for key in filter(lambda x: x not in ("pg_name", "pg_ver", "pg_name_alg", "pg_ver_rel", "database", "mp_Algorithm"), run):
 		parameters[key] = run[key]
 
+	m = 0
 	for hit_key in hits:
 		hit_id = hit_key[1]
 		hit_o = HitSequences[hit_id]
 		
 		hsp = hits[hit_key]
 
-		query_alignment = ''.join([hsp["query"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_display_start"), hsp["query"]), lambda x, y: cmp(x[1], y[1]))])
-		hit_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_display_start"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
-		cons_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_cons"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
+		identity = 100 * float(hsp["bs_ident"])
+		e_value = float(hsp["fa_expect"])
 
-		source_coordinates = (int(hsp["query"]["al_start"]), int(hsp["query"]["al_stop"]))
-		target_coordinates = (int(hsp["hit"]["al_start"]), int(hsp["hit"]["al_stop"]))
+		m += 1
+		if (p.max_hits) and (m > p.max_hits):
+			break
 
-		source_offset = int(hsp["query"]["al_display_start"])
-		target_offset = int(hsp["hit"]["al_display_start"])
+		if (p.min_identity) and (identity < p.min_identity):
+			continue
 
-		offset1 = abs(source_offset - source_coordinates[0])
-		offset2 = abs(target_offset - target_coordinates[0])
-
-		start = max(offset1, offset2)
-		stop = len(cons_alignment.strip()) + start
-		assert (cons_alignment[start] != ' ') ###
+		if (p.max_e_value) and (e_value > p.max_e_value):
+			continue
 
 		r = {
 			"type": "similar-to",
 
-			"run.date": {"year": p.date[0], "month": p.date[1], "day": p.date[2]},
-			"run.algorithm": {
-				"name": run["pg_name"],
-				"version": run["pg_ver"],
-				"parameters": parameters,
+			"run": {
+				"date": {"year": p.date[0], "month": p.date[1], "day": p.date[2]},
+				"algorithm": {
+					"name": run["pg_name"],
+					"version": run["pg_ver"],
+					"parameters": parameters,
+				},
+				"database": {
+					"name": run["database"],
+					"number_of_sequences": n_sequences,
+					"number_of_residues": n_residues,
+				}
 			},
 
-			"alignment": {
+			"score": {
+				"fraction_identical": identity,
+				"fraction_conserved": 100 * float(hsp["bs_sim"]),
+				"e_value": e_value,
+			}
+		}
+
+		if (p.include_alignment):
+			query_alignment = ''.join([hsp["query"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_display_start"), hsp["query"]), lambda x, y: cmp(x[1], y[1]))])
+			hit_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_display_start"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
+			cons_alignment = ''.join([hsp["hit"][key] for key in sorted(filter(lambda x: (type(x) == tuple) and (x[0] == "al_cons"), hsp["hit"]), lambda x, y: cmp(x[1], y[1]))])
+
+			source_coordinates = (int(hsp["query"]["al_start"]), int(hsp["query"]["al_stop"]))
+			target_coordinates = (int(hsp["hit"]["al_start"]), int(hsp["hit"]["al_stop"]))
+
+			source_offset = int(hsp["query"]["al_display_start"])
+			target_offset = int(hsp["hit"]["al_display_start"])
+
+			offset1 = abs(source_offset - source_coordinates[0])
+			offset2 = abs(target_offset - target_coordinates[0])
+
+			start = max(offset1, offset2)
+			stop = len(cons_alignment.strip()) + start
+			assert (cons_alignment[start] != ' ') ###
+
+			r["alignment"] = {
 				"source_coordinates": source_coordinates,
 				"source": query_alignment[start:stop],
 				"match": cons_alignment[start:stop],
 				"target": hit_alignment[start:stop],
 				"target_coordinates": target_coordinates,
-			},
-
-			"score": {
-				"fraction_identical": 100 * float(hsp["bs_ident"]),
-				"fraction_conserved": 100 * float(hsp["bs_sim"]),
-				"expectation": {
-					"e_value": float(hsp["fa_expect"]),
-					"search_space": {
-						"database_name": run["database"],
-						"number_of_sequences": n_sequences,
-						"number_of_residues": n_residues,
-					}
-				}
 			}
-		}
 
 		if (p.dry_run):
 			print "    query '%s' to hit '%s'" % (query_id, hit_id)

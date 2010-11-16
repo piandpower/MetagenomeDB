@@ -12,8 +12,8 @@ p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 p.add_option("-f", "--format", dest = "input_format", choices = ("json", "csv"), metavar = "STRING", default = "csv",
 	help = "Format of the input file, either 'json' or 'csv' (optional). Default: %default")
 
-p.add_option("--ignore-missing", dest = "ignore_missing", action = "store_true", default = False,
-	help = "If set, ignore relationships that points to missing objects.")
+p.add_option("--ignore-unknown", dest = "ignore_unknown", action = "store_true", default = False,
+	help = "If set, ignore unknown objects.")
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
 p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
@@ -64,11 +64,6 @@ if (p.connection_host or p.connection_port or p.connection_db or p.connection_us
 	except Exception as msg:
 		error(msg)
 
-COLLECTIONS = {
-	"collection": mdb.Collection,
-	"sequence": mdb.Sequence,
-}
-
 class NotFound (Exception):
 	pass
 
@@ -80,7 +75,7 @@ def key_filter (key):
 	return True
 
 def pull (map, key):
-	value = map[key]
+	value, command = map[key]
 	del map[key]
 	return value
 
@@ -89,67 +84,105 @@ n_annotated = 0
 try:
 	for entry in mdb.tools.parser(p.input_fn, p.input_format):
 		try:
-			type = pull(entry, "_type").lower()
-
-			if (not type in COLLECTIONS):
-				raise Exception("Unknown object type '%s'" % type)
+			object_type = pull(entry, "_type").lower()
 
 			# _type=sequence, _collection='...', name='...', ...
-			if (type == "sequence"):
-				collection, name = pull(entry, "_collection"), entry["name"]
+			if (object_type == "sequence"):
+				collection_name, sequence_name = pull(entry, "_collection"), pull(entry, "name")
 
 				# we first list all sequences having this name,
-				candidates = mdb.Sequence.find({"name": name})
+				candidates = mdb.Sequence.find({"name": sequence_name})
 
 				# then we filter out those that are not linked to this collection
-				candidates_ = filter(lambda s: s.count_collections({"name": collection}) > 0, candidates)
+				candidates_ = filter(lambda s: s.count_collections({"name": collection_name}) > 0, candidates)
 
 				if (len(candidates_) == 0):
-					raise NotFound("Unknown sequence '%s' in collection '%s'" % (name, collection))
+					raise NotFound("Unknown sequence '%s' in collection '%s'" % (sequence_name, collection_name))
 
 				if (len(candidates_) > 1):
-					raise Exception("Duplicate sequence '%s' in collection '%s'" % (name, collection))
+					raise Exception("Duplicate sequence '%s' in collection '%s'" % (sequence_name, collection_name))
 
-				objects = candidates_
+				object = candidates_[0]
+				object_name = "sequence '%s' in collection '%s'" % (sequence_name, collection_name)
 
 			# _type=collection, name='...', ...
-			elif (type == "collection"):
-				candidate = mdb.Collection.find_one({"name": entry["name"]})
+			elif (object_type == "collection"):
+				collection_name = pull(entry, "name")
+
+				candidate = mdb.Collection.find_one({"name": collection_name})
 
 				if (candidate == None):
-					raise NotFound("Unknown collection '%s'" % entry["name"])
+					raise NotFound("Unknown collection '%s'" % collection_name)
+
+				object = candidate
+				object_name = "collection '%s'" % collection_name
+
+			else:
+				raise Exception("Unknown object type '%s'" % object_type)
+
+			actions = []
+			for key, (value, command) in mdb.tree.items(entry):
+				# We ignore any key hierarchy which contains a
+				# special key (i.e., key starting with a '_').
+				# This would be caught by the API, but it is
+				# easier to check this at this stage.
+				if (not key_filter(key)):
+					print >>sys.stderr, "WARNING: Key '%s' is invalid and was ignored." % key
+					continue
+
+				if (p.dry_run):
+					key = '.'.join(key)
+
+					if (command == mdb.tools.REPLACE):
+						actions.append("SET \"%s\" as value for property '%s'" % (value, key))
+
+					elif (command == mdb.tools.APPEND):
+						actions.append("APPEND \"%s\" to property '%s'" % (value, key))
+
+					elif (command == mdb.tools.APPEND_IF_UNIQUE):
+						actions.append("APPEND \"%s\" (if unique) to property '%s'" % (value, key))
+
+					elif (command == mdb.tools.REMOVE):
+						actions.append("REMOVE property '%s'" % key)
+					
 				else:
-					objects = [candidate]
+					if (command == mdb.tools.REPLACE):
+						object[key] = value
 
-			for object in objects:
-				entry_ = {}
-				for key, value in mdb.tree.items(entry):
-					# we ignore any key hierarchy which contains a
-					# special key (i.e., key starting with a '_')
-					if (not key_filter(key)):
-						continue
+					elif (command == mdb.tools.APPEND) or (command == mdb.tools.APPEND_IF_UNIQUE):
+						value_ = object.get_property(key, [])
+						if (type(value) != list):
+							value = [value]
 
-					object[key] = value
-					mdb.tree.set(entry_, key, value)
+						for v in value:
+							if (command == mdb.tools.APPEND_IF_UNIQUE) and (v in value_):
+								continue
 
-				if (object.is_committed()):
-					print >>sys.stderr, "WARNING: Object %s has not been modified; annotations match database content." % object
+							value_.append(v)
 
+						object[key] = value_
+
+					elif (command == mdb.tools.REMOVE):
+						del object[key]
+
+			if (not p.dry_run) and object.is_committed():
+				print >>sys.stderr, "WARNING: %s has not been modified." % object_name
+
+			else:
+				n_annotated += 1
+
+				if (p.dry_run):
+					print "annotate: %s" % object_name
+					for line in actions:
+						print "  %s" % line
 				else:
-					n_annotated += 1
-
-					if (p.dry_run):
-						print "annotate: %s" % type
-						for line in pprint.pformat(entry_).split('\n'):
-							print "  %s" % line
-					else:
-						object.commit()
+					object.commit()
 
 		except mdb.errors.ConnectionError as msg:
 			error(str(msg))
 
 		except NotFound as msg:
-			if (p.ignore_missing):
+			if (p.ignore_unknown):
 				print >>sys.stderr, "WARNING: %s" % msg
 			else:
 				error(msg)

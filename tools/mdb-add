@@ -122,6 +122,15 @@ n_created, n_connected = 0, 0
 try:
 	for entry in mdb.tools.parser(p.input_fn, p.input_format):
 		try:
+			entry_ = {}
+			for key, (value, command) in mdb.tree.items(entry):
+				if (command != mdb.tools.REPLACE):
+					raise Exception("Only REPLACE commands are accepted")
+
+				mdb.tree.set(entry_, key, value)
+
+			entry = entry_
+
 			type = pull(entry, "_type").lower()
 
 			# if the object to build is a relationship, we
@@ -135,7 +144,7 @@ try:
 					for line in pprint.pformat(entry).split('\n'):
 						print "  %s" % line
 				else:
-					source._connect_to(target, entry)
+					source._connect_to(target, entry_)
 					source.commit()
 
 				n_connected += 1
