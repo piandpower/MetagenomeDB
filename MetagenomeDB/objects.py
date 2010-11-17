@@ -16,25 +16,49 @@ def parse_properties (properties):
 
 	return properties_
 
-# MutableObject: Base object that can receive arbitrary properties.
 class MutableObject (object):
+	""" MutableObject: Base object that can receive arbitrary properties.
+	"""
 
-	# Create a new object.
-	#	properties -- (dictionary) object annotations. Nested properties can
-	#		be expressed using dot notation.
 	def __init__ (self, properties):
+		""" Create a new object.
+
+		:Parameters:
+		  - `properties` (optional): object annotations, as a dictionary. Nested
+			properties can be expressed using dot notation or by nested dictionaries.
+		"""
 		self._properties = parse_properties(properties)
 		self._modified = False
 
-	# Return a copy of all of this object's properties, as a dictionary.
 	def get_properties (self):
+		""" Return a copy of all of this object's properties, as a dictionary.
+		"""
 		return self._properties.copy()
 
-	# Return the value for a given property.
-	#	property -- property to retrieve. Nested properties can be queried
-	#		using a dot notation.
-	#	default -- default value to return if the property is not set.
 	def get_property (self, key, default = None):
+		""" Return the value for a given property.
+
+		:Parameters:
+		  - `key`: property to retrieve. Nested properties can be queried using
+			a dot notation.
+
+			Examples:
+				object.get_property("a") -- will retrieve value for property 'a'
+				object.get_property("a.b") -- will retrieve value for sub-property 'b' of property 'a' of the object
+
+		  - `default` (optional): default value to return if the property is
+			not set.
+
+		:Note:
+			Traditional dictionary-like notation can be used to retrieve
+			a property. E.g., print object["property"]. The difference with
+			get_property() is that the later allows for the case the property
+			has not been set, while the former will throw an exception.
+
+			Examples:
+				object["a.b"] -- similar to get_property("a.b"), but requires property 'a.b' to exists
+				object["a"]["b"] -- alternative syntax
+		"""
 		try:
 			return copy.deepcopy(self.__getitem__(key))
 
@@ -67,13 +91,17 @@ class MutableObject (object):
 		key_ = tree.validate_key(key)
 		return tree.contains(self._properties, key_)
 
-# CommittableObject: Object that can be committed to the backend database.
 class CommittableObject (MutableObject):
+	""" CommittableObject: Object that can be committed to the backend database.
+	"""
 
-	# Create a new object.
-	#	properties -- (dictionary) object annotations. Nested properties can
-	#		be expressed using dot notation.
 	def __init__ (self, indices, properties):
+		""" Create a new object.
+
+		:Parameters:
+		  - `properties` (optional): object annotations, as a dictionary. Nested
+			properties can be expressed using dot notation or by nested dictionaries.
+		"""
 		MutableObject.__init__(self, properties)
 
 		# if the object is provided with an identifier,
@@ -118,65 +146,113 @@ class CommittableObject (MutableObject):
 		MutableObject.__delitem__(self, key, value)
 		self._committed = False
 
-	# Commit this object to the database.
-	#	patch -- (dictionary) transient properties patch; set of properties
-	#		that will be added to the object prior commit. Those properties
-	#		are removed (or restored, if overwritten) after commit.
-	def commit (self, **patch):
+	def commit (self):
+		""" Commit this object to the database.
+
+		:Note:
+			The commit will not be performed if the object has already been
+			committed once and no modification (property manipulation) has
+			been performed since then.
+		"""
 		if (self._committed):
 			return
 
-		# If some patch needs to be applied on the object's
+		"""
+		# pre-flight: if some patch needs to be applied on the object's
 		# properties, we temporary store the old values
 		tmp = {}
 		for (key, value) in patch.iteritems():
 			assert (key != "_id") ###
 			tmp[key] = self._properties[key]
 			self._properties[key] = value
+		"""
 
-		id = backend.commit(self)
+		backend.commit(self)
 
-		# We restore the object's properties, if needed
+		"""
+		# post-flight: we restore the object's properties, if needed
 		for (key, value) in tmp.iteritems():
 			self._properties[key] = value
+		"""
 
 		self._committed = True
 
-	# Test if this object has been committed to the database.
-	# Return a boolean.
 	def is_committed (self):
+		""" Test if this object has been committed to the database since
+			its latest modification.
+		"""
 		return self._committed
 
-	# Count the number of object of this type in the database.
-	#	filter -- (dictionary) optional filter.
 	@classmethod
 	def count (cls, filter):
+		""" Count the number of objects of this type in the database.
+		
+		:Parameters:
+		  - `filter` (optional): filter objects based on a dictionary.
+		"""
 		return backend.count(cls.__name__, query = filter)
 
-	# Count instances of this object having distinct values for a given property.
-	#	property -- property to count objects for.
-	# Return a dictionary with distinct values for this property as keys, and
-	# number of objects having this value as value.
 	@classmethod
 	def distinct (cls, property):
+		""" Count the number of objects for each value of the given property.
+
+		:Properties:
+		  - `property`: property to count objects for.
+
+		:Return:
+			A dictionary with all values found for this property as keys, and
+			number of objects having this value as values.
+		"""
 		return backend.distinct(cls.__name__, property)
 
-	# Find all instances of this object that match a query.
-	#	filter -- (dictionary) query, or None if all objects are to be returned.
-	# Return the objects selected, as a generator.
 	@classmethod
 	def find (cls, filter):
+		""" Find all objects of this type that match a query.
+		
+		:Properties:
+		  - `filter`: set of properties and values objects of this type must
+			possess to be selected, as a dictionary. Nested properties can be
+			expressed using dot notation or by nested dictionaries.
+			
+			Examples:
+				find({"name": "foo"}) -- will select all objects with value 'foo' for property 'name'
+				find({"a": 1, "b": 2}) -- will select all objects with value 1 for property 'a' and value 2 for property 'b'
+				find({"a.b": 3}) -- will select all objects with value 3 for sub-property 'b' of property a
+				find({"a": {"b": 3}}) -- alternative syntax for the prior example
+				find({}) -- select all objects of this type
+
+		:Note:
+			The `filter` property can incorporate operators and modifiers from
+			MongoDB (see `MongoDB documentation
+			<http://www.mongodb.org/display/DOCS/Advanced+Queries>`_); e.g.,
+			
+				find({"a": {"$gte": 3}}) -- will select all objects with value 3 or greater for property 'a'
+				find({"a": {"$exists": True}}) -- will select all objects with property 'a'
+
+		:Return:
+			A generator.
+		"""
 		return backend.find(cls.__name__, query = filter)
 
-	# Find the first (or only) instance of this object that match a query.
-	#	filter -- (dictionary) query, or None if all objects are to be returned.
 	@classmethod
 	def find_one (cls, filter):
+		""" Find the first (or only) object of this type that match a query.
+
+		:Properties:
+		  - `filter`: see find()
+
+		:Return:
+			An object, or None if no object found.
+		"""
 		return backend.find(cls.__name__, query = filter, find_one = True)
 
-	# Connect this object to another through a directed,
-	# annotated relationship (from this object to the target)
 	def _connect_to (self, target, relationship):
+		""" Connect this object to another through a directed,
+			annotated relationship (from this object to the target).
+
+		:Note:
+			This method should not be called directly.
+		"""
 		if (not "_id" in target._properties):
 			raise Exception("Unable to connect %s to %s: the target has never been committed." % (self, target))
 
@@ -206,8 +282,14 @@ class CommittableObject (MutableObject):
 			self._properties["_relationships"][target_id].append(relationship)
 			self._committed = False
 
-	# Disconnect this object from another
+			logger.debug("Added relationship %s between %s and %s." % (relationship, self, target))
+
 	def _disconnect_from (self, target, relationship_filter):
+		""" Disconnect this object from another.
+
+		:Note:
+			This method should not be called directly.
+		"""
 		if (not "_id" in target._properties):
 			raise Exception("Object %s is not connected to %s, as the later never has been committed." % (self, target))
 			return
@@ -222,6 +304,8 @@ class CommittableObject (MutableObject):
 			del self._properties["_relationships"][target_id]
 			self._properties["_relationship_with"].remove(target_id)
 			self._committed = False
+
+			logger.debug("Removed all relationships between %s and %s." % (self, target))
 
 		# case 2: we remove all relationships matching a criteria
 		else:
@@ -247,6 +331,8 @@ class CommittableObject (MutableObject):
 				raise Exception("Relationship %s not found between %s and %s." % (relationship_filter, self, target))
 
 			for n in sorted(to_remove, reverse = True):
+				logger.debug("Removed relationship %s between %s and %s." % (self._properties["_relationships"][target_id][n], self, target))
+
 				del self._properties["_relationships"][target_id][n]
 
 			if (len(to_remove) == n_relationships):
@@ -256,6 +342,11 @@ class CommittableObject (MutableObject):
 			self._committed = False
 
 	def _in_vertices (self, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
+		""" List (or count) all incoming relationships between objects and this object.
+		
+		:Note:
+			This method should not be called directly.
+		"""
 		if (not "_id" in self._properties):
 			logger.warning("Attempt to list neighbors of %s while this object has never been committed." % self)
 			if (count):
@@ -278,6 +369,11 @@ class CommittableObject (MutableObject):
 		return backend.find(neighbor_collection, query, count = count)
 
 	def _out_vertices (self, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
+		""" List (or count) all outgoing relationships between this object and others.
+		
+		:Note:
+			This method should not be called directly.
+		"""
 		if (not "_id" in self._properties):
 			logger.warning("Attempt to list neighbors of %s while this object has never been committed." % self)
 			if (count):
@@ -331,16 +427,26 @@ class CommittableObject (MutableObject):
 		return backend.find(neighbor_collection, query, count = count)
 
 	def has_relationships_with (self, target):
+		""" Test if this object has a relationship with another object.
+		
+		:Parameters:
+		  - `target`: object to test for the existence of relationships with.
+		"""
 		if (not "_id" in target._properties):
 			logger.debug("Attempt to test a relationship between %s and %s while the later has never been committed." % (self, target))
 			return False
 
 		return (str(target._properties["_id"]) in self._properties["_relationships"])
 
-	# Return a description of the relationships between this object and another
-	# object, as a list. If none, return an empty list.
-	#	target -- Object with which this object has a relationship
 	def list_relationships_with (self, target):
+		""" List relationships (if any) between this object and others.
+
+		:Parameters:
+		  - `target`: object to list relationships with.
+
+		:Return:
+			A list.
+		"""
 		if (not "_id" in target._properties):
 			logger.debug("Attempt to list relationships between %s and %s while the later has never been committed." % (self, target))
 			return []
@@ -352,22 +458,65 @@ class CommittableObject (MutableObject):
 		else:
 			return []
 
-	# Remove this object from the database. Throw an exception if the object
-	# has not been committed, or if other objects have a relationship with it.
-	# Note: The object remains in memory, flagged as uncommitted.
 	def remove (self):
-		backend.remove(self)
+		""" Remove this object from the database.
+
+		:Note:
+			Relationships between this object and others are removed as well.
+
+			The object remains in memory, flagged as uncommitted.
+
+			Will throw an exception if called while the object has never been
+			committed.
+		"""
+
+		if (not self._committed):
+			raise errors.UncommittedObject(self)
+
+		# Remove all relationships with other objects
+		for collection_name in backend.list_collections():
+			for object in self._in_vertices(collection_name):
+				object._disconnect_from(self, None)
+
+			for object in self._out_vertices(collection_name):
+				self._disconnect_from(object, None)
+
+		backend.remove_object(self)
 
 		del self._properties["_id"]
 		self._committed = False
 
-	# Remove all objects of this type in the database.
-	# Note: any existing instance of this object remains in memory, flagged as uncommitted.
 	@classmethod
 	def remove_all (cls):
-		backend.remove_all(cls.__name__)
+		""" Remove all objects of this type from the database.
+
+		:Note:
+			Relationships between these objects and others are removed as well.
+
+			Instanciated objects remain in memory, flagged as uncommitted.
+		"""
+		collection_name = cls.__name__
+
+		n_objects = backend.find(collection_name, None, count = True)
+		objects = backend.find(collection_name, None)
+
+		n = 0
+		for object in objects:
+			try:
+				object.remove()
+				n += 1
+			except:
+				continue
+
+		if (n < n_objects):
+			logger.warning("%s out of %s objects in collection '%s' were not removed." % (n_objects - n, n_objects, collection_name))
+			return
+
+		backend.drop_collection(cls.__name__)
 
 	def __del__ (self):
+		""" Clean-up code when the object is garbage collected.
+		"""
 		# if the object is destroyed due to an exception thrown during
 		# its instantiation, self._committed will not exists.
 		if (not hasattr(self, "_committed")):

@@ -4,7 +4,7 @@
 # Note: The term 'collection', when used in this file, refers to a MongoDB
 # collection and NOT to the Collection object in objects.py
 
-import weakref, datetime, re, logging
+import weakref, datetime, re, logging, inspect
 import pymongo, bson
 
 import connection, objects, errors
@@ -22,10 +22,6 @@ __objects = weakref.WeakValueDictionary()
 # backend database after an object has been instanciated, a commit() will
 # overwrite those modifications.
 def commit (object):
-	# first case: the object is already committed; we do nothing and return its identifier
-	if (object._committed):
-		return object["_id"]
-
 	db = connection.connection()
 
 	collection_name = object.__class__.__name__
@@ -36,9 +32,9 @@ def commit (object):
 	if (not collection_name in db.collection_names()):
 		msg = "Collection '%s' created" % collection_name
 		if (len(object._indices) > 0):
-			msg += " with indices %s." % ', '.join(["'%s'" % key for key in sorted(object._indices.keys())])
+			msg += " with indices %s" % ', '.join(["'%s'" % key for key in sorted(object._indices.keys())])
 
-		logger.info(msg)
+		logger.debug(msg + '.')
 
 		for (index, is_unique) in object._indices.iteritems():
 			collection.create_index(index, unique = is_unique)
@@ -69,9 +65,7 @@ def commit (object):
 		else:
 			raise Exception("Unable to commit. Reason: %s" % msg)
 
-	logger.info("Object %s %s in collection '%s'." % (object, verb, collection_name))
-
-	return object_id
+	logger.debug("Object %s %s in collection '%s'." % (object, verb, collection_name))
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -91,7 +85,7 @@ def distinct (collection, field):
 	result = cursor.group(
 		key = { field: 1 },
 		condition = {},
-		initial = { "count": 0 },
+		initial = {"count": 0},
 		reduce = "function (o, p) { p.count++; }"
 	)
 
@@ -112,13 +106,13 @@ def find (collection, query, find_one = False, count = False):
 
 	if (query_t == str):
 		try:
-			query = { "_id": bson.objectid.ObjectId(query) }
+			query = {"_id": bson.objectid.ObjectId(query)}
 
 		except bson.errors.InvalidId:
 			raise ValueError("Invalid identifier: %s" % query)
 
 	if (query_t == bson.objectid.ObjectId):
-		query = { "_id": query }
+		query = {"_id": query}
 
 	elif (query_t == dict):
 		# no query argument: returns all objects in this collection
@@ -134,12 +128,12 @@ def find (collection, query, find_one = False, count = False):
 		return cursor.find(query, timeout = False).count()
 
 	if (find_one):
-		return __forge_from_entry(collection, cursor.find_one(query))
+		return _forge_from_entry(collection, cursor.find_one(query))
 	else:
-		return __forge_from_entries(collection, cursor.find(query, timeout = False))
+		return _forge_from_entries(collection, cursor.find(query, timeout = False))
 
 # Forge an object from a unique entry
-def __forge_from_entry (collection, entry):
+def _forge_from_entry (collection, entry):
 	if (entry == None):
 		return None
 
@@ -161,13 +155,13 @@ def __forge_from_entry (collection, entry):
 	return instance
 
 # Forge an iterator from multiple entries
-def __forge_from_entries (collection, resultset):
+def _forge_from_entries (collection, resultset):
 	if (resultset == None):
 		return []
 	else:
 		def __generator():
 			for object in resultset:
-				yield __forge_from_entry(collection, object)
+				yield _forge_from_entry(collection, object)
 
 		return __generator()
 
@@ -176,54 +170,35 @@ def __forge_from_entries (collection, resultset):
 def exists (id):
 	return (id in __objects)
 
-# Drop a whole collection, and remove any corresponding instanciated object.
-def remove_all (collection):
-	objects = find(collection, None)
-	n_objects = find(collection, None, count = True)
+def remove_object (object):
+	""" Remove an object from a collection.
+	"""
+	collection_name = object.__class__.__name__
+	connection.connection()[collection_name].remove({"_id": object["_id"]})
 
-	n = 0
-	for object in objects:
-		try:
-			object.remove()
-			n += 1
-		except:
-			continue
+	logger.debug("Object %s was removed from collection '%s'." % (object, collection_name))
 
-	if (n < n_objects):
-		logger.warning("%s out of %s objects in collection '%s' were not removed." % (n_objects - n, n_objects, collection))
-		return
-
+def drop_collection (collection):
+	""" Drop a collection.
+	"""
 	connection.connection().drop_collection(collection)
-	logger.info("Collection '%s' dropped." % collection)
 
-# Remove an object from the database.
-def remove (object):
-	if (not object.is_committed()):
-		raise errors.UncommittedObject(object)
+	logger.debug("Collection '%s' was dropped." % collection)
 
-	if (has_ingoing_neighbors(object)):
-		raise errors.LinkedObject(object)
+def list_collections():
+	""" Return a list of all existing collections that are
+		represented by a CommittableObject subclass.
+	"""
+	# list all CommittableObject subclasses
+	classes = {}
+	for name, object in inspect.getmembers(objects, inspect.isclass):
+		if (issubclass(object, objects.CommittableObject)):
+			classes[name] = True
 
-	collection = object.__class__.__name__
-	connection.connection()[collection].remove({ "_id": object["_id"] })
+	# list all collections in the database
+	collections = []
+	for collection_name in connection.connection().collection_names():
+		if (collection_name in classes):
+			collections.append(collection_name)
 
-	logger.info("Object %s removed from collection '%s'." % (object, collection))
-
-#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
-def has_ingoing_neighbors (object):
-	if (not object.is_committed()):
-		raise errors.UncommittedObject(object)
-
-	object_id = str(object._properties["_id"])
-
-	query = { "_relationship_with": object_id }
-
-	for collection in connection.connection().collection_names():
-		if (collection == "system.indexes"):
-			continue
-
-		if (find(collection, query, count = count) > 0):
-			return True
-
-	return False
+	return collections

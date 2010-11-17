@@ -144,7 +144,7 @@ try:
 					for line in pprint.pformat(entry).split('\n'):
 						print "  %s" % line
 				else:
-					source._connect_to(target, entry_)
+					source._connect_to(target, entry)
 					source.commit()
 
 				n_connected += 1
