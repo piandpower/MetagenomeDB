@@ -1,4 +1,4 @@
-v0.2.1b (November 10, 2010)
+v0.2.1b (in development)
 - now requires Pymongo v1.9 or above
 - now attempts to read the connection information from '~/.MetagenomeDB' rather than '[install path]/MetagenomeDB/connection.cfg'
 - a bug in the installation process has been fixed; README.rst has been updated accordingly

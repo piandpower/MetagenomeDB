@@ -23,41 +23,47 @@ class MutableObject (object):
 	def __init__ (self, properties):
 		""" Create a new object.
 
-		:Parameters:
-		  - `properties` (optional): object annotations, as a dictionary. Nested
-			properties can be expressed using dot notation or by nested dictionaries.
+		Parameters:
+			- **properties** (optional): object annotations, as a dictionary.
+			  Nested properties can be expressed using dot notation or by nested
+			  dictionaries.
 		"""
 		self._properties = parse_properties(properties)
 		self._modified = False
 
 	def get_properties (self):
 		""" Return a copy of all of this object's properties, as a dictionary.
+
+		.. seealso::
+			:func:`get_property`
 		"""
 		return self._properties.copy()
 
 	def get_property (self, key, default = None):
 		""" Return the value for a given property.
 
-		:Parameters:
-		  - `key`: property to retrieve. Nested properties can be queried using
-			a dot notation.
+		Parameters:
+			- **key**: property to retrieve. Nested properties can be queried
+			  using a dot notation. For example,
+			   - ``object.get_property("a")`` will retrieve value for property 'a'.
+			   - ``object.get_property("a.b")`` will retrieve value for sub-property
+			     'b' of property 'a' of the object.
 
-			Examples:
-				object.get_property("a") -- will retrieve value for property 'a'
-				object.get_property("a.b") -- will retrieve value for sub-property 'b' of property 'a' of the object
+			- **default** (optional): default value to return if the property is not set.
 
-		  - `default` (optional): default value to return if the property is
-			not set.
-
-		:Note:
+		.. note::
 			Traditional dictionary-like notation can be used to retrieve
-			a property. E.g., print object["property"]. The difference with
-			get_property() is that the later allows for the case the property
-			has not been set, while the former will throw an exception.
+			a property:
+				- ``object["a.b"]`` -- similar to ``get_property("a.b")``, but
+				  requires property 'a.b' to exists
+				- ``object["a"]["b"]`` -- alternative syntax
 
-			Examples:
-				object["a.b"] -- similar to get_property("a.b"), but requires property 'a.b' to exists
-				object["a"]["b"] -- alternative syntax
+			The difference with ``get_property()`` is that the later allows for
+			the case the property has not been set, while the former will throw
+			an exception.
+
+		.. seealso::
+			:func:`get_properties`
 		"""
 		try:
 			return copy.deepcopy(self.__getitem__(key))
@@ -98,9 +104,10 @@ class CommittableObject (MutableObject):
 	def __init__ (self, indices, properties):
 		""" Create a new object.
 
-		:Parameters:
-		  - `properties` (optional): object annotations, as a dictionary. Nested
-			properties can be expressed using dot notation or by nested dictionaries.
+		Parameters:
+			- **properties** (optional): object annotations, as a dictionary.
+			  Nested properties can be expressed using dot notation or by nested
+			  dictionaries.
 		"""
 		MutableObject.__init__(self, properties)
 
@@ -149,10 +156,13 @@ class CommittableObject (MutableObject):
 	def commit (self):
 		""" Commit this object to the database.
 
-		:Note:
+		.. note::
 			The commit will not be performed if the object has already been
 			committed once and no modification (property manipulation) has
 			been performed since then.
+
+		.. seealso::
+			:func:`is_committed`
 		"""
 		if (self._committed):
 			return
@@ -180,6 +190,9 @@ class CommittableObject (MutableObject):
 	def is_committed (self):
 		""" Test if this object has been committed to the database since
 			its latest modification.
+
+		.. seealso::
+			:func:`commit`
 		"""
 		return self._committed
 
@@ -187,8 +200,14 @@ class CommittableObject (MutableObject):
 	def count (cls, filter):
 		""" Count the number of objects of this type in the database.
 		
-		:Parameters:
-		  - `filter` (optional): filter objects based on a dictionary.
+		Parameters:
+			- **filter** (optional): filter objects.
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:meth:`find`
 		"""
 		return backend.count(cls.__name__, query = filter)
 
@@ -196,41 +215,47 @@ class CommittableObject (MutableObject):
 	def distinct (cls, property):
 		""" Count the number of objects for each value of the given property.
 
-		:Properties:
-		  - `property`: property to count objects for.
+		Parameters:
+			- **property**: property to count objects for.
 
-		:Return:
+		Return:
 			A dictionary with all values found for this property as keys, and
 			number of objects having this value as values.
 		"""
 		return backend.distinct(cls.__name__, property)
 
 	@classmethod
-	def find (cls, filter):
+	def find (cls, filter = None):
 		""" Find all objects of this type that match a query.
 		
-		:Properties:
-		  - `filter`: set of properties and values objects of this type must
-			possess to be selected, as a dictionary. Nested properties can be
-			expressed using dot notation or by nested dictionaries.
-			
-			Examples:
-				find({"name": "foo"}) -- will select all objects with value 'foo' for property 'name'
-				find({"a": 1, "b": 2}) -- will select all objects with value 1 for property 'a' and value 2 for property 'b'
-				find({"a.b": 3}) -- will select all objects with value 3 for sub-property 'b' of property a
-				find({"a": {"b": 3}}) -- alternative syntax for the prior example
-				find({}) -- select all objects of this type
+		Parameters:
+			- **filter**: set of properties and values objects of this type must
+			  possess to be selected, as a dictionary (optional). Nested
+			  properties can be expressed using dot notation or nested
+			  dictionaries. For example,
+				- ``find({"name": "foo"})`` will select all objects with value
+				  'foo' for property 'name'
+				- ``find({"a": 1, "b": 2})`` will select all objects with value
+				  1 for property 'a' and value 2 for property 'b'
+				- ``find({"a.b": 3})`` will select all objects with value 3 for
+				  sub-property 'b' of property a
+				- ``find({"a": {"b": 3}})`` alternative syntax for the prior example
+				- ``find({})`` or ``find()`` select all objects of this type
 
-		:Note:
-			The `filter` property can incorporate operators and modifiers from
-			MongoDB (see `MongoDB documentation
-			<http://www.mongodb.org/display/DOCS/Advanced+Queries>`_); e.g.,
+		.. note::
+			The **filter** property can incorporate operators and modifiers from
+			MongoDB (see `MongoDB documentation	<http://www.mongodb.org/display/DOCS/Advanced+Queries>`_); e.g.,
 			
-				find({"a": {"$gte": 3}}) -- will select all objects with value 3 or greater for property 'a'
-				find({"a": {"$exists": True}}) -- will select all objects with property 'a'
+				- ``find({"a": {"$gte": 3}})`` will select all objects with
+				  value 3 or greater for property 'a'
+				- ``find({"a": {"$exists": True}})`` will select all objects
+				  with property 'a'
 
-		:Return:
+		Return:
 			A generator.
+
+		.. seealso::
+			:func:`count`, :func:`find_one`
 		"""
 		return backend.find(cls.__name__, query = filter)
 
@@ -238,11 +263,14 @@ class CommittableObject (MutableObject):
 	def find_one (cls, filter):
 		""" Find the first (or only) object of this type that match a query.
 
-		:Properties:
-		  - `filter`: see find()
+		Parameters:
+			- **filter**: see :meth:`find`
 
-		:Return:
+		Return:
 			An object, or None if no object found.
+
+		.. seealso::
+			:func:`find`
 		"""
 		return backend.find(cls.__name__, query = filter, find_one = True)
 
@@ -250,7 +278,7 @@ class CommittableObject (MutableObject):
 		""" Connect this object to another through a directed,
 			annotated relationship (from this object to the target).
 
-		:Note:
+		.. note::
 			This method should not be called directly.
 		"""
 		if (not "_id" in target._properties):
@@ -287,7 +315,7 @@ class CommittableObject (MutableObject):
 	def _disconnect_from (self, target, relationship_filter):
 		""" Disconnect this object from another.
 
-		:Note:
+		.. note::
 			This method should not be called directly.
 		"""
 		if (not "_id" in target._properties):
@@ -344,7 +372,7 @@ class CommittableObject (MutableObject):
 	def _in_vertices (self, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
 		""" List (or count) all incoming relationships between objects and this object.
 		
-		:Note:
+		.. note::
 			This method should not be called directly.
 		"""
 		if (not "_id" in self._properties):
@@ -371,7 +399,7 @@ class CommittableObject (MutableObject):
 	def _out_vertices (self, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
 		""" List (or count) all outgoing relationships between this object and others.
 		
-		:Note:
+		.. note::
 			This method should not be called directly.
 		"""
 		if (not "_id" in self._properties):
@@ -429,8 +457,11 @@ class CommittableObject (MutableObject):
 	def has_relationships_with (self, target):
 		""" Test if this object has a relationship with another object.
 		
-		:Parameters:
-		  - `target`: object to test for the existence of relationships with.
+		Parameters:
+			- **target**: object to test for the existence of relationships with.
+
+		.. seealso::
+			:func:`list_relationships_with`
 		"""
 		if (not "_id" in target._properties):
 			logger.debug("Attempt to test a relationship between %s and %s while the later has never been committed." % (self, target))
@@ -441,11 +472,14 @@ class CommittableObject (MutableObject):
 	def list_relationships_with (self, target):
 		""" List relationships (if any) between this object and others.
 
-		:Parameters:
-		  - `target`: object to list relationships with.
+		Parameters:
+			- **target**: object to list relationships with.
 
-		:Return:
+		Return:
 			A list.
+
+		.. seealso::
+			:func:`has_relationships_with`
 		"""
 		if (not "_id" in target._properties):
 			logger.debug("Attempt to list relationships between %s and %s while the later has never been committed." % (self, target))
@@ -461,13 +495,14 @@ class CommittableObject (MutableObject):
 	def remove (self):
 		""" Remove this object from the database.
 
-		:Note:
-			Relationships between this object and others are removed as well.
+		.. note::
+			- Relationships between this object and others are removed as well.
+			- The object remains in memory, flagged as uncommitted.
+			- Will throw an exception if called while the object has never been
+			  committed.
 
-			The object remains in memory, flagged as uncommitted.
-
-			Will throw an exception if called while the object has never been
-			committed.
+		.. seealso::
+			:func:`remove_all`
 		"""
 
 		if (not self._committed):
@@ -490,10 +525,12 @@ class CommittableObject (MutableObject):
 	def remove_all (cls):
 		""" Remove all objects of this type from the database.
 
-		:Note:
-			Relationships between these objects and others are removed as well.
+		.. note::
+			- Relationships between these objects and others are removed as well.
+			- Instanciated objects remain in memory, flagged as uncommitted.
 
-			Instanciated objects remain in memory, flagged as uncommitted.
+		.. seealso::
+			:func:`remove`
 		"""
 		collection_name = cls.__name__
 
@@ -515,8 +552,6 @@ class CommittableObject (MutableObject):
 		backend.drop_collection(cls.__name__)
 
 	def __del__ (self):
-		""" Clean-up code when the object is garbage collected.
-		"""
 		# if the object is destroyed due to an exception thrown during
 		# its instantiation, self._committed will not exists.
 		if (not hasattr(self, "_committed")):
@@ -570,6 +605,16 @@ class Direction:
 class Sequence (CommittableObject):
 
 	def __init__ (self, properties):
+		""" Create a new Sequence object.
+		
+		Parameters:
+			- **properties**: properties of this sequence, as a dictionary.
+			  Must contain at least a 'name' and 'sequence' property. From the
+			  later a 'length' property is also automatically calculated.
+			  Sequence name do not have to be unique in the database. I.e., more
+			  than one sequence can exist with the same name, even within the
+			  same collection (albeit this is usually not recommended).
+		"""
 		if (not "name" in properties):
 			raise errors.MalformedObject("Property 'name' is missing")
 
@@ -590,53 +635,140 @@ class Sequence (CommittableObject):
 
 		CommittableObject.__init__(self, indices, properties)
 
-	# Add this sequence to an existing collection
-	#	collection -- Collection to add this sequence to
-	#	relationship -- Properties of the relationship between
-	#		this sequence and the collection
 	def add_to_collection (self, collection, relationship = None):
+		""" Add this sequence to a collection.
+
+		Parameters:
+			- **collection**: collection to add this sequence to.
+			- **relationship**: properties of the relationship linking this
+			  sequence to **collection**, as a dictionary (optional).
+
+		.. seealso::
+			:func:`remove_from_collection`
+		"""
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
 
 		self._connect_to(collection, relationship)
 
-	# Remove this sequence from an existing collection
-	#	collection -- Collection to remove this sequence from
-	#	relationship_filter -- If set, remove only those relationships that
-	#		 match the filter. If not set, all relationships will be removed
 	def remove_from_collection (self, collection, relationship_filter = None):
+		""" Remove this sequence from a collection.
+		
+		Parameters:
+			- **collection**: collection to remove this collection from.
+			- **relationship_filter**: relationships to remove (optional).
+			  If none provided, all relationships linking this sequence to
+			  **collection** are removed.
+
+		.. note::
+			- For documentation on object filters, see :meth:`find`.
+			- If this sequence and **collection** have no relationship, an
+			  exception is thrown. 
+
+		.. seealso::
+			:func:`add_to_collection`
+		"""
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
 
 		self._disconnect_from(collection, relationship_filter)
 
-	# List all collections this sequence is part of
-	#	collection_filter -- Filter for the collection (optional)
-	#	relationship_filter -- Filter for the relationship between this
-	#		sequence and any collection (optional)
 	def list_collections (self, collection_filter = None, relationship_filter = None):
+		""" List collections this sequence is linked to.
+		
+		Parameters:
+			- **collection_filter**: filter for the collections (optional).
+			- **relationship_filter**: filter for the relationship linking this
+			  sequence to collections (optional).
+		
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`count_collections`
+		"""
 		return self._out_vertices("Collection", collection_filter, relationship_filter)
 
-	# Count all collections this sequence is part of
-	#	collection_filter -- Filter for the collection (optional)
-	#	relationship_filter -- Filter for the relationship between this
-	#		sequence and any collection (optional)
 	def count_collections (self, collection_filter = None, relationship_filter = None):
+		""" Count collections this sequence is linked to.
+		
+		Parameters:
+			- **collection_filter**: filter for the collections (optional).
+			- **relationship_filter**: filter for the relationship linking this
+			  sequence to collections (optional).
+		
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`list_collections`
+		"""
 		return self._out_vertices("Collection", collection_filter, relationship_filter, True)
 
 	def relate_to_sequence (self, sequence, relationship = None):
+		""" Link this sequence to another sequence.
+		
+		Parameters:
+			- **sequence**: sequence to link this sequence to.
+			- **relationship**: description of the relationship linking this
+			  sequence to **sequence**, as a dictionary (optional).
+		
+		.. note::
+			- Relationships between objects are directed; i.e., linking a
+			  sequence 'A' to 'B' is different from linking 'B' to 'A'.
+			- More than one relationship can be declared between two sequences,
+			  by calling this method more than once. However, duplicate
+			  relationships between two same objects will be ignored.
+
+		.. seealso::
+			:func:`dissociate_from_sequence`
+		"""
 		if (not isinstance(sequence, Sequence)):
 			raise ValueError("The 'sequence' parameter must be a Sequence object.")
 
 		self._connect_to(sequence, relationship)
 
 	def dissociate_from_sequence (self, sequence, relationship_filter = None):
+		""" Remove links between this sequence and another sequence.
+
+		Parameters:
+			- **sequence**: sequence to unlink this sequence from.
+			- **relationship_filter**: relationships to remove (optional).
+			  If none provided, all relationships from this sequence
+			  to **sequence** are removed.
+
+		.. note::
+			- For documentation on object filters, see :meth:`find`.
+			- If this sequence and **sequence** have no relationship, an
+			  exception is thrown.
+
+		.. seealso::
+			:func:`relate_to_sequence`
+		"""
 		if (not isinstance(sequence, Sequence)):
 			raise ValueError("The 'sequence' parameter must be a Sequence object.")
 
 		self._disconnect_from(sequence, relationship_filter)
 
 	def list_related_sequences (self, direction = Direction.BOTH, sequence_filter = None, relationship_filter = None):
+		""" List sequences this sequence is related to.
+		
+		Parameters:
+			- **direction**: direction of the relationship (optional). If set to
+			  ``Direction.INGOING``, will list sequences that are linked to the
+			  present sequence. If set to ``Direction.OUTGOING``, will list
+			  sequences this sequence is linked to. If set to ``Direction.BOTH``
+			  (default), both neighboring sequences are listed.
+			- **sequence_filter**: filter for the sequences to list (optional).
+			- **relationship_filter**: filter for the relationship between this
+			  sequence and neighboring sequences (optional).
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`count_related_sequences`
+		"""
 		related_sequences = []
 
 		if Direction._has_ingoing(direction):
@@ -648,6 +780,24 @@ class Sequence (CommittableObject):
 		return itertools.chain(*related_sequences)
 
 	def count_related_sequences (self, direction = Direction.BOTH, sequence_filter = None, relationship_filter = None):
+		""" Count sequences this sequence is related to.
+		
+		Parameters:
+			- **direction**: direction of the relationship (optional). If set to
+			  ``Direction.INGOING``, will count sequences that are linked to the
+			  present sequence. If set to ``Direction.OUTGOING``, will count
+			  sequences this sequence is linked to. If set to ``Direction.BOTH``
+			  (default), both neighboring sequences are counted.
+			- **sequence_filter**: filter for the sequences to count (optional).
+			- **relationship_filter**: filter for the relationship between this
+			  sequence and neighboring sequences (optional).
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`list_related_sequences`
+		"""
 		related_sequences_c = 0
 
 		if Direction._has_ingoing(direction):
@@ -670,6 +820,14 @@ class Sequence (CommittableObject):
 class Collection (CommittableObject):
 
 	def __init__ (self, properties):
+		""" Create a new Sequence object.
+		
+		Parameters:
+			- **properties**: properties of this sequence, as a dictionary.
+			  Must contain at least a 'name' property. Collection names are
+			  unique in the database; i.e., an exception will be thrown if
+			  a collection already exists with this name.
+		"""
 		if (not "name" in properties):
 			raise errors.MalformedObject("Property 'name' is missing")
 
@@ -681,30 +839,156 @@ class Collection (CommittableObject):
 		CommittableObject.__init__(self, indices, properties)
 
 	def list_sequences (self, sequence_filter = None, relationship_filter = None):
+		""" List sequences this collection contains.
+		
+		Parameters:
+			- **sequence_filter**: filter for the sequences to list (optional).
+			- **relationship_filter**: filter for the relationship linking
+			  sequences to this collection (optional).
+		
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`count_sequences`
+		"""
 		return self._in_vertices("Sequence", sequence_filter, relationship_filter)
 
 	def count_sequences (self, sequence_filter = None, relationship_filter = None):
+		""" Count sequences this collection contains.
+		
+		Parameters:
+			- **sequence_filter**: filter for the sequences to count (optional).
+			- **relationship_filter**: filter for the relationship linking
+			  sequences to this collection (optional).
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`list_sequences`
+		"""
 		return self._in_vertices("Sequence", sequence_filter, relationship_filter, True)
 
 	def add_to_collection (self, collection, relationship = None):
+		""" Add this collection to another (super) collection.
+		
+		Parameters:
+			- **collection**: collection to add this collection to.
+			- **relationship**: properties of the relationship from this
+			  collection to **collection**, as a dictionary (optional).
+
+		.. seealso::
+			:func:`remove_from_collection`
+		"""
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
 
 		self._connect_to(collection, relationship)
 
 	def remove_from_collection (self, collection, relationship_filter = None):
+		""" Remove this collection from another (super) collection.
+		
+		Parameters:
+			- **collection**: collection to remove this collection from.
+			- **relationship_filter**: relationships to remove (optional).
+			  If none provided, all relationships linking this collection
+			  to **collection** are removed.
+
+		.. note::
+			- For documentation on object filters, see :meth:`find`.
+			- If the two collections have no relationship, an exception is thrown. 
+
+		.. seealso::
+			:func:`add_to_collection`
+		"""
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
 
 		self._disconnect_from(collection, relationship_filter)
 
-	def list_sub_collections (self, collection_filter = None, relationship_filter = None):
-		return self.list_related_collections(Direction.INGOING, collection_filter, relationship_filter)
-
 	def list_super_collections (self, collection_filter = None, relationship_filter = None):
+		""" List all collections this collection is linked to.
+
+		Parameters:
+			- **collection_filter**: filter for the super-collections to list (optional).
+			- **relationship_filter**: filter for the relationships linking this
+			  collection to super-collections (optional).
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`count_super_collections`, :func:`list_sub_collections`, :func:`count_sub_collections`
+		"""
 		return self.list_related_collections(Direction.OUTGOING, collection_filter, relationship_filter)
 
+	def count_super_collections (self, collection_filter = None, relationship_filter = None):
+		""" Count all collections this collection is linked to.
+
+		Parameters:
+			- **collection_filter**: filter for the super-collections to count (optional).
+			- **relationship_filter**: filter for the relationships linking this
+			  collection to super-collections (optional).
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`list_super_collections`, :func:`list_sub_collections`, :func:`count_sub_collections`
+		"""
+		return self.count_related_collections(Direction.OUTGOING, collection_filter, relationship_filter)
+
+	def list_sub_collections (self, collection_filter = None, relationship_filter = None):
+		""" List all collections that are linked to this collection.
+
+		Parameters:
+			- **collection_filter**: filter for the sub-collections to list (optional).
+			- **relationship_filter**: filter for the relationships linking
+			  sub-collections to this collection (optional).
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`count_sub_collections`, :func:`list_super_collections`, :func:`count_super_collections`
+		"""
+		return self.list_related_collections(Direction.INGOING, collection_filter, relationship_filter)
+
+	def count_sub_collections (self, collection_filter = None, relationship_filter = None):
+		""" Count all collections that are linked to this collection.
+
+		Parameters:
+			- **collection_filter**: filter for the sub-collections to count (optional).
+			- **relationship_filter**: filter for the relationships linking
+			  sub-collections to this collection (optional).
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`list_sub_collections`, :func:`list_super_collections`, :func:`count_super_collections`
+		"""
+		return self.count_related_collections(Direction.INGOING, collection_filter, relationship_filter)
+
 	def list_related_collections (self, direction = Direction.BOTH, collection_filter = None, relationship_filter = None):
+		""" List all collections this collection is linked to, or have links to it.
+
+		Parameters:
+			- `direction`: direction of the relationship (optional). Can be
+			  ``Direction.INGOING`` (sub-collections of the current collection),
+			  ``Direction.OUTGOING`` (super-collections of the current collection)
+			  or ``Direction.BOTH`` (default; all sub- and super-collections).
+			- `collection_filter`: filter for the neighbor collections (optional).
+			- `relationship_filter`: filter for the relationships between this
+			  collection and neighbor collections (optional).
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`count_related_collections`
+		"""
 		collections = []
 
 		if Direction._has_ingoing(direction):
@@ -715,13 +999,24 @@ class Collection (CommittableObject):
 
 		return itertools.chain(*collections)
 
-	def count_sub_collections (self, collection_filter = None, relationship_filter = None):
-		return self.count_related_collections(Direction.INGOING, collection_filter, relationship_filter)
-
-	def count_super_collections (self, collection_filter = None, relationship_filter = None):
-		return self.count_related_collections(Direction.OUTGOING, collection_filter, relationship_filter)
-
 	def count_related_collections (self, direction = Direction.BOTH, collection_filter = None, relationship_filter = None):
+		""" Count all collections this collection is linked to, or have links to it.
+
+		Parameters:
+			- `direction`: direction of the relationship (optional). Can be
+			  ``Direction.INGOING`` (sub-collections of the current collection),
+			  ``Direction.OUTGOING`` (super-collections of the current collection)
+			  or ``Direction.BOTH`` (default; all sub- and super-collections).
+			- `collection_filter`: filter for the neighbor collections (optional).
+			- `relationship_filter`: filter for the relationships between this
+			  collection and neighbor collections (optional).
+
+		.. note::
+			For documentation on object filters, see :meth:`find`.
+
+		.. seealso::
+			:func:`list_related_collections`
+		"""
 		collections_c = 0
 
 		if Direction._has_ingoing(direction):

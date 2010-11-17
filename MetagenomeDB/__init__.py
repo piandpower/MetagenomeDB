@@ -1,4 +1,6 @@
 
+version = "2.0.1b"
+
 import logging
 
 logging.basicConfig(
