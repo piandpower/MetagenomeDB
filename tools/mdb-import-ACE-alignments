@@ -134,7 +134,6 @@ for contig in i:
 
 	for read in contig.reads:
 		read_id = get_read_id(read)
-		read_id = read_id_patch.get(read_id, read_id)
 
 		if (not read_id in Reads):
 			msg = "Unknown read '%s' (mapped to contig '%s')" % (read_id, contig_id)
