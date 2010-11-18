@@ -213,7 +213,7 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 	query_o = QuerySequences[query_id]
 
 	if (external_hits):
-		hits = []
+		hits = query_o.get_property("alignments", [])
 
 	m = 0
 	for hit in record.alignments:
@@ -299,7 +299,7 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 					hits.append(r)
 
 	if (external_hits) and (not p.dry_run):
-		query_o["alignments"] = query_o.get_property("alignments", []) + [hits]
+		query_o["alignments"] = hits
 		query_o.commit()
 
 	if (show_pb):

@@ -35,7 +35,7 @@ class MutableObject (object):
 		""" Return a copy of all of this object's properties, as a dictionary.
 
 		.. seealso::
-			:func:`get_property`
+			:meth:`~objects.MutableObject.get_property`
 		"""
 		return self._properties.copy()
 
@@ -58,12 +58,12 @@ class MutableObject (object):
 				  requires property 'a.b' to exists
 				- ``object["a"]["b"]`` -- alternative syntax
 
-			The difference with ``get_property()`` is that the later allows for
-			the case the property has not been set, while the former will throw
-			an exception.
+			The difference with :meth:`~objects.MutableObject.get_property` is
+			that the later allows for the case the property has not been set,
+			while the former will throw	an exception.
 
 		.. seealso::
-			:func:`get_properties`
+			:meth:`~objects.MutableObject.get_properties`
 		"""
 		try:
 			return copy.deepcopy(self.__getitem__(key))
@@ -144,13 +144,13 @@ class CommittableObject (MutableObject):
 		MutableObject.__setitem__(self, key, value)
 		self._committed = not self._modified
 
-	def __delitem__ (self, key, value):
+	def __delitem__ (self, key):
 		key_ = tree.validate_key(key)
 
 		if (key_[0].startswith('_')):
 			raise ValueError("Property '%s' is reserved and cannot be modified." % key)
 
-		MutableObject.__delitem__(self, key, value)
+		MutableObject.__delitem__(self, key)
 		self._committed = False
 
 	def commit (self):
@@ -162,7 +162,7 @@ class CommittableObject (MutableObject):
 			been performed since then.
 
 		.. seealso::
-			:func:`is_committed`
+			:meth:`~objects.CommittableObject.is_committed`
 		"""
 		if (self._committed):
 			return
@@ -192,7 +192,7 @@ class CommittableObject (MutableObject):
 			its latest modification.
 
 		.. seealso::
-			:func:`commit`
+			:meth:`~objects.CommittableObject.commit`
 		"""
 		return self._committed
 
@@ -204,10 +204,10 @@ class CommittableObject (MutableObject):
 			- **filter** (optional): filter objects.
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:meth:`find`
+			:meth:`~objects.CommittableObject.find`
 		"""
 		return backend.count(cls.__name__, query = filter)
 
@@ -255,7 +255,7 @@ class CommittableObject (MutableObject):
 			A generator.
 
 		.. seealso::
-			:func:`count`, :func:`find_one`
+			:meth:`~objects.CommittableObject.count`, :meth:`~objects.CommittableObject.find_one`
 		"""
 		return backend.find(cls.__name__, query = filter)
 
@@ -264,13 +264,13 @@ class CommittableObject (MutableObject):
 		""" Find the first (or only) object of this type that match a query.
 
 		Parameters:
-			- **filter**: see :meth:`find`
+			- **filter**: see :meth:`~objects.CommittableObject.find`
 
 		Return:
 			An object, or None if no object found.
 
 		.. seealso::
-			:func:`find`
+			:meth:`~objects.CommittableObject.find`
 		"""
 		return backend.find(cls.__name__, query = filter, find_one = True)
 
@@ -461,7 +461,7 @@ class CommittableObject (MutableObject):
 			- **target**: object to test for the existence of relationships with.
 
 		.. seealso::
-			:func:`list_relationships_with`
+			:meth:`~objects.CommittableObject.list_relationships_with`
 		"""
 		if (not "_id" in target._properties):
 			logger.debug("Attempt to test a relationship between %s and %s while the later has never been committed." % (self, target))
@@ -479,7 +479,7 @@ class CommittableObject (MutableObject):
 			A list.
 
 		.. seealso::
-			:func:`has_relationships_with`
+			:meth:`~objects.CommittableObject.has_relationships_with`
 		"""
 		if (not "_id" in target._properties):
 			logger.debug("Attempt to list relationships between %s and %s while the later has never been committed." % (self, target))
@@ -502,7 +502,7 @@ class CommittableObject (MutableObject):
 			  committed.
 
 		.. seealso::
-			:func:`remove_all`
+			:meth:`~objects.CommittableObject.remove_all`
 		"""
 
 		if (not self._committed):
@@ -530,7 +530,7 @@ class CommittableObject (MutableObject):
 			- Instanciated objects remain in memory, flagged as uncommitted.
 
 		.. seealso::
-			:func:`remove`
+			:meth:`~objects.CommittableObject.remove`
 		"""
 		collection_name = cls.__name__
 
@@ -644,7 +644,7 @@ class Sequence (CommittableObject):
 			  sequence to **collection**, as a dictionary (optional).
 
 		.. seealso::
-			:func:`remove_from_collection`
+			:meth:`~objects.Sequence.remove_from_collection`
 		"""
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
@@ -661,12 +661,12 @@ class Sequence (CommittableObject):
 			  **collection** are removed.
 
 		.. note::
-			- For documentation on object filters, see :meth:`find`.
+			- For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 			- If this sequence and **collection** have no relationship, an
 			  exception is thrown. 
 
 		.. seealso::
-			:func:`add_to_collection`
+			:meth:`~objects.Sequence.add_to_collection`
 		"""
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
@@ -682,10 +682,10 @@ class Sequence (CommittableObject):
 			  sequence to collections (optional).
 		
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`count_collections`
+			:meth:`~objects.Sequence.count_collections`
 		"""
 		return self._out_vertices("Collection", collection_filter, relationship_filter)
 
@@ -698,10 +698,10 @@ class Sequence (CommittableObject):
 			  sequence to collections (optional).
 		
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`list_collections`
+			:meth:`~objects.Sequence.list_collections`
 		"""
 		return self._out_vertices("Collection", collection_filter, relationship_filter, True)
 
@@ -721,7 +721,7 @@ class Sequence (CommittableObject):
 			  relationships between two same objects will be ignored.
 
 		.. seealso::
-			:func:`dissociate_from_sequence`
+			:meth:`~objects.Sequence.dissociate_from_sequence`
 		"""
 		if (not isinstance(sequence, Sequence)):
 			raise ValueError("The 'sequence' parameter must be a Sequence object.")
@@ -738,12 +738,12 @@ class Sequence (CommittableObject):
 			  to **sequence** are removed.
 
 		.. note::
-			- For documentation on object filters, see :meth:`find`.
+			- For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 			- If this sequence and **sequence** have no relationship, an
 			  exception is thrown.
 
 		.. seealso::
-			:func:`relate_to_sequence`
+			:meth:`~objects.Sequence.relate_to_sequence`
 		"""
 		if (not isinstance(sequence, Sequence)):
 			raise ValueError("The 'sequence' parameter must be a Sequence object.")
@@ -764,10 +764,10 @@ class Sequence (CommittableObject):
 			  sequence and neighboring sequences (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`count_related_sequences`
+			:meth:`~objects.Sequence.count_related_sequences`
 		"""
 		related_sequences = []
 
@@ -793,10 +793,10 @@ class Sequence (CommittableObject):
 			  sequence and neighboring sequences (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`list_related_sequences`
+			:meth:`~objects.Sequence.list_related_sequences`
 		"""
 		related_sequences_c = 0
 
@@ -847,10 +847,10 @@ class Collection (CommittableObject):
 			  sequences to this collection (optional).
 		
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`count_sequences`
+			:meth:`~objects.Collection.count_sequences`
 		"""
 		return self._in_vertices("Sequence", sequence_filter, relationship_filter)
 
@@ -863,10 +863,10 @@ class Collection (CommittableObject):
 			  sequences to this collection (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`list_sequences`
+			:meth:`~objects.Collection.list_sequences`
 		"""
 		return self._in_vertices("Sequence", sequence_filter, relationship_filter, True)
 
@@ -879,7 +879,7 @@ class Collection (CommittableObject):
 			  collection to **collection**, as a dictionary (optional).
 
 		.. seealso::
-			:func:`remove_from_collection`
+			:meth:`~objects.Collection.remove_from_collection`
 		"""
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
@@ -896,11 +896,11 @@ class Collection (CommittableObject):
 			  to **collection** are removed.
 
 		.. note::
-			- For documentation on object filters, see :meth:`find`.
+			- For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 			- If the two collections have no relationship, an exception is thrown. 
 
 		.. seealso::
-			:func:`add_to_collection`
+			:meth:`~objects.Collection.add_to_collection`
 		"""
 		if (not isinstance(collection, Collection)):
 			raise ValueError("The 'collection' parameter must be a Collection object.")
@@ -916,10 +916,10 @@ class Collection (CommittableObject):
 			  collection to super-collections (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`count_super_collections`, :func:`list_sub_collections`, :func:`count_sub_collections`
+			:meth:`~objects.Collection.count_super_collections`, :meth:`~objects.Collection.list_sub_collections`, :meth:`~objects.Collection.count_sub_collections`
 		"""
 		return self.list_related_collections(Direction.OUTGOING, collection_filter, relationship_filter)
 
@@ -932,10 +932,10 @@ class Collection (CommittableObject):
 			  collection to super-collections (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`list_super_collections`, :func:`list_sub_collections`, :func:`count_sub_collections`
+			:meth:`~objects.Collection.list_super_collections`, :meth:`~objects.Collection.list_sub_collections`, :meth:`~objects.Collection.count_sub_collections`
 		"""
 		return self.count_related_collections(Direction.OUTGOING, collection_filter, relationship_filter)
 
@@ -948,10 +948,10 @@ class Collection (CommittableObject):
 			  sub-collections to this collection (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`count_sub_collections`, :func:`list_super_collections`, :func:`count_super_collections`
+			:meth:`~objects.Collection.count_sub_collections`, :meth:`~objects.Collection.list_super_collections`, :meth:`~objects.Collection.count_super_collections`
 		"""
 		return self.list_related_collections(Direction.INGOING, collection_filter, relationship_filter)
 
@@ -964,10 +964,10 @@ class Collection (CommittableObject):
 			  sub-collections to this collection (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`list_sub_collections`, :func:`list_super_collections`, :func:`count_super_collections`
+			:meth:`~objects.Collection.list_sub_collections`, :meth:`~objects.Collection.list_super_collections`, :meth:`~objects.Collection.count_super_collections`
 		"""
 		return self.count_related_collections(Direction.INGOING, collection_filter, relationship_filter)
 
@@ -984,10 +984,10 @@ class Collection (CommittableObject):
 			  collection and neighbor collections (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`count_related_collections`
+			:meth:`~objects.Collection.count_related_collections`
 		"""
 		collections = []
 
@@ -1012,10 +1012,10 @@ class Collection (CommittableObject):
 			  collection and neighbor collections (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`find`.
+			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
 
 		.. seealso::
-			:func:`list_related_collections`
+			:meth:`~objects.Collection.list_related_collections`
 		"""
 		collections_c = 0
 
