@@ -1,5 +1,5 @@
-Tools Documentation
-===================
+Tools Documentation (INCOMPLETE)
+================================
 
 This is the documentation for the command-line tools provided by the **MetagenomeDB** toolkit.
 

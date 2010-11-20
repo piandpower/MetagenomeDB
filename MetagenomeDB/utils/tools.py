@@ -1,7 +1,7 @@
 # tools.py: Routines for MetagenomeDB tools (see tools/)
 
 import re, json, csv, sys
-import tree
+import tree, errors
 
 __PROPERTY = re.compile("^(\[)?((?:,?(?:string|integer|float|boolean))+)$")
 
@@ -37,7 +37,7 @@ def parse (value, separator = '^'):
 
 		m = __PROPERTY.match(modifier.lower())
 		if (m == None):
-			raise ValueError("Malformed value modifier: '%s'" % modifier)
+			raise errors.MetagenomeDBError("Malformed value modifier: '%s'" % modifier)
 
 		is_list = (m.group(1) == '[')
 		types = m.group(2).split(',')
@@ -49,7 +49,7 @@ def parse (value, separator = '^'):
 				except:
 					continue
 
-			raise ValueError("Unable to cast '%s' into any of: %s" % (value, ', '.join(types)))
+			raise errors.MetagenomeDBError("Unable to cast '%s' into any of: %s" % (value, ', '.join(types)))
 
 		if (is_list):
 			value = [formatter(v, types) for v in value.split(',')]
@@ -79,10 +79,10 @@ def parser (fn, format):
 				data = [data]
 
 			elif (type(data) != list):
-				raise ValueError("Unexpected JSON type: %s" % type(data))
+				raise errors.MetagenomeDBError("Unexpected JSON type: %s" % type(data))
 
 		except Exception as msg:
-			raise Exception("Error while reading '%s': %s" % (fn, msg))
+			raise errors.MetagenomeDBError("Error while reading '%s': %s" % (fn, msg))
 
 		data = [tree.traverse(
 			entry,
@@ -121,7 +121,7 @@ def parser (fn, format):
 					key += c
 
 			if (not reached_pivot):
-				raise Exception("Invalid entry (no key/value separator): %s" % text)
+				raise errors.MetagenomeDBError("Invalid entry (no key/value separator): %s" % text)
 
 			return key.strip(), value.strip(), command
 
@@ -145,4 +145,4 @@ def parser (fn, format):
 		return generator()
 
 	else:
-		raise ValueError("Unknown format '%s'" % format)
+		raise errors.MetagenomeDBError("Unknown format '%s'" % format)

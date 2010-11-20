@@ -57,7 +57,7 @@ def connection():
 	fn = os.path.expanduser(os.path.join("~", ".MetagenomeDB"))
 
 	if (cp.read(fn) == []):
-		raise Exception("Unable to find the configuration file '%s'." % fn)
+		raise errors.MetagenomeDBError("Unable to find the configuration file '%s'." % fn)
 
 	host = __property(cp, "connection", "host", "localhost")
 	port = __property(cp, "connection", "port", 27017, "int")
@@ -83,4 +83,4 @@ def __property (cp, section, key, default = None, coerce = None):
 			logger.debug("Default value '%s' used for key '%s' in section '%s'." % (default, key, section))
 			return default
 		else:
-			raise Exception("No value found for key '%s' in section '%s'." % (key, section))
+			raise errors.MetagenomeDBError("No value found for key '%s' in section '%s'." % (key, section))

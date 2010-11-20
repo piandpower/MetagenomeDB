@@ -43,24 +43,7 @@ class MutableObject (object):
 		""" Return the value for a given property.
 
 		Parameters:
-			- **key**: property to retrieve. Nested properties can be queried
-			  using a dot notation. For example,
-			   - ``object.get_property("a")`` will retrieve value for property 'a'.
-			   - ``object.get_property("a.b")`` will retrieve value for sub-property
-			     'b' of property 'a' of the object.
-
-			- **default** (optional): default value to return if the property is not set.
-
-		.. note::
-			Traditional dictionary-like notation can be used to retrieve
-			a property:
-				- ``object["a.b"]`` -- similar to ``get_property("a.b")``, but
-				  requires property 'a.b' to exists
-				- ``object["a"]["b"]`` -- alternative syntax
-
-			The difference with :meth:`~objects.MutableObject.get_property` is
-			that the later allows for the case the property has not been set,
-			while the former will throw	an exception.
+			- **key**: property to retrieve; see :doc:`annotations`.
 
 		.. seealso::
 			:meth:`~objects.MutableObject.get_properties`
@@ -122,7 +105,7 @@ class CommittableObject (MutableObject):
 				self._properties["_id"] = id
 
 			if (not backend.exists(id)):
-				raise ValueError("Unknown identifier '%s'" % id)
+				raise errors.MetagenomeDBError("Unknown object identifier '%s'." % id)
 
 			self._committed = True
 		else:
@@ -139,7 +122,7 @@ class CommittableObject (MutableObject):
 		key_ = tree.validate_key(key)
 
 		if (key_[0].startswith('_')):
-			raise ValueError("Property '%s' is reserved and cannot be modified." % key)
+			raise errors.MetagenomeDBError("Property '%s' is reserved and cannot be modified." % key)
 
 		MutableObject.__setitem__(self, key, value)
 		self._committed = not self._modified
@@ -148,7 +131,7 @@ class CommittableObject (MutableObject):
 		key_ = tree.validate_key(key)
 
 		if (key_[0].startswith('_')):
-			raise ValueError("Property '%s' is reserved and cannot be modified." % key)
+			raise errors.MetagenomeDBError("Property '%s' is reserved and cannot be modified." % key)
 
 		MutableObject.__delitem__(self, key)
 		self._committed = False
@@ -157,9 +140,12 @@ class CommittableObject (MutableObject):
 		""" Commit this object to the database.
 
 		.. note::
-			The commit will not be performed if the object has already been
-			committed once and no modification (property manipulation) has
-			been performed since then.
+			- The commit will not be performed if the object has already been
+			  committed once and no modification (property manipulation) has
+			  been performed since then.
+			- If an object already exists in the database with the same values
+			  for properties flagged as unique a :class:`~errors.DuplicateObjectError`
+			  exception is thrown.
 
 		.. seealso::
 			:meth:`~objects.CommittableObject.is_committed`
@@ -197,14 +183,12 @@ class CommittableObject (MutableObject):
 		return self._committed
 
 	@classmethod
-	def count (cls, filter):
+	def count (cls, filter = None):
 		""" Count the number of objects of this type in the database.
 		
 		Parameters:
-			- **filter** (optional): filter objects.
-
-		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			- **filter**: filter for the objects to count (optional); see
+			  :doc:`queries`.
 
 		.. seealso::
 			:meth:`~objects.CommittableObject.find`
@@ -229,27 +213,8 @@ class CommittableObject (MutableObject):
 		""" Find all objects of this type that match a query.
 		
 		Parameters:
-			- **filter**: set of properties and values objects of this type must
-			  possess to be selected, as a dictionary (optional). Nested
-			  properties can be expressed using dot notation or nested
-			  dictionaries. For example,
-				- ``find({"name": "foo"})`` will select all objects with value
-				  'foo' for property 'name'
-				- ``find({"a": 1, "b": 2})`` will select all objects with value
-				  1 for property 'a' and value 2 for property 'b'
-				- ``find({"a.b": 3})`` will select all objects with value 3 for
-				  sub-property 'b' of property a
-				- ``find({"a": {"b": 3}})`` alternative syntax for the prior example
-				- ``find({})`` or ``find()`` select all objects of this type
-
-		.. note::
-			The **filter** property can incorporate operators and modifiers from
-			MongoDB (see `MongoDB documentation	<http://www.mongodb.org/display/DOCS/Advanced+Queries>`_); e.g.,
-			
-				- ``find({"a": {"$gte": 3}})`` will select all objects with
-				  value 3 or greater for property 'a'
-				- ``find({"a": {"$exists": True}})`` will select all objects
-				  with property 'a'
+			- **filter**: filter for the objects to select (optional); see
+			  :doc:`queries`.
 
 		Return:
 			A generator.
@@ -264,7 +229,7 @@ class CommittableObject (MutableObject):
 		""" Find the first (or only) object of this type that match a query.
 
 		Parameters:
-			- **filter**: see :meth:`~objects.CommittableObject.find`
+			- **filter**: filter for the object to select; see :doc:`queries`.
 
 		Return:
 			An object, or None if no object found.
@@ -279,10 +244,14 @@ class CommittableObject (MutableObject):
 			annotated relationship (from this object to the target).
 
 		.. note::
-			This method should not be called directly.
+			- This method should not be called directly.
+			- The target MUST have been committed at least once. However, the
+			  source (i.e., the present object) can exist in memory only.
+			- Throw a :class:`~errors.UncommittedObjectError` exception if the
+			  target has never been committed.
 		"""
 		if (not "_id" in target._properties):
-			raise Exception("Unable to connect %s to %s: the target has never been committed." % (self, target))
+			raise errors.UncommittedObjectError("Cannot connect %s to %s: target has never been committed." % target)
 
 		target_id = str(target._properties["_id"])
 
@@ -299,6 +268,8 @@ class CommittableObject (MutableObject):
 			self._properties["_relationships"][target_id] = [relationship]
 			self._committed = False
 
+			logger.debug("Initial relationship %s created between %s and %s." % (relationship, self, target))
+
 		# case where this object has a connection with the target
 		else:
 			assert (target_id in self._properties["_relationship_with"]) ###
@@ -310,22 +281,28 @@ class CommittableObject (MutableObject):
 			self._properties["_relationships"][target_id].append(relationship)
 			self._committed = False
 
-			logger.debug("Added relationship %s between %s and %s." % (relationship, self, target))
+			logger.debug("Relationship %s created between %s and %s." % (relationship, self, target))
 
 	def _disconnect_from (self, target, relationship_filter):
 		""" Disconnect this object from another.
 
 		.. note::
-			This method should not be called directly.
+			- This method should not be called directly.
+			- The target MUST have been committed at least once. However, the
+			  source (i.e., the present object) can exist in memory only.
+			- Throw a :class:`~errors.UncommittedObjectError` exception if the
+			  target has never been committed, or if attempting to use
+			  **relationship_filter** while the source is not committed.
+			- Throw a :class:`~errors.MetagenomeDBError` if the source is not
+			  connected to the target.
 		"""
 		if (not "_id" in target._properties):
-			raise Exception("Object %s is not connected to %s, as the later never has been committed." % (self, target))
-			return
+			raise errors.UncommittedObjectError("Cannot disconnect %s from %s: target has never been committed." % target)
 
 		target_id = str(target._properties["_id"])
 
 		if (not target_id in self._properties["_relationships"]):
-			raise Exception("Object %s is not connected to %s." % (self, target))
+			raise errors.MetagenomeDBError("%s is not connected to %s." % (self, target))
 
 		# case 1: we remove all relationships between the object and target
 		if (relationship_filter == None):
@@ -337,6 +314,9 @@ class CommittableObject (MutableObject):
 
 		# case 2: we remove all relationships matching a criteria
 		else:
+			if (not self._committed):
+				raise errors.UncommittedObjectError("Cannot disconnect %s from %s: the source is not committed." % (self, target))
+
 			n_relationships = len(self._properties["_relationships"][target_id])
 			clazz = self.__class__.__name__
 			to_remove = []
@@ -356,7 +336,7 @@ class CommittableObject (MutableObject):
 				to_remove.append(n)
 
 			if (len(to_remove) == 0):
-				raise Exception("Relationship %s not found between %s and %s." % (relationship_filter, self, target))
+				raise errors.MetagenomeDBError("%s is not connected to %s by any relationship matching %s." % (self, target, relationship_filter))
 
 			for n in sorted(to_remove, reverse = True):
 				logger.debug("Removed relationship %s between %s and %s." % (self._properties["_relationships"][target_id][n], self, target))
@@ -375,8 +355,10 @@ class CommittableObject (MutableObject):
 		.. note::
 			This method should not be called directly.
 		"""
+		# if the present object has never been committed,
+		# no object can possibly be linked to it.
 		if (not "_id" in self._properties):
-			logger.warning("Attempt to list neighbors of %s while this object has never been committed." % self)
+			logger.debug("Attempt to list in-neighbors of %s while this object has never been committed." % self)
 			if (count):
 				return 0
 			else:
@@ -400,17 +382,11 @@ class CommittableObject (MutableObject):
 		""" List (or count) all outgoing relationships between this object and others.
 		
 		.. note::
-			This method should not be called directly.
+			- This method should not be called directly.
+			- If relationship_filter is not None, a query is performed in the
+			  database; hence, the source object must be committed. If not a
+			  :class:`~errors.UncommittedObjectError` exception is thrown.
 		"""
-		if (not "_id" in self._properties):
-			logger.warning("Attempt to list neighbors of %s while this object has never been committed." % self)
-			if (count):
-				return 0
-			else:
-				return []
-
-		object_id = str(self._properties["_id"])
-		clazz = self.__class__.__name__
 		targets = self._properties["_relationship_with"]
 
 		if (len(targets) == 0):
@@ -419,8 +395,15 @@ class CommittableObject (MutableObject):
 			else:
 				return []
 
-		# select candidate neighbors using relationship_filter
-		if (relationship_filter != None):
+		# consider neighbors regardless of their relationship
+		if (relationship_filter == None):
+			candidates = targets
+
+		# consider neighbors matching relationship_filter
+		else:
+			if (not self._committed):
+				raise errors.UncommittedObjectError("Cannot list relationships from %s to other objects: the source is not committed." % self)
+
 			candidates = []
 			for target_id in targets:
 				query = tree.traverse(
@@ -431,12 +414,10 @@ class CommittableObject (MutableObject):
 
 				query["_id"] = self._properties["_id"]
 
-				if (backend.find(clazz, query, count = True) == 0):
+				if (backend.find(self.__class__.__name__, query, count = True) == 0):
 					continue
 
 				candidates.append(target_id)
-		else:
-			candidates = targets
 
 		if (len(candidates) == 0):
 			if (count):
@@ -444,7 +425,7 @@ class CommittableObject (MutableObject):
 			else:
 				return []
 
-		# then select among candidates using neighbor_filter
+		# select candidates matching neighbor_filter
 		query = {"_id": {"$in": [bson.objectid.ObjectId(id) for id in candidates]}}
 
 		if (neighbor_filter != None):
@@ -498,27 +479,27 @@ class CommittableObject (MutableObject):
 		.. note::
 			- Relationships between this object and others are removed as well.
 			- The object remains in memory, flagged as uncommitted.
-			- Will throw an exception if called while the object has never been
-			  committed.
 
 		.. seealso::
 			:meth:`~objects.CommittableObject.remove_all`
 		"""
-
-		if (not self._committed):
-			raise errors.UncommittedObject(self)
-
-		# Remove all relationships with other objects
+		# remove all relationships with other objects
 		for collection_name in backend.list_collections():
-			for object in self._in_vertices(collection_name):
-				object._disconnect_from(self, None)
+			if ("_id" in self._properties):
+				for object in self._in_vertices(collection_name):
+					object._disconnect_from(self, None)
 
 			for object in self._out_vertices(collection_name):
 				self._disconnect_from(object, None)
 
-		backend.remove_object(self)
+		# if the object has been committed at least once,
+		if ("_id" in self._properties):
+			# remove the object from the database
+			backend.remove_object(self)
 
-		del self._properties["_id"]
+			# and declare it has never having been committed
+			del self._properties["_id"]
+
 		self._committed = False
 
 	@classmethod
@@ -552,12 +533,7 @@ class CommittableObject (MutableObject):
 		backend.drop_collection(cls.__name__)
 
 	def __del__ (self):
-		# if the object is destroyed due to an exception thrown during
-		# its instantiation, self._committed will not exists.
-		if (not hasattr(self, "_committed")):
-			return
-
-		if (not self._committed):
+		if (hasattr(self, "_committed") and (not self._committed)):
 			logger.warning("Object %s has been destroyed without having been committed." % self)
 
 	def __repr__ (self):
@@ -574,7 +550,7 @@ class Direction:
 
 		if (value_t == int):
 			if (value < 0) or (value > 2):
-				raise ValueError("Invalid direction '%s'" % value)
+				raise errors.MetagenomeDBError("Invalid direction parameter '%s'" % value)
 			return value
 
 		if (value_t == str):
@@ -585,9 +561,9 @@ class Direction:
 					"both": 0
 				}[value.lower().strip()]
 			except:
-				raise ValueError("Invalid direction '%s'" % value)
+				raise errors.MetagenomeDBError("Invalid direction parameter '%s'" % value)
 
-		raise ValueError("Invalid direction '%s'" % value)
+		raise errors.MetagenomeDBError("Invalid direction parameter '%s'" % value)
 
 	@classmethod
 	def _has_ingoing (cls, value):
@@ -609,17 +585,22 @@ class Sequence (CommittableObject):
 		
 		Parameters:
 			- **properties**: properties of this sequence, as a dictionary.
-			  Must contain at least a 'name' and 'sequence' property. From the
-			  later a 'length' property is also automatically calculated.
-			  Sequence name do not have to be unique in the database. I.e., more
-			  than one sequence can exist with the same name, even within the
-			  same collection (albeit this is usually not recommended).
+			  Must contain at least a 'name' and 'sequence' property, or a
+			  :class:`~errors.InvalidObjectError` exception is thrown. A
+			  'length' property is automatically calculated and would overwrite
+			  any such property if provided.
+
+		.. note::
+			The 'name' property is unique within a collection, but not across
+			the whole database. It means that two sequences with the same name
+			can coexist in the database as long as they belong to two different
+			collections (or if they are not related to any collection).
 		"""
 		if (not "name" in properties):
-			raise errors.MalformedObject("Property 'name' is missing")
+			raise errors.InvalidObjectError("Property 'name' is missing")
 
 		if (not "sequence" in properties):
-			raise errors.MalformedObject("Property 'sequence' is missing")
+			raise errors.InvalidObjectError("Property 'sequence' is missing")
 	
 		# TODO: Check the sequence
 		# TODO: Check the sequence length; if too big (what is the limit?)
@@ -641,13 +622,27 @@ class Sequence (CommittableObject):
 		Parameters:
 			- **collection**: collection to add this sequence to.
 			- **relationship**: properties of the relationship linking this
-			  sequence to **collection**, as a dictionary (optional).
+			  sequence to **collection**, as a dictionary (optional); see :doc:`annotations`.
+
+		.. note::
+			- A :class:`~errors.DuplicateObjectError` exception will be thrown if the
+			  collection already contains a sequence with the same 'name' property.
+			- This sequence will need to be committed to the database for the
+			  information about its relationship to **collection** to be stored
+			  and queried (see :doc:`relationships`).
 
 		.. seealso::
 			:meth:`~objects.Sequence.remove_from_collection`
 		"""
 		if (not isinstance(collection, Collection)):
-			raise ValueError("The 'collection' parameter must be a Collection object.")
+			raise errors.MetagenomeDBError("The 'collection' parameter must be a Collection object.")
+
+		if (collection.count_sequences({"name": self["name"]}) > 0):
+			raise errors.DuplicateObjectError(
+				self.__class__.__name__,
+				(("name", self["name"]),),
+				"A sequence with name '%s' already exists in collection '%s'." % (self["name"], collection["name"])
+			)
 
 		self._connect_to(collection, relationship)
 
@@ -658,18 +653,20 @@ class Sequence (CommittableObject):
 			- **collection**: collection to remove this collection from.
 			- **relationship_filter**: relationships to remove (optional).
 			  If none provided, all relationships linking this sequence to
-			  **collection** are removed.
+			  **collection** are removed. See :doc:`queries`.
 
 		.. note::
-			- For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
-			- If this sequence and **collection** have no relationship, an
-			  exception is thrown. 
+			- If this sequence and **collection** have no relationship, a
+			  :class:`~errors.MetagenomeDBError` exception is thrown. 
+			- If this sequence is not committed and **relationship_filter** is
+			  set additional a :class:`~errors.UncommittedObjectError` exception
+			  is thrown. See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.add_to_collection`
 		"""
 		if (not isinstance(collection, Collection)):
-			raise ValueError("The 'collection' parameter must be a Collection object.")
+			raise errors.MetagenomeDBError("The 'collection' parameter must be a Collection object.")
 
 		self._disconnect_from(collection, relationship_filter)
 
@@ -677,12 +674,17 @@ class Sequence (CommittableObject):
 		""" List collections this sequence is linked to.
 		
 		Parameters:
-			- **collection_filter**: filter for the collections (optional).
+			- **collection_filter**: filter for the collections (optional). See :doc:`queries`.
 			- **relationship_filter**: filter for the relationship linking this
-			  sequence to collections (optional).
+			  sequence to collections (optional). See :doc:`queries`.
 		
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			- If this sequence is not committed and **relationship_filter** is
+			  set additional a :class:`~errors.UncommittedObjectError` exception
+			  is thrown. See :doc:`relationships`.
+			- If this sequence is not committed and **relationship_filter** is
+			  set additional a :class:`~errors.UncommittedObjectError` exception
+			  is thrown. See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.count_collections`
@@ -693,12 +695,17 @@ class Sequence (CommittableObject):
 		""" Count collections this sequence is linked to.
 		
 		Parameters:
-			- **collection_filter**: filter for the collections (optional).
+			- **collection_filter**: filter for the collections (optional). See :doc:`queries`.
 			- **relationship_filter**: filter for the relationship linking this
-			  sequence to collections (optional).
+			  sequence to collections (optional). See :doc:`queries`.
 		
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			- If this sequence is not committed and **relationship_filter** is
+			  set additional a :class:`~errors.UncommittedObjectError` exception
+			  is thrown. See :doc:`relationships`.
+			- If this sequence is not committed and **relationship_filter** is
+			  set additional a :class:`~errors.UncommittedObjectError` exception
+			  is thrown. See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.list_collections`
@@ -714,17 +721,21 @@ class Sequence (CommittableObject):
 			  sequence to **sequence**, as a dictionary (optional).
 		
 		.. note::
-			- Relationships between objects are directed; i.e., linking a
-			  sequence 'A' to 'B' is different from linking 'B' to 'A'.
 			- More than one relationship can be declared between two sequences,
 			  by calling this method more than once. However, duplicate
-			  relationships between two same objects will be ignored.
+			  relationships between two same sequences will be ignored.
+			- This sequence will need to be committed to the database for the
+			  information about its relationship to **sequence** to be stored
+			  and queried. See :doc:`relationships` for details.
+			- Relationships between objects are directed; i.e., linking
+			  sequences 'A' to 'B' is different from linking sequences 'B' to
+			  'A'. See :doc:`relationships` for details.
 
 		.. seealso::
 			:meth:`~objects.Sequence.dissociate_from_sequence`
 		"""
 		if (not isinstance(sequence, Sequence)):
-			raise ValueError("The 'sequence' parameter must be a Sequence object.")
+			raise errors.MetagenomeDBError("The 'sequence' parameter must be a Sequence object.")
 
 		self._connect_to(sequence, relationship)
 
@@ -738,15 +749,15 @@ class Sequence (CommittableObject):
 			  to **sequence** are removed.
 
 		.. note::
-			- For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
-			- If this sequence and **sequence** have no relationship, an
-			  exception is thrown.
+			- For documentation on object filters, see :meth:`~objects.Sequence.find`.
+			- If this sequence and **sequence** have no relationship, a
+			  :class:`~errors.MetagenomeDBError` exception is thrown. 
 
 		.. seealso::
 			:meth:`~objects.Sequence.relate_to_sequence`
 		"""
 		if (not isinstance(sequence, Sequence)):
-			raise ValueError("The 'sequence' parameter must be a Sequence object.")
+			raise errors.MetagenomeDBError("The 'sequence' parameter must be a Sequence object.")
 
 		self._disconnect_from(sequence, relationship_filter)
 
@@ -764,7 +775,7 @@ class Sequence (CommittableObject):
 			  sequence and neighboring sequences (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Sequence.find`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.count_related_sequences`
@@ -793,7 +804,7 @@ class Sequence (CommittableObject):
 			  sequence and neighboring sequences (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Sequence.find`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.list_related_sequences`
@@ -825,11 +836,12 @@ class Collection (CommittableObject):
 		Parameters:
 			- **properties**: properties of this sequence, as a dictionary.
 			  Must contain at least a 'name' property. Collection names are
-			  unique in the database; i.e., an exception will be thrown if
-			  a collection already exists with this name.
+			  unique in the database; i.e., a :class:`~errors.DuplicateObjectError`
+			  exception will be thrown when attempting to commit a collection
+			  when another collection already exists with this name.
 		"""
 		if (not "name" in properties):
-			raise errors.MalformedObject("Property 'name' is missing")
+			raise errors.InvalidObjectError("Property 'name' is missing")
 
 		indices = {
 			"name": True,
@@ -847,7 +859,7 @@ class Collection (CommittableObject):
 			  sequences to this collection (optional).
 		
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Collection.find`.
 
 		.. seealso::
 			:meth:`~objects.Collection.count_sequences`
@@ -863,7 +875,7 @@ class Collection (CommittableObject):
 			  sequences to this collection (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Collection.find`.
 
 		.. seealso::
 			:meth:`~objects.Collection.list_sequences`
@@ -882,7 +894,7 @@ class Collection (CommittableObject):
 			:meth:`~objects.Collection.remove_from_collection`
 		"""
 		if (not isinstance(collection, Collection)):
-			raise ValueError("The 'collection' parameter must be a Collection object.")
+			raise errors.MetagenomeDBError("The 'collection' parameter must be a Collection object.")
 
 		self._connect_to(collection, relationship)
 
@@ -896,14 +908,14 @@ class Collection (CommittableObject):
 			  to **collection** are removed.
 
 		.. note::
-			- For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			- For documentation on object filters, see :meth:`~objects.Collection.find`.
 			- If the two collections have no relationship, an exception is thrown. 
 
 		.. seealso::
 			:meth:`~objects.Collection.add_to_collection`
 		"""
 		if (not isinstance(collection, Collection)):
-			raise ValueError("The 'collection' parameter must be a Collection object.")
+			raise errors.MetagenomeDBError("The 'collection' parameter must be a Collection object.")
 
 		self._disconnect_from(collection, relationship_filter)
 
@@ -916,7 +928,7 @@ class Collection (CommittableObject):
 			  collection to super-collections (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Collection.find`.
 
 		.. seealso::
 			:meth:`~objects.Collection.count_super_collections`, :meth:`~objects.Collection.list_sub_collections`, :meth:`~objects.Collection.count_sub_collections`
@@ -932,7 +944,7 @@ class Collection (CommittableObject):
 			  collection to super-collections (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Collection.find`.
 
 		.. seealso::
 			:meth:`~objects.Collection.list_super_collections`, :meth:`~objects.Collection.list_sub_collections`, :meth:`~objects.Collection.count_sub_collections`
@@ -948,7 +960,7 @@ class Collection (CommittableObject):
 			  sub-collections to this collection (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Collection.find`.
 
 		.. seealso::
 			:meth:`~objects.Collection.count_sub_collections`, :meth:`~objects.Collection.list_super_collections`, :meth:`~objects.Collection.count_super_collections`
@@ -964,7 +976,7 @@ class Collection (CommittableObject):
 			  sub-collections to this collection (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Collection.find`.
 
 		.. seealso::
 			:meth:`~objects.Collection.list_sub_collections`, :meth:`~objects.Collection.list_super_collections`, :meth:`~objects.Collection.count_super_collections`
@@ -984,7 +996,7 @@ class Collection (CommittableObject):
 			  collection and neighbor collections (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Collection.find`.
 
 		.. seealso::
 			:meth:`~objects.Collection.count_related_collections`
@@ -1012,7 +1024,7 @@ class Collection (CommittableObject):
 			  collection and neighbor collections (optional).
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.CommittableObject.find`.
+			For documentation on object filters, see :meth:`~objects.Collection.find`.
 
 		.. seealso::
 			:meth:`~objects.Collection.list_related_collections`

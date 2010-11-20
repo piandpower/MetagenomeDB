@@ -61,11 +61,14 @@ def commit (object):
 	except pymongo.errors.OperationFailure as msg:
 		if ("E11000" in str(msg)):
 			properties = [(key, object[key]) for key in filter(lambda x: "$%s_" % x in str(msg), object._indices)]
-			raise errors.DuplicateObject(collection_name, properties)
+			raise errors.DuplicateObjectError(collection_name, properties)
 		else:
-			raise Exception("Unable to commit. Reason: %s" % msg)
+			raise errors.MetagenomeDBError("Unable to commit. Reason: %s" % msg)
 
 	logger.debug("Object %s %s in collection '%s'." % (object, verb, collection_name))
+
+def exists (id):
+	return (id in __objects)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -109,7 +112,7 @@ def find (collection, query, find_one = False, count = False):
 			query = {"_id": bson.objectid.ObjectId(query)}
 
 		except bson.errors.InvalidId:
-			raise ValueError("Invalid identifier: %s" % query)
+			raise errors.MetagenomeDBError("Invalid identifier: %s" % query)
 
 	if (query_t == bson.objectid.ObjectId):
 		query = {"_id": query}
@@ -120,7 +123,7 @@ def find (collection, query, find_one = False, count = False):
 			query = None
 
 	elif (query != None):
-		raise ValueError("Invalid query: %s" % query)
+		raise errors.MetagenomeDBError("Invalid query: %s" % query)
 
 	logger.debug("Querying %s in collection '%s'." % (query, collection))
 
@@ -167,14 +170,12 @@ def _forge_from_entries (collection, resultset):
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-def exists (id):
-	return (id in __objects)
-
 def remove_object (object):
 	""" Remove an object from a collection.
 	"""
 	collection_name = object.__class__.__name__
 	connection.connection()[collection_name].remove({"_id": object["_id"]})
+	del __objects[object["_id"]]
 
 	logger.debug("Object %s was removed from collection '%s'." % (object, collection_name))
 

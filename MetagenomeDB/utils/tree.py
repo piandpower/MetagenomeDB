@@ -1,5 +1,7 @@
 # Manipulation of a tree as a nested dictionary
 
+import errors
+
 def validate_key (key, separator = '.'):
 	key_t = type(key)
 
@@ -10,10 +12,10 @@ def validate_key (key, separator = '.'):
 		key = tuple(key.split(separator))
 
 	elif (key_t != tuple):
-		raise ValueError("Malformed key hierarchy: '%s'" % key)
+		raise errors.MetagenomeDBError("Malformed key hierarchy: '%s'" % key)
 
 	if (len(key) == 0):
-		raise ValueError("Empty key hierarchy")
+		raise errors.MetagenomeDBError("Empty key hierarchy")
 
 	return key
 
@@ -76,7 +78,7 @@ def delete (d, keys):
 	leaf, key = (len(keys) == 1), keys[0]
 
 	if (type(d) != dict):
-		raise KeyError(key)
+		raise errors.MetagenomeDBError("Not found: %s" % key)
 
 	if (leaf):
 		del d[key]

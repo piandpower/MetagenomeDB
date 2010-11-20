@@ -99,6 +99,7 @@ print "Importing '%s' ..." % p.input_fn
 print "  validating read and contig sequences ..."
 
 Reads, Contigs = {}, {}
+DuplicateReads, DuplicateContigs = {}, {}
 
 try:
 	reads = mdb.Collection.find_one({"name": p.reads_collection})
@@ -106,14 +107,22 @@ try:
 		error("Unknown collection '%s'" % p.reads_collection)
 
 	for read in reads.list_sequences():
-		Reads[str(read["name"])] = read
+		read_name = str(read["name"])
+		if (read_name in Reads):
+			DuplicateReads[read_name] = True
+
+		Reads[read_name] = read
 
 	contigs = mdb.Collection.find_one({"name": p.contigs_collection})
 	if (contigs == None):
 		error("Unknown collection '%s'" % p.contigs_collection)
 
 	for contig in contigs.list_sequences():
-		Contigs[str(contig["name"])] = contig
+		contig_name = str(contig["name"])
+		if (contig_name in Contigs):
+			DuplicateContigs[contig_name] = True
+
+		Contigs[contig_name] = contig
 
 except Exception as msg:
 	error(msg)
@@ -132,6 +141,9 @@ for contig in i:
 		else:
 			error(msg)
 
+	if (contig_id in DuplicateContigs):
+		error("Duplicate contig sequence '%s'" % contig_id)
+
 	for read in contig.reads:
 		read_id = get_read_id(read)
 
@@ -142,6 +154,9 @@ for contig in i:
 				continue
 			else:
 				error(msg)
+
+		if (read_id in DuplicateReads):
+			error("Duplicate read sequence '%s'" % read_id)
 
 		c += 1
 

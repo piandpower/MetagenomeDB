@@ -120,21 +120,30 @@ print "Importing '%s' ..." % p.input_fn
 print "  validating query and hit sequences ..."
 
 QuerySequences, HitSequences = {}, {}
+DuplicateQueries, DuplicateHits = {}, {}
 
 try:
 	queries = mdb.Collection.find_one({"name": p.queries_collection})
 	if (queries == None):
 		error("Unknown collection '%s'" % p.queries_collection)
 
-	for sequence, relationship in queries.get_sequences():
-		QuerySequences[str(sequence["name"])] = sequence
+	for sequence in queries.list_sequences():
+		sequence_name = str(sequence["name"]) 
+		if (sequence_name in QuerySequences):
+			DuplicateQueries[sequence_name] = True
+
+		QuerySequences[sequence_name] = sequence
 
 	hits = mdb.Collection.find_one({"name": p.hits_collection})
 	if (hits == None):
 		error("Unknown collection '%s'" % p.hits_collection)
 
-	for sequence, relationship in hits.get_sequences():
-		HitSequences[str(sequence["name"])] = sequence
+	for sequence in hits.list_sequences():
+		sequence_name = str(sequence["name"]) 
+		if (sequence_name in HitSequences):
+			DuplicateHits[sequence_name] = True
+
+		HitSequences[sequence_name] = sequence
 
 except Exception as msg:
 	error(msg)
@@ -176,6 +185,9 @@ while True:
 		if (not query_id in QuerySequences):
 			error("Unknown query sequence '%s'" % query_id)
 
+		if (query_id in DuplicateQueries):
+			error("Duplicate query sequence '%s'" % query_id)
+
 		run = {"database": database}
 		hsp = {}
 		block_n = 0
@@ -197,6 +209,9 @@ while True:
 
 				if (not hit_id in HitSequences):
 					error("Unknown hit sequence '%s'" % hit_id)
+
+				if (hit_id in DuplicateHits):
+					error("Duplicate hit sequence '%s'" % hit_id)
 
 				block_n += 1
 

@@ -212,20 +212,27 @@ print "Importing '%s' ..." % p.input_fn
 
 print "  validating sequences ..."
 
-Sequences = {}
+Sequences, DuplicateSequences = {}, {}
 
 for sequence in collection.list_sequences():
-	Sequences[str(sequence["name"])] = sequence
+	sequence_name = str(sequence["name"])
+	if (sequence_name in Sequences):
+		DuplicateSequences[sequence_name] = True
+
+	Sequences[sequence_name] = sequence
 
 seen = {}
 for (sequence_id, CRISPR, DRs, spacers) in parser(p.input_fn):
 	if (sequence_id in seen):
-		error("Duplicate sequence '%s'" % sequence_id)
+		error("Duplicate sequence '%s' in input" % sequence_id)
 
 	seen[sequence_id] = True
 
 	if (not sequence_id in Sequences):
 		error("Unknown sequence '%s'" % sequence_id)
+
+	if (sequence_id in DuplicateSequences):
+		error("Duplicate sequence '%s'" % sequence_id)
 
 print "  importing annotations ..."
 
