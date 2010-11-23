@@ -168,6 +168,13 @@ if (not p.dry_run):
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+def clean_sequence (sequence):
+	sequence_ = ''
+	for c in sequence:
+		if (c.lower() in "atgc"):
+			sequence_ += c
+	return sequence_
+
 def parser (fn):
 	fh = open(fn, 'rU')
 	sequence_id = None
@@ -190,7 +197,7 @@ def parser (fn):
 			n_items = len(items)
 
 			if (n_items == 1):
-				DRs.append(items[0])
+				DRs.append(clean_sequence(items[0]))
 				CRISPR += DRs[-1]
 
 				# deduplicate the direct repeats
@@ -199,10 +206,10 @@ def parser (fn):
 				yield (sequence_id, CRISPR, DRs, spacers)
 
 			elif (n_items == 3):
-				DRs.append(items[0])
+				DRs.append(clean_sequence(items[0]))
 				CRISPR += DRs[-1]
 				
-				spacers.append(items[1])
+				spacers.append(clean_sequence(items[1]))
 				CRISPR += spacers[-1]
 
 			else:
@@ -253,13 +260,13 @@ class ProgressBar:
 		sys.stdout.write(' ' * (2 + 80 + 8) + "\r")
 		sys.stdout.flush()
 
-def MD5 (sequence):
-	return hashlib.md5(sequence).hexdigest()
+def hash_CRISPR_sequence (sequence):
+	return hashlib.md5(sequence.upper()).hexdigest()
 
 def declare_CRISPR (sequence):
 	CRISPRs_c, CRISPRs_s = Collections["CRISPR"]
 
-	CRISPR_id = MD5(sequence)
+	CRISPR_id = hash_CRISPR_sequence(sequence)
 
 	if (CRISPR_id in CRISPRs_s):
 		return CRISPRs_s[CRISPR_id]
@@ -271,10 +278,23 @@ def declare_CRISPR (sequence):
 	CRISPRs_s[CRISPR_id] = CRISPR
 	return CRISPR
 
+def hash_DR_or_spacer_sequence (sequence):
+	# find the reverse complement
+	sequence_ = ''
+	for c in sequence.upper():
+		sequence_ += {
+			'A': 'T',
+			'T': 'A',
+			'G': 'C',
+			'C': 'G',
+		}[c]
+
+	return sorted((sequence, sequence_))[0]
+
 def declare_DR (sequence):
 	DRs_c, DRs_s = Collections["DR"]
 
-	DR_id = sequence
+	DR_id = hash_DR_or_spacer_sequence(sequence)
 
 	if (DR_id in DRs_s):
 		return DRs_s[DR_id]
@@ -289,7 +309,7 @@ def declare_DR (sequence):
 def declare_spacer (sequence):
 	spacers_c, spacers_s = Collections["Spacer"]
 
-	spacer_id = sequence
+	spacer_id = hash_DR_or_spacer_sequence(sequence)
 
 	if (spacer_id in spacers_s):
 		return spacers_s[spacer_id]
