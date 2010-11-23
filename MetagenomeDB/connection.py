@@ -22,13 +22,13 @@ def __connect (host, port, db, user, password):
 	except pymongo.errors.ConnectionFailure as msg:
 		raise errors.ConnectionError(db, host, port, msg)
 
-	logger.info("Connected to '%s' on %s:%s." % (db, host, port))
+	logger.debug("Connected to '%s' on %s:%s." % (db, host, port))
 
 	# use credentials, if any
 	if (user != ''):
 		connection.authenticate(user, password)
 
-		logger.info("Authenticated as '%s'." % user)
+		logger.debug("Authenticated as '%s'." % user)
 
 	# test if the credentials are okay
 	try:
@@ -40,9 +40,21 @@ def __connect (host, port, db, user, password):
 	__connection = connection
 	return __connection
 
-# Specify the access parameters to a MongoDB server. If not used, MetagenomeDB
-# will read those parameters from the '~/.MetagenomeDB' file.
 def connect (host = "localhost", port = 27017, database = "MetagenomeDB", user = '', password = ''):
+	""" Override MongoDB server connection information.
+	
+	Parameters:
+		- **host**: host of the MongoDB server (optional). Default: 'localhost'
+		- **port**: port of the MongoDB server (optional). Default: 27017
+		- **database**: database within the MongoDB server (optional). Default:
+		  'MetagenomeDB'
+		- **user**: user for a secured MongoDB connection (optional)
+		- **password**: password for a secured MongoDB connection (optional)
+	
+	.. note::
+		If :func:`~connection.connect` is not called, the connection information
+		are read in the '~/.MetagenomeDB' file.
+	"""
 	__connect(host, port, database, user, password)
 
 # Return a connection to a MongoDB server. If no connection information has

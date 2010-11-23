@@ -6,7 +6,7 @@ The MetagenomeDB Toolkit
 
 **MetagenomeDB** is a bioinformatics toolkit which can be used to store, annotate and query metagenomic sequences, or any sequences produced by a sequencing, assembly or annotation project.
 
-MetagenomeDB exposes both an API (to use in your Python programs) and a set of command-line tools (to automatize basic tasks, such as importing sequences or BLAST results). Behind the scene, all data are managed by a MongoDB_ server, a high-performance document-oriented database.
+MetagenomeDB provides both an API (to use in your Python programs) and a set of command-line tools (to automatize basic tasks, such as importing sequences or BLAST results). Behind the scene, all data are managed by a MongoDB_ server, a high-performance document-oriented database.
 
 MetagenomeDB represents metagenomic data with two types of objects: **sequences**, and **collections**. Sequences can be reads, contigs, PCR clones, etc. Collections are sets of sequences; e.g., reads resulting from a sequencing run, contigs assembled from a set of reads, PCR libraries.
 

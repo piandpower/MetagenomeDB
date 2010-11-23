@@ -3,32 +3,22 @@ Tools Documentation (INCOMPLETE)
 
 This is the documentation for the command-line tools provided by the **MetagenomeDB** toolkit.
 
-:doc:`objects_addition`
-  Adding objects: ``mdb-add``
+Adding and modifying objects:
+	- :doc:`objects_addition` (``mdb-add``)
+	- :doc:`objects_annotation` (``mdb-annotate``)
+	- :doc:`objects_deletion` (``mdb-remove``)
 
-:doc:`objects_annotation`
-  Annotating objects: ``mdb-annotate``
+Importing and exporting sequences:
+	- :doc:`sequences_import` (``mdb-import-sequences``)
+	- :doc:`sequences_export` (``mdb-export-sequences``)
 
-:doc:`objects_deletion`
-  Deleting objects: ``mdb-remove``
+Importing sequence alignments:
+	- :doc:`blast` (``mdb-import-BLAST-alignments``)
+	- :doc:`fasta` (``mdb-import-FASTA-alignments``)
+	- :doc:`ace` (``mdb-import-ACE-alignments``)
 
-:doc:`sequences_import`
-  Importing sequences: ``mdb-import-sequences``
-
-:doc:`sequences_export`
-  Exporting sequences: ``mdb-export-sequences``
-
-:doc:`blast`
-  Handling NCBI BLAST outputs: ``mdb-import-BLAST-alignments``
-
-:doc:`fasta`
-  Handling FASTA outputs: ``mdb-import-FASTA-alignments``
-
-:doc:`ace`
-  Handling ACE alignment files: ``mdb-import-ACE-alignments``
-
-:doc:`crisprfinder`
-  Handling CRISPRfinder annotations: ``mdb-import-CRISPRfinder-annotations``
+Importing sequence annotations:
+	- :doc:`crisprfinder` (``mdb-import-CRISPRfinder-annotations``)
 
 .. toctree::
    :hidden:

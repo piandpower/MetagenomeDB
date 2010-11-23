@@ -1,0 +1,7 @@
+EMPTY
+-----
+
+Empty.
+
+.. toctree::
+   :hidden:

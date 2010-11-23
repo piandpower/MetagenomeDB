@@ -197,7 +197,8 @@ class CommittableObject (MutableObject):
 
 	@classmethod
 	def distinct (cls, property):
-		""" Count the number of objects for each value of the given property.
+		""" For each value found in the database for a given property, return
+		the number of objects that have this value.
 
 		Parameters:
 			- **property**: property to count objects for.
@@ -252,6 +253,9 @@ class CommittableObject (MutableObject):
 		"""
 		if (not "_id" in target._properties):
 			raise errors.UncommittedObjectError("Cannot connect %s to %s: target has never been committed." % target)
+
+		if (self == target):
+			raise errors.MetagenomeDBError("Cannot connect %s to itself" % self)
 
 		target_id = str(target._properties["_id"])
 
@@ -436,7 +440,7 @@ class CommittableObject (MutableObject):
 		return backend.find(neighbor_collection, query, count = count)
 
 	def has_relationships_with (self, target):
-		""" Test if this object has a relationship with another object.
+		""" Test if this object has relationship(s) with another object.
 		
 		Parameters:
 			- **target**: object to test for the existence of relationships with.
@@ -451,7 +455,7 @@ class CommittableObject (MutableObject):
 		return (str(target._properties["_id"]) in self._properties["_relationships"])
 
 	def list_relationships_with (self, target):
-		""" List relationships (if any) between this object and others.
+		""" List relationship(s), if any, from this object to others.
 
 		Parameters:
 			- **target**: object to list relationships with.
@@ -477,7 +481,7 @@ class CommittableObject (MutableObject):
 		""" Remove this object from the database.
 
 		.. note::
-			- Relationships between this object and others are removed as well.
+			- Relationships from and to this object are removed as well.
 			- The object remains in memory, flagged as uncommitted.
 
 		.. seealso::
@@ -507,7 +511,7 @@ class CommittableObject (MutableObject):
 		""" Remove all objects of this type from the database.
 
 		.. note::
-			- Relationships between these objects and others are removed as well.
+			- Relationships from and to these objects are removed as well.
 			- Instanciated objects remain in memory, flagged as uncommitted.
 
 		.. seealso::
@@ -622,14 +626,17 @@ class Sequence (CommittableObject):
 		Parameters:
 			- **collection**: collection to add this sequence to.
 			- **relationship**: properties of the relationship linking this
-			  sequence to **collection**, as a dictionary (optional); see :doc:`annotations`.
+			  sequence to **collection**, as a dictionary (optional). See
+			  :doc:`annotations`.
 
 		.. note::
-			- A :class:`~errors.DuplicateObjectError` exception will be thrown if the
-			  collection already contains a sequence with the same 'name' property.
+			- If the collection already contains a sequence with the same name
+			  a :class:`~errors.DuplicateObjectError` exception is thrown.
+			- If the collection has never been committed to the database a
+			  :class:`~errors.UncommittedObjectError` is thrown.
 			- This sequence will need to be committed to the database for the
 			  information about its relationship to **collection** to be stored
-			  and queried (see :doc:`relationships`).
+			  and queried. See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.remove_from_collection`
@@ -659,8 +666,8 @@ class Sequence (CommittableObject):
 			- If this sequence and **collection** have no relationship, a
 			  :class:`~errors.MetagenomeDBError` exception is thrown. 
 			- If this sequence is not committed and **relationship_filter** is
-			  set additional a :class:`~errors.UncommittedObjectError` exception
-			  is thrown. See :doc:`relationships`.
+			  set a :class:`~errors.UncommittedObjectError` exception is thrown.
+			  See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.add_to_collection`
@@ -674,17 +681,15 @@ class Sequence (CommittableObject):
 		""" List collections this sequence is linked to.
 		
 		Parameters:
-			- **collection_filter**: filter for the collections (optional). See :doc:`queries`.
+			- **collection_filter**: filter for the collections (optional). See
+			  :doc:`queries`.
 			- **relationship_filter**: filter for the relationship linking this
 			  sequence to collections (optional). See :doc:`queries`.
 		
 		.. note::
 			- If this sequence is not committed and **relationship_filter** is
-			  set additional a :class:`~errors.UncommittedObjectError` exception
-			  is thrown. See :doc:`relationships`.
-			- If this sequence is not committed and **relationship_filter** is
-			  set additional a :class:`~errors.UncommittedObjectError` exception
-			  is thrown. See :doc:`relationships`.
+			  set a :class:`~errors.UncommittedObjectError` exception is thrown.
+			  See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.count_collections`
@@ -701,11 +706,8 @@ class Sequence (CommittableObject):
 		
 		.. note::
 			- If this sequence is not committed and **relationship_filter** is
-			  set additional a :class:`~errors.UncommittedObjectError` exception
-			  is thrown. See :doc:`relationships`.
-			- If this sequence is not committed and **relationship_filter** is
-			  set additional a :class:`~errors.UncommittedObjectError` exception
-			  is thrown. See :doc:`relationships`.
+			  set a :class:`~errors.UncommittedObjectError` exception is thrown.
+			  See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.list_collections`
@@ -721,15 +723,11 @@ class Sequence (CommittableObject):
 			  sequence to **sequence**, as a dictionary (optional).
 		
 		.. note::
-			- More than one relationship can be declared between two sequences,
-			  by calling this method more than once. However, duplicate
-			  relationships between two same sequences will be ignored.
+			- If **sequence** has never been committed to the database a
+			  :class:`~errors.UncommittedObjectError` is thrown.
 			- This sequence will need to be committed to the database for the
 			  information about its relationship to **sequence** to be stored
-			  and queried. See :doc:`relationships` for details.
-			- Relationships between objects are directed; i.e., linking
-			  sequences 'A' to 'B' is different from linking sequences 'B' to
-			  'A'. See :doc:`relationships` for details.
+			  and queried. See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.dissociate_from_sequence`
@@ -746,12 +744,14 @@ class Sequence (CommittableObject):
 			- **sequence**: sequence to unlink this sequence from.
 			- **relationship_filter**: relationships to remove (optional).
 			  If none provided, all relationships from this sequence
-			  to **sequence** are removed.
+			  to **sequence** are removed. See :doc:`queries`.
 
 		.. note::
-			- For documentation on object filters, see :meth:`~objects.Sequence.find`.
 			- If this sequence and **sequence** have no relationship, a
 			  :class:`~errors.MetagenomeDBError` exception is thrown. 
+			- If this sequence is not committed and **relationship_filter** is
+			  set a :class:`~errors.UncommittedObjectError` exception is thrown.
+			  See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Sequence.relate_to_sequence`
@@ -769,13 +769,17 @@ class Sequence (CommittableObject):
 			  ``Direction.INGOING``, will list sequences that are linked to the
 			  present sequence. If set to ``Direction.OUTGOING``, will list
 			  sequences this sequence is linked to. If set to ``Direction.BOTH``
-			  (default), both neighboring sequences are listed.
+			  (default), both neighboring sequences are listed. See
+			  :doc:`relationships`.
 			- **sequence_filter**: filter for the sequences to list (optional).
+			  See :doc:`queries`.
 			- **relationship_filter**: filter for the relationship between this
-			  sequence and neighboring sequences (optional).
+			  sequence and neighboring sequences (optional). See :doc:`queries`.
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.Sequence.find`.
+			- If **direction** is set to ``Direction.BOTH`` or ``Direction.OUTGOING``,
+			  **relationship_filter** is set and this sequence is not committed,
+			  a :class:`~errors.UncommittedObjectError` exception is thrown.
 
 		.. seealso::
 			:meth:`~objects.Sequence.count_related_sequences`
@@ -795,16 +799,20 @@ class Sequence (CommittableObject):
 		
 		Parameters:
 			- **direction**: direction of the relationship (optional). If set to
-			  ``Direction.INGOING``, will count sequences that are linked to the
-			  present sequence. If set to ``Direction.OUTGOING``, will count
+			  ``Direction.INGOING``, will count sequences that are linked to 
+			  this sequence. If set to ``Direction.OUTGOING``, will count
 			  sequences this sequence is linked to. If set to ``Direction.BOTH``
-			  (default), both neighboring sequences are counted.
+			  (default), all neighboring sequences are counted. See
+			  :doc:`relationships`
 			- **sequence_filter**: filter for the sequences to count (optional).
+			  See :doc:`queries`.
 			- **relationship_filter**: filter for the relationship between this
-			  sequence and neighboring sequences (optional).
+			  sequence and neighboring sequences (optional). See :doc:`queries`.
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.Sequence.find`.
+			- If **direction** is set to ``Direction.BOTH`` or ``Direction.OUTGOING``,
+			  **relationship_filter** is set and this sequence is not committed,
+			  a :class:`~errors.UncommittedObjectError` exception is thrown.
 
 		.. seealso::
 			:meth:`~objects.Sequence.list_related_sequences`
@@ -831,14 +839,18 @@ class Sequence (CommittableObject):
 class Collection (CommittableObject):
 
 	def __init__ (self, properties):
-		""" Create a new Sequence object.
+		""" Create a new Collection object.
 		
 		Parameters:
 			- **properties**: properties of this sequence, as a dictionary.
-			  Must contain at least a 'name' property. Collection names are
-			  unique in the database; i.e., a :class:`~errors.DuplicateObjectError`
-			  exception will be thrown when attempting to commit a collection
-			  when another collection already exists with this name.
+			  Must contain at least a 'name' property, or a
+			  :class:`~errors.InvalidObjectError` exception is thrown.
+
+		.. note::
+			  Collection names are unique in the database; if attempting to
+			  commit a collection while another collection already exists with
+			  the same name a :class:`~errors.DuplicateObjectError` exception
+			  is thrown.
 		"""
 		if (not "name" in properties):
 			raise errors.InvalidObjectError("Property 'name' is missing")
@@ -855,11 +867,9 @@ class Collection (CommittableObject):
 		
 		Parameters:
 			- **sequence_filter**: filter for the sequences to list (optional).
+			  See :doc:`queries`.
 			- **relationship_filter**: filter for the relationship linking
-			  sequences to this collection (optional).
-		
-		.. note::
-			For documentation on object filters, see :meth:`~objects.Collection.find`.
+			  sequences to this collection (optional). See :doc:`queries`.
 
 		.. seealso::
 			:meth:`~objects.Collection.count_sequences`
@@ -871,11 +881,9 @@ class Collection (CommittableObject):
 		
 		Parameters:
 			- **sequence_filter**: filter for the sequences to count (optional).
+			  See :doc:`queries`.
 			- **relationship_filter**: filter for the relationship linking
-			  sequences to this collection (optional).
-
-		.. note::
-			For documentation on object filters, see :meth:`~objects.Collection.find`.
+			  sequences to this collection (optional). See :doc:`queries`.
 
 		.. seealso::
 			:meth:`~objects.Collection.list_sequences`
@@ -883,12 +891,20 @@ class Collection (CommittableObject):
 		return self._in_vertices("Sequence", sequence_filter, relationship_filter, True)
 
 	def add_to_collection (self, collection, relationship = None):
-		""" Add this collection to another (super) collection.
+		""" Add this collection to a (super) collection.
 		
 		Parameters:
 			- **collection**: collection to add this collection to.
 			- **relationship**: properties of the relationship from this
-			  collection to **collection**, as a dictionary (optional).
+			  collection to **collection**, as a dictionary (optional). See
+			  :doc:`annotations`.
+
+		.. note::
+			- If **collection** has never been committed to the database a
+			  :class:`~errors.UncommittedObjectError` is thrown.
+			- This collection will need to be committed to the database for the
+			  information about its relationship to **collection** to be stored
+			  and queried. See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Collection.remove_from_collection`
@@ -905,11 +921,14 @@ class Collection (CommittableObject):
 			- **collection**: collection to remove this collection from.
 			- **relationship_filter**: relationships to remove (optional).
 			  If none provided, all relationships linking this collection
-			  to **collection** are removed.
+			  to **collection** are removed. See :doc:`queries`.
 
 		.. note::
-			- For documentation on object filters, see :meth:`~objects.Collection.find`.
-			- If the two collections have no relationship, an exception is thrown. 
+			- If this collection and **collection** have no relationship, a
+			  :class:`~errors.MetagenomeDBError` exception is thrown. 
+			- If this collection is not committed and **relationship_filter** is
+			  set a :class:`~errors.UncommittedObjectError` exception is thrown.
+			  See :doc:`relationships`.
 
 		.. seealso::
 			:meth:`~objects.Collection.add_to_collection`
@@ -923,15 +942,20 @@ class Collection (CommittableObject):
 		""" List all collections this collection is linked to.
 
 		Parameters:
-			- **collection_filter**: filter for the super-collections to list (optional).
+			- **collection_filter**: filter for the super-collections (optional).
+			  See :doc:`queries`.
 			- **relationship_filter**: filter for the relationships linking this
-			  collection to super-collections (optional).
+			  collection to super-collections (optional). See :doc:`queries`.
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.Collection.find`.
+			- If this collection is not committed and **relationship_filter** is
+			  set a :class:`~errors.UncommittedObjectError` exception is thrown.
+			  See :doc:`relationships`.
 
 		.. seealso::
-			:meth:`~objects.Collection.count_super_collections`, :meth:`~objects.Collection.list_sub_collections`, :meth:`~objects.Collection.count_sub_collections`
+			:meth:`~objects.Collection.count_super_collections`,
+			:meth:`~objects.Collection.list_sub_collections`,
+			:meth:`~objects.Collection.count_sub_collections`
 		"""
 		return self.list_related_collections(Direction.OUTGOING, collection_filter, relationship_filter)
 
@@ -939,15 +963,20 @@ class Collection (CommittableObject):
 		""" Count all collections this collection is linked to.
 
 		Parameters:
-			- **collection_filter**: filter for the super-collections to count (optional).
+			- **collection_filter**: filter for the super-collections (optional).
+			  See :doc:`queries`.
 			- **relationship_filter**: filter for the relationships linking this
-			  collection to super-collections (optional).
+			  collection to super-collections (optional). See :doc:`queries`.
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.Collection.find`.
+			- If this collection is not committed and **relationship_filter** is
+			  set a :class:`~errors.UncommittedObjectError` exception is thrown.
+			  See :doc:`relationships`.
 
 		.. seealso::
-			:meth:`~objects.Collection.list_super_collections`, :meth:`~objects.Collection.list_sub_collections`, :meth:`~objects.Collection.count_sub_collections`
+			:meth:`~objects.Collection.list_super_collections`,
+			:meth:`~objects.Collection.list_sub_collections`,
+			:meth:`~objects.Collection.count_sub_collections`
 		"""
 		return self.count_related_collections(Direction.OUTGOING, collection_filter, relationship_filter)
 
@@ -955,15 +984,15 @@ class Collection (CommittableObject):
 		""" List all collections that are linked to this collection.
 
 		Parameters:
-			- **collection_filter**: filter for the sub-collections to list (optional).
+			- **collection_filter**: filter for the sub-collections (optional).
+			  See :doc:`queries`.
 			- **relationship_filter**: filter for the relationships linking
-			  sub-collections to this collection (optional).
-
-		.. note::
-			For documentation on object filters, see :meth:`~objects.Collection.find`.
+			  sub-collections to this collection (optional). See :doc:`queries`.
 
 		.. seealso::
-			:meth:`~objects.Collection.count_sub_collections`, :meth:`~objects.Collection.list_super_collections`, :meth:`~objects.Collection.count_super_collections`
+			:meth:`~objects.Collection.count_sub_collections`,
+			:meth:`~objects.Collection.list_super_collections`,
+			:meth:`~objects.Collection.count_super_collections`
 		"""
 		return self.list_related_collections(Direction.INGOING, collection_filter, relationship_filter)
 
@@ -971,15 +1000,15 @@ class Collection (CommittableObject):
 		""" Count all collections that are linked to this collection.
 
 		Parameters:
-			- **collection_filter**: filter for the sub-collections to count (optional).
+			- **collection_filter**: filter for the sub-collections (optional).
+			  See :doc:`queries`.
 			- **relationship_filter**: filter for the relationships linking
-			  sub-collections to this collection (optional).
-
-		.. note::
-			For documentation on object filters, see :meth:`~objects.Collection.find`.
+			  sub-collections to this collection (optional). See :doc:`queries`.
 
 		.. seealso::
-			:meth:`~objects.Collection.list_sub_collections`, :meth:`~objects.Collection.list_super_collections`, :meth:`~objects.Collection.count_super_collections`
+			:meth:`~objects.Collection.list_sub_collections`,
+			:meth:`~objects.Collection.list_super_collections`,
+			:meth:`~objects.Collection.count_super_collections`
 		"""
 		return self.count_related_collections(Direction.INGOING, collection_filter, relationship_filter)
 
@@ -987,16 +1016,22 @@ class Collection (CommittableObject):
 		""" List all collections this collection is linked to, or have links to it.
 
 		Parameters:
-			- `direction`: direction of the relationship (optional). Can be
-			  ``Direction.INGOING`` (sub-collections of the current collection),
-			  ``Direction.OUTGOING`` (super-collections of the current collection)
-			  or ``Direction.BOTH`` (default; all sub- and super-collections).
-			- `collection_filter`: filter for the neighbor collections (optional).
+			- `direction`: direction of the relationship (optional). If set to
+			  ``Direction.INGOING``, will list collections that are linked to
+			  this collection (i.e., sub-collections). If set to
+			  ``Direction.OUTGOING``, will list collections this collection is
+			  linked to (i.e., super-collections). If set to ``Direction.BOTH``
+			  (default), all neighboring collections are listed. See
+			  :doc:`relationships`.
+			- `collection_filter`: filter for the collections to list (optional).
+			  See :doc:`queries`.
 			- `relationship_filter`: filter for the relationships between this
-			  collection and neighbor collections (optional).
+			  collection and neighbor collections (optional). See :doc:`queries`.
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.Collection.find`.
+			- If **direction** is set to ``Direction.BOTH`` or ``Direction.OUTGOING``,
+			  **relationship_filter** is set and this collection is not committed,
+			  a :class:`~errors.UncommittedObjectError` exception is thrown.
 
 		.. seealso::
 			:meth:`~objects.Collection.count_related_collections`
@@ -1015,16 +1050,22 @@ class Collection (CommittableObject):
 		""" Count all collections this collection is linked to, or have links to it.
 
 		Parameters:
-			- `direction`: direction of the relationship (optional). Can be
-			  ``Direction.INGOING`` (sub-collections of the current collection),
-			  ``Direction.OUTGOING`` (super-collections of the current collection)
-			  or ``Direction.BOTH`` (default; all sub- and super-collections).
-			- `collection_filter`: filter for the neighbor collections (optional).
+			- `direction`: direction of the relationship (optional). If set to
+			  ``Direction.INGOING``, will count collections that are linked to
+			  this collection (i.e., sub-collections). If set to
+			  ``Direction.OUTGOING``, will count collections this collection is
+			  linked to (i.e., super-collections). If set to ``Direction.BOTH``
+			  (default), all neighboring collections are counted. See
+			  :doc:`relationships`.
+			- `collection_filter`: filter for the collections to count (optional).
+			  See :doc:`queries`.
 			- `relationship_filter`: filter for the relationships between this
-			  collection and neighbor collections (optional).
+			  collection and neighbor collections (optional). See :doc:`queries`.
 
 		.. note::
-			For documentation on object filters, see :meth:`~objects.Collection.find`.
+			- If **direction** is set to ``Direction.BOTH`` or ``Direction.OUTGOING``,
+			  **relationship_filter** is set and this collection is not committed,
+			  a :class:`~errors.UncommittedObjectError` exception is thrown.
 
 		.. seealso::
 			:meth:`~objects.Collection.list_related_collections`

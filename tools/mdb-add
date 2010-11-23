@@ -140,7 +140,7 @@ try:
 				target = retrieve_xref(pull(entry, "_target"))
 
 				if (p.dry_run):
-					print "import: connection between %s and %s" % (source, target)
+					print "import: relationship from %s to %s" % (source, target)
 					for line in pprint.pformat(entry).split('\n'):
 						print "  %s" % line
 				else:
@@ -180,7 +180,7 @@ try:
 		except Exception as msg:
 			error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
 
-	print "%s object%s added, %s connection%s added." % (
+	print "%s object%s added, %s relationship%s added." % (
 		n_created, {True: 's', False: ''}[n_created > 1],
 		n_connected, {True: 's', False: ''}[n_connected > 1]
 	)

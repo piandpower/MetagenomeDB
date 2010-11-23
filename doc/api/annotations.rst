@@ -14,7 +14,14 @@ Once a object is created (or selected) it can be annotated using the Python ``[]
 	>>> # we assign 'read' as a value for a 'type' property
 	>>> s["type"] = "read"
 
-Any value already associated to a property 'type' is replaced by the new value. If this property doesn't exist for this object, it is created automatically.
+Any value already associated to a property 'type' is replaced by the new value. If this property doesn't exist for this object, it is created automatically. You can test for the presence of any property as with a dictionary, using the ``in`` syntax::
+
+	>>> print "type" in s
+	True
+	>>> print "foo" in s
+	False
+
+In this example the property 'type' has been set (we just did it). However, there is no property 'foo' set yet.
 
 Values can be of any type::
 
@@ -44,7 +51,7 @@ Properties can be nested; i.e., the value for a property can be a set of other p
 A good example of use of nested properties is the storage of a BLAST hit, as performed by ``mdb-import-BLAST-alignments`` (see :doc:`../tools/blast`).
 
 .. note::
-   For the dot-notation to be possible, property names have one restriction: they cannot contain a dot ('.').
+   For the dot-notation to be possible, property names have one restriction: they cannot contain a dot (``.``).
 
 
 Retrieving annotations
@@ -71,8 +78,12 @@ Properties can also be directly accessed using the dictionary syntax::
 	3
 
 .. note::
-	The difference between using :meth:`~objects.MutableObject.get_property` and a dictionary syntax is that the former can be set to return a default value in case the property you are looking for has not been set for this object. If you use a dictionary syntax for an unknown property, an exception will be thrown:
+	The difference between using :meth:`~objects.MutableObject.get_property` and a dictionary syntax is that the former can be set to return a default value (``None`` if no other default value is provided) in case the property you are looking for has not been set for this object. If you use a dictionary syntax for an unknown property, an exception will be thrown:
 
+		>>> print "a_novel_property" in s
+		False
+		>>> print s.get_property("a_novel_property")
+		None
 		>>> print s["a_novel_property"]
 		Traceback (most recent call last):
 		  File "<stdin>", line 1, in <module>
@@ -94,7 +105,7 @@ Finally, nested properties can be accessed using either :meth:`~objects.MutableO
 Saving annotations
 ------------------
 
-A very important concept in MetagenomeDB is that your objects exists in two locations: in the database, and in the memory of your computer. At first the memory of your computer is empty, but whenever you are creating an object or retrieving one from the database a copy of it is placed in this memory. When you are manipulating an object by annotating it you are modifying the copy **in memory**, and NOT the copy in the database.
+A very important concept in MetagenomeDB is that your objects exists in two locations: in the database, and in the memory of your computer. At first the memory of your computer is empty, but whenever you are creating an object or retrieving one from the database a copy of it is placed in this memory. When you are manipulating an object by annotating it you are modifying the copy **in memory**, and **not** the copy in the database.
 
 As such, when you are done modifying an object you must **commit** it to the database. Only then this object will become queryable; i.e., visible for methods such as :meth:`~objects.CommittableObject.find` or :meth:`~objects.CommittableObject.count` (see :doc:`queries`).
 
@@ -102,10 +113,11 @@ Committing an object only requires to call its :meth:`~objects.CommittableObject
 
 	>>> s.commit()
 
-Remember, any modification you make to an object after it is retrieved from the database will be lost if you do not commit those changes. If an object is deleted before it is committed a warning will be displayed::
+Remember, any modification you make to an object after it is retrieved from the database will be lost if you do not commit those changes. Same thing if you create an object: it is not saved in the database until you commit it. If an object is deleted before it is committed a warning will be displayed::
 
-	>>> del s
-	2010-11-19 16:16:29,964	WARNING: Object <Sequence id:none name:'my sequence' length:4
+	>>> c = mdb.Collection({"name": "a new collection"})
+	>>> del c
+	2010-11-19 16:16:29,964	WARNING: Object <Collection id:none name:'a new collection'
 	state:'uncommitted'> has been destroyed without having been committed.	__del__() in
 	objects.py, line 537
 
@@ -133,7 +145,7 @@ Objects that have been retrieved from the database after a query (see :doc:`quer
 	>>> # however, if we modify s2,
 	>>> s2["foo"] = "bar"
 
-	>>> # it is no more committed
+	>>> # it is no more committed, and this modification will be lost unless we call s2.commit()
 	>>> print s2.is_committed()
 	False
 

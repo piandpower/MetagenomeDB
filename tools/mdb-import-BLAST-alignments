@@ -250,6 +250,10 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 			if (p.max_e_value) and (hsp.expect > p.max_e_value):
 				continue
 
+			# documentation:
+			# - ftp://ftp.ncbi.nlm.nih.gov/blast/documents/xml/README.blxml for information about the NCBI BLAST XML format
+			# - http://www.biopython.org/DIST/docs/api/Bio.Blast.NCBIXML-pysrc.html for information about how the XML is parsed by BioPython
+			# - http://www.biopython.org/DIST/docs/api/Bio.Blast.Record-pysrc.html for information about how the result is stored as a Record
 			r = {
 				"type": "similar-to",
 
@@ -259,9 +263,13 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 						"name": record.application,
 						"version": record.version,
 						"parameters": {
+							"expect": float(record.expect),
 							"matrix": record.matrix,
 							"gap_open": record.gap_penalties[0],
 							"gap_extend": record.gap_penalties[1],
+							"sc_match": record.sc_match,
+							"sc_mismatch": record.sc_mismatch,
+							"filter": record.filter
 						},
 					},
 					"database": {
@@ -275,6 +283,7 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 					"fraction_identical": identity,
 					"fraction_conserved": 100.0 * hsp.positives / hit.length,
 					"e_value": hsp.expect,
+					"gaps": hsp.gaps,
 				}
 			}
 
@@ -285,7 +294,7 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 					"match": hsp.match,
 					"target": hsp.sbjct,
 					"target_coordinates": (hsp.sbjct_start, hsp.sbjct_end),
-				},
+				}
 
 			# the hit should be in the database. In this case, we store a full
 			# description of it as a relationship between query and hit sequences.

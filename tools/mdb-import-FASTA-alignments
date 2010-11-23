@@ -297,7 +297,7 @@ for query_id in HSP:
 				"database": {
 					"name": run["database"],
 					"number_of_sequences": n_sequences,
-					"number_of_residues": n_residues,
+					"number_of_letters": n_residues,
 				}
 			},
 

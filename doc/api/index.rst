@@ -18,6 +18,9 @@ This is the documentation for the Python API (application programming interface)
 :doc:`collection`
   List of methods of the :class:`~objects.Collection` class.
 
+:doc:`others`
+  Documentation about some additional functions you can use when interacting with the API.
+
 :doc:`exceptions`
   Documentation for the MetagenomeDB exceptions.
 
@@ -32,4 +35,5 @@ This is the documentation for the Python API (application programming interface)
    relationships
    sequence
    collection
+   others
    exceptions

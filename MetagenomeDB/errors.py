@@ -38,8 +38,8 @@ class DuplicateObjectError (MetagenomeDBError):
 		return self.msg
 
 class UncommittedObjectError (MetagenomeDBError):
-	""" Exception thrown when an object is removed from the database or its
-		relationships are explored without this object having been committed.
+	""" Exception thrown when an operation is performed on an uncommitted object
+		that requires this object to be committed.
 	"""
 	pass
 
