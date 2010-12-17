@@ -16,16 +16,16 @@ g.add_option("-Q", "--query-collection", dest = "queries_collection", metavar = 
 g.add_option("-H", "--hit-collection", dest = "hits_collection", metavar = "STRING",
 	help = """Name of the collection the hit sequences belong to (optional). If not
 provided, the hit sequences are assumed to be external to the database, and only
-a summary of those hits will be stored: hit identifer, description and E-value.""")
+a summary of those hits will be stored: hit identifier, description and E-value.""")
 
 g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
 	help = "Date of the BLAST run (optional). By default, creation date of the input file.")
 
 g.add_option("--query-id-getter", dest = "query_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
-	help = "Python code to reformat query identifers (optional); '%' will be replaced by the query identifier. Default: %default")
+	help = "Python code to reformat query identifiers (optional); '%' will be replaced by the query identifier. Default: %default")
 
 g.add_option("--hit-id-getter", dest = "hit_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
-	help = "Python code to reformat hit identifers (optional); '%' will be replaced by the hit identifier. Default: %default")
+	help = "Python code to reformat hit identifiers (optional); '%' will be replaced by the hit identifier. Default: %default")
 
 g.add_option("--no-check", dest = "check", action = "store_false", default = True,
 	help = "If set, bypass the query and hit sequences identifier check (not recommended).")
@@ -38,7 +38,7 @@ g.add_option("--max-E-value", dest = "max_e_value", type = "float", metavar = "F
 	help = "If set, filter out all hits with a E-value above the provided cut-off.")
 
 g.add_option("--min-identity", dest = "min_identity", type = "int", metavar = "INTEGER",
-	help = "If set, filter out all hits with a percentage of identity below the provided cut-off.")
+	help = "If set, filter out all hits with a percent of identity below the provided cut-off.")
 
 g.add_option("--max-hits", dest = "max_hits", type = "int", metavar = "INTEGER",
 	help = "If set, keep only the first '--max-hits' hits for each query.")
@@ -114,7 +114,7 @@ if (p.max_e_value):
 
 if (p.min_identity):
 	if (p.min_identity < 0) or (p.min_identity > 100):
-		error("Invalid percentage of identity cut-off: %s" % p.min_identity)
+		error("Invalid percent of identity cut-off: %s" % p.min_identity)
 
 if (p.max_hits):
 	if (p.max_hits < 0):
@@ -296,8 +296,8 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 					"target_coordinates": (hsp.sbjct_start, hsp.sbjct_end),
 				}
 
-			# the hit should be in the database. In this case, we store a full
-			# description of it as a relationship between query and hit sequences.
+			# the hit should be in the database. In this case, we store the HSP
+			# as properties of a relationship between query and hit sequences.
 			if (not external_hits):
 				if (p.dry_run):
 					print "    query '%s' to hit '%s'" % (query_id, hit_id)
@@ -307,8 +307,8 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 					query_o.relate_to_sequence(hit_o, r)
 					query_o.commit()
 
-			# the hit is not in the database. In this case, we store a short
-			# description of it as a property of the query sequence.
+			# the hit is not in the database. In this case, we store the HSP as
+			# a property of the query sequence.
 			else:
 				r["hit" ] = {
 					"name": hit_id,

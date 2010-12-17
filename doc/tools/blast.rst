@@ -34,17 +34,17 @@ The ``mdb-import-BLAST-alignments`` command-line tool imports XML-formatted NCBI
 	                        Name of the collection the hit sequences belong to
 	                        (optional). If not provided, the hit sequences are
 	                        assumed to be external to the database, and only a
-	                        summary of those hits will be stored: hit identifer,
+	                        summary of those hits will be stored: hit identifier,
 	                        description and E-value.
 	    --date=YEAR MONTH DAY
 	                        Date of the BLAST run (optional). By default, creation
 	                        date of the input file.
 	    --query-id-getter=PYTHON CODE
-	                        Python code to reformat query identifers (optional);
+	                        Python code to reformat query identifiers (optional);
 	                        '%' will be replaced by the query identifier. Default:
 	                        %.split()[0]
 	    --hit-id-getter=PYTHON CODE
-	                        Python code to reformat hit identifers (optional); '%'
+	                        Python code to reformat hit identifiers (optional); '%'
 	                        will be replaced by the hit identifier. Default:
 	                        %.split()[0]
 	    --no-check          If set, bypass the query and hit sequences identifier
@@ -55,7 +55,7 @@ The ``mdb-import-BLAST-alignments`` command-line tool imports XML-formatted NCBI
 	                        If set, filter out all hits with a E-value above the
 	                        provided cut-off.
 	    --min-identity=INTEGER
-	                        If set, filter out all hits with a percentage of
+	                        If set, filter out all hits with a percent of
 	                        identity below the provided cut-off.
 	    --max-hits=INTEGER  If set, keep only the first '--max-hits' hits for each
 	                        query.
