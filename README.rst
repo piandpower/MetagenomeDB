@@ -66,7 +66,7 @@ MetagenomeDB can be installed using two methods:
 Using GitHub
 ''''''''''''
 
-All versions of MetagenomeDB, including the latest developer releases, can be downloaded at https://github.com/ajmazurie/MetagenomeDB
+All versions of MetagenomeDB, including the latest developer releases, can be downloaded at https://github.com/BioinformaticsCore/MetagenomeDB
 
 Once the archive in your computer, installing it can be done by typing ``sudo easy_install [path to your archive]`` in a console (see the ``easy_install`` documentation: http://packages.python.org/distribute/easy_install.html).
 
