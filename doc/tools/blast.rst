@@ -115,7 +115,7 @@ Hits filtering
 The optional ``--max-E-value``, ``--min-identity`` and ``--max-hits`` options can be used to ignore some of the hits contained in the BLAST output.
 
 - ``--max-E-value`` will filter out any hit with a E-value above a provided cut-off
-- ``--min-identity`` will filter out any hit with a percentage of identity below a provided cut-off
+- ``--min-identity`` will filter out any hit with a percent of identity below a provided cut-off
 - ``--max-hits`` will filter out any hit below the Nth one for a given query
 
 Connection
@@ -147,10 +147,10 @@ Property                                 Value
 ``run.database.name``                    Database name
 ``run.database.number_of_sequences``     Database size, as the number of sequences
 ``run.database.number_of_letters``       Database size, as the number of letters
-``score.fraction_identical``             Fraction of identities in the alignment (from 0 to 100)
-``score.fraction_conserved``             Fraction of positive substitutions in the alignment (from 0 to 100)
+``score.fraction_identical``             Percent of identities in the HSP
+``score.fraction_conserved``             Percent of positive substitutions in the HSP
 ``score.e_value``                        Except value of the HSP
-``score.gaps``                           Number of gaps in the alignment
+``score.gaps``                           Number of gaps in the HSP
 ``alignment.source_coordinates``         Coordinates of the alignment in the query sequence
 ``alignment.source``                     Alignment string for the query
 ``alignment.match``                      Formatting middle line

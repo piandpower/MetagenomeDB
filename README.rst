@@ -1,6 +1,8 @@
 MetagenomeDB
 ============
 
+Note: the most up-to-date documentation is accessible at http://cores.montana.edu/bioinformatics/tools/MetagenomeDB/
+
 MetagenomeDB is a Python_-based toolkit designed to easily store, retrieve and annotate metagenomic sequences. MetagenomeDB act as an abstraction layer on top of a MongoDB_ database. It provides an API to create and modify and connect two types of objects, namely sequences and collections:
 
 - **sequences** (``Sequence`` class) can be reads, contigs, PCR clones, etc.
