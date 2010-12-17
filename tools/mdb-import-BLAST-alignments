@@ -242,7 +242,7 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 			break
 
 		for hsp in hit.hsps:
-			identity = 100.0 * hsp.identities / hit.length
+			identity = 100.0 * hsp.identities / hsp.align_length
 
 			if (p.min_identity) and (identity < p.min_identity):
 				continue
@@ -281,7 +281,7 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 
 				"score": {
 					"fraction_identical": identity,
-					"fraction_conserved": 100.0 * hsp.positives / hit.length,
+					"fraction_conserved": 100.0 * hsp.positives / hsp.align_length,
 					"e_value": hsp.expect,
 					"gaps": hsp.gaps,
 				}
