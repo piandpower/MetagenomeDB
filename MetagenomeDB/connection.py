@@ -14,34 +14,36 @@ def __connect (host, port, db, user, password):
 
 	try:
 		connection = pymongo.connection.Connection(host, port)
-		if (not db in connection.database_names()):
-			logger.warning("The database '%s' doesn't exist and has been created." % db)
 
-		connection = connection[db]
+		# test for the existence of the database
+		try:
+			exists = (db in connection.database_names())
+		except:
+			exists = False
+
+		if (not exists):
+			logger.warning("The database '%s' doesn't exist and will be created." % db)
+
+		database = connection[db]
+
+		# use credentials, if any
+		if (user != ''):
+			database.authenticate(user, password)
+			logger.debug("Authenticated as '%s'." % user)
 
 	except pymongo.errors.ConnectionFailure as msg:
 		raise errors.ConnectionError(db, host, port, msg)
 
-	logger.debug("Connected to '%s' on %s:%s." % (db, host, port))
-
-	# use credentials, if any
-	if (user != ''):
-		connection.authenticate(user, password)
-
-		logger.debug("Authenticated as '%s'." % user)
-
-	# test if the credentials are okay
-	try:
-		connection.collection_names()
-
 	except pymongo.errors.OperationFailure as msg:
 		raise errors.ConnectionError(db, host, port, "Incorrect credentials.")
 
-	__connection = connection
+	logger.debug("Connected to '%s' on %s:%s." % (db, host, port))
+
+	__connection = database
 	return __connection
 
 def connect (host = "localhost", port = 27017, database = "MetagenomeDB", user = '', password = ''):
-	""" Override MongoDB server connection information.
+	""" Override server connection information.
 	
 	Parameters:
 		- **host**: host of the MongoDB server (optional). Default: 'localhost'
@@ -62,6 +64,8 @@ def connect (host = "localhost", port = 27017, database = "MetagenomeDB", user =
 # extracted from '~/.MetagenomeDB'. Act as a singleton; i.e., all subsequent
 # calls to this function will return the existing connection.
 def connection():
+	logger.debug("Connection requested by PID %s" % os.getpid())
+
 	if (__connection != None):
 		return __connection
 
@@ -69,7 +73,7 @@ def connection():
 	fn = os.path.expanduser(os.path.join("~", ".MetagenomeDB"))
 
 	if (cp.read(fn) == []):
-		raise errors.MetagenomeDBError("Unable to find the configuration file '%s'." % fn)
+		raise errors.MetagenomeDBError("Unable to find the configuration file '%s', and not connection configuration was provided." % fn)
 
 	host = __property(cp, "connection", "host", "localhost")
 	port = __property(cp, "connection", "port", 27017, "int")
@@ -77,6 +81,8 @@ def connection():
 
 	user = __property(cp, "connection", "user", '')
 	password = __property(cp, "connection", "password", '')
+
+	logger.debug("Connection information read from '%s': '%s' on %s:%s" % (fn, db, host, port))
 
 	return __connect(host, port, db, user, password)
 

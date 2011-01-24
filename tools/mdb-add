@@ -165,7 +165,7 @@ try:
 		except mdb.errors.ConnectionError as msg:
 			error(str(msg))
 
-		except mdb.errors.DuplicateObject as msg:
+		except mdb.errors.DuplicateObjectError as msg:
 			if (p.ignore_duplicates):
 				print >>sys.stderr, "WARNING: %s" % str(msg)
 			else:

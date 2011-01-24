@@ -11,28 +11,28 @@ class ConnectionError (MetagenomeDBError):
 		self.database = database
 		self.host = host
 		self.port = port
-		self.message = str(message)
+		self.msg = str(message)
 
 	def __str__ (self):
-		return "Unable to connect to database '%s' on %s:%s. Reason: %s" % (self.database, self.host, self.port, self.message)
+		return "Unable to connect to database '%s' on %s:%s. Reason: %s" % (self.database, self.host, self.port, self.msg)
 
 class DuplicateObjectError (MetagenomeDBError):
 	""" Exception that is raised when attempting to add an object in the
 		database while a formerly imported object already exists with the
 		same values for one or more unique properties.
 	"""
-	def __init__ (self, object_type, duplicate_properties, msg = None):
+	def __init__ (self, object_type, duplicate_properties, message = None):
 		self.object_type = object_type
 		self.duplicate_properties = duplicate_properties
 
-		if (msg == None):
+		if (message == None):
 			self.msg = "An object of type '%s' with propert%s %s already exists in the database." % (
 				self.object_type,
 				{True: "ies", False: "y"}[len(self.duplicate_properties) > 1],
 				', '.join(["'%s' and value '%s'" % property for property in self.duplicate_properties])
 			)
 		else:
-			self.msg = msg
+			self.msg = message
 
 	def __str__ (self):
 		return self.msg
