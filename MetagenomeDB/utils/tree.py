@@ -1,6 +1,8 @@
 # Manipulation of a tree as a nested dictionary
 
-import errors
+from __future__ import absolute_import
+
+from .. import errors
 
 def validate_key (key, separator = '.'):
 	key_t = type(key)

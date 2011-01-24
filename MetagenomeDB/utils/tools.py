@@ -1,7 +1,10 @@
 # tools.py: Routines for MetagenomeDB tools (see tools/)
 
+from __future__ import absolute_import
+
 import re, json, csv, sys
-import tree, errors
+from . import tree
+from .. import errors
 
 __PROPERTY = re.compile("^(\[)?((?:,?(?:string|integer|float|boolean))+)$")
 
