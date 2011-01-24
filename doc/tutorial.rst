@@ -1,5 +1,5 @@
-Tutorial (INCOMPLETE)
-=====================
+Tutorial (in construction)
+==========================
 
 This tutorial is intended as an introduction to working with **MetagenomeDB**.
 
@@ -28,4 +28,4 @@ Querying objects
 ----------------
 
 .. toctree::
-   :hidden:
+	:hidden:

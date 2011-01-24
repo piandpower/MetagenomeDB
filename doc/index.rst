@@ -1,5 +1,5 @@
-MetagenomeDB |release| Documentation
-====================================
+MetagenomeDB
+============
 
 Overview
 --------
@@ -9,10 +9,10 @@ Overview
   Introduction to the MetagenomeDB toolkit.
 
 :doc:`installation`
-  How to install the MetagenomeDB toolkit.
+  How to install the MetagenomeDB toolkit (latest version: |release|).
 
-:doc:`tutorial`
-  How to use MetagenomeDB for common tasks.
+.. :doc:`tutorial`
+..   How to use MetagenomeDB for common tasks.
 
 :doc:`api/index`
   Documentation for the Python library.
@@ -21,24 +21,18 @@ Overview
   Documentation for the command-line tools.
 
 .. toctree::
-   :hidden:
+	:hidden:
 
-   introduction
-   installation
-   tutorial
-   api/index
-   tools/index
-
-About this documentation
-------------------------
-
-This documentation is generated using the `Sphinx <http://sphinx.pocoo.org/>`_ documentation generator. The source files for the documentation are located in the *doc/* directory of the
-**MetagenomeDB** distribution. To generate the documentation locally run the
-following command from the root directory of the **MetagenomeDB** source:
-
-.. code-block:: bash
-
-  $ python setup.py doc
+	introduction
+	installation
+	tutorial
+	api/index
+	tools/index
 
 .. _Python: http://www.python.org/
 .. _MongoDB: http://www.mongodb.org/
+
+Community
+---------
+
+**MetagenomeDB** is an open-source project managed by the `Bioinformatics Core <http://cores.montana.edu/bioinformatics/>`_ of the `Montana State University <http://www.montana.edu/>`_. The lead developer, Aurelien Mazurie, can be contacted at aurelien.mazurie@montana.edu.
