@@ -1,34 +1,34 @@
-Tools Documentation (in construction)
-=====================================
+Tools Documentation
+===================
 
 This is the documentation for the command-line tools provided by the **MetagenomeDB** toolkit.
 
 Adding and modifying objects:
-	- :doc:`objects_addition` (``mdb-add``)
-	- :doc:`objects_annotation` (``mdb-annotate``)
-	- :doc:`objects_deletion` (``mdb-remove``)
+	- :doc:`mdb_add` (``mdb-add``)
+	- :doc:`mdb_annotate` (``mdb-annotate``)
+	- :doc:`mdb_remove` (``mdb-remove``)
 
 Importing and exporting sequences:
-	- :doc:`sequences_import` (``mdb-import-sequences``)
-	- :doc:`sequences_export` (``mdb-export-sequences``)
+	- :doc:`mdb_import_sequences` (``mdb-import-sequences``)
+	- :doc:`mdb_export_sequences` (``mdb-export-sequences``)
 
 Importing sequence alignments:
 	- :doc:`blast` (``mdb-import-BLAST-alignments``)
-	- :doc:`fasta` (``mdb-import-FASTA-alignments``)
-	- :doc:`ace` (``mdb-import-ACE-alignments``)
+	- :doc:`mdb_import_fasta_alignments` (``mdb-import-FASTA-alignments``)
+	- :doc:`mdb_import_ace_alignments` (``mdb-import-ACE-alignments``)
 
 Importing sequence annotations:
-	- :doc:`crisprfinder` (``mdb-import-CRISPRfinder-annotations``)
+	- :doc:`mdb_import_crisprfinder_annotations` (``mdb-import-CRISPRfinder-annotations``)
 
 .. toctree::
-   :hidden:
+	:hidden:
 
-   objects_addition
-   objects_annotation
-   objects_deletion
-   sequences_import
-   sequences_export
-   blast
-   fasta
-   ace
-   crisprfinder
+	mdb_add
+	mdb_annotate
+	mdb_remove
+	mdb_import_sequences
+	mdb_export_sequences
+	blast
+	mdb_import_fasta_alignments
+	mdb_import_ace_alignments
+	mdb_import_crisprfinder_annotations

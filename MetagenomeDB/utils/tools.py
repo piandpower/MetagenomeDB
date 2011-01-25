@@ -20,11 +20,59 @@ def __formatter_boolean (value):
 		return boolean(value)
 
 __FORMATTER = {
-	"string": lambda x: str(x),
+	"string": lambda x: str(x).strip('"'),
 	"integer": lambda x: int(x),
 	"float": lambda x: float(x),
 	"boolean": __formatter_boolean
 }
+
+# Split a string according to a separator, while taking quotes into account
+# e.g., '"a,b","c"' will result in ['"a,b"', '"c"']
+def psplit (text, separator):
+	in_quote, reached_pivot, pivot_n = False, False, 0
+	values = ['']
+	for c in text:
+		if (c == '"'):
+			in_quote = not in_quote
+
+		if (not in_quote) and (not reached_pivot) and (c == separator):
+			reached_pivot = True
+			pivot_n += 1
+			values.append('')
+			continue
+
+		values[pivot_n] += c
+
+	return filter(lambda x: x != '', values)
+
+def parse_key_and_value (text):
+	in_quote, reached_pivot = False, False
+	key, value = '', ''
+
+	command = None
+	for c in text:
+		if (c == '"'):
+			in_quote = not in_quote
+
+		if (not in_quote) and (not reached_pivot) and (c in ('=', '+', '-', '&')):
+			reached_pivot = True
+			command = {
+				'=': REPLACE,
+				'&': APPEND,
+				'+': APPEND_IF_UNIQUE,
+				'-': REMOVE,
+			}[c]
+			continue
+
+		if (reached_pivot):
+			value += c
+		else:
+			key += c
+
+	if (not reached_pivot):
+		raise errors.MetagenomeDBError("Invalid entry (no key/value separator): %s" % text)
+
+	return key.strip().strip('"'), value.strip(), command
 
 # Parse a string-formatted value into the corresponding Python object
 # Format: "value^([)type(,type)" with type in 'string', 'integer', 'float' or 'boolean'
@@ -34,11 +82,11 @@ __FORMATTER = {
 #	"1^integer,string" -> 1
 #	"a^integer,string" -> "a"
 #	"true^boolean" -> True
-def parse (value, separator = '^'):
+def parse_value_and_modifier (value, separator = '^'):
 	if (separator in value):
-		value, modifier = value.rsplit(separator, 1)
+		value, modifier = psplit(value, separator)
 
-		m = __PROPERTY.match(modifier.lower())
+		m = __PROPERTY.match(modifier)
 		if (m == None):
 			raise errors.MetagenomeDBError("Malformed value modifier: '%s'" % modifier)
 
@@ -55,11 +103,11 @@ def parse (value, separator = '^'):
 			raise errors.MetagenomeDBError("Unable to cast '%s' into any of: %s" % (value, ', '.join(types)))
 
 		if (is_list):
-			value = [formatter(v, types) for v in value.split(',')]
+			return [formatter(v, types) for v in psplit(value, ",")]
 		else:
-			value = formatter(value, types)
+			return formatter(value, types)
 
-	return value
+	return value.strip('"')
 
 REPLACE = 1
 APPEND = 2
@@ -91,43 +139,12 @@ def parser (fn, format):
 			entry,
 			selector = lambda x: True,
 			key_modifier = lambda x: str(x), # hack to work around a bug in Python 2.6, which doesn't allow kwargs with unicode strings.
-			value_modifier = lambda x: (parse(x), REPLACE)
+			value_modifier = lambda x: (parse_value_and_modifier(x), REPLACE)
 		) for entry in data]
 
 		return data
 
 	elif (format == "csv"):
-		def extract_key_value (text):
-			in_quote = False
-			reached_pivot = False
-			key, value = '', ''
-			command = None
-
-			for c in text:
-				if (c == '"'):
-					in_quote = not in_quote
-					continue
-
-				if (not in_quote) and (not reached_pivot) and (c in ('=', '+', '-', '&')):
-					reached_pivot = True
-					command = {
-						'=': REPLACE,
-						'&': APPEND,
-						'+': APPEND_IF_UNIQUE,
-						'-': REMOVE,
-					}[c]
-					continue
-
-				if (reached_pivot):
-					value += c
-				else:
-					key += c
-
-			if (not reached_pivot):
-				raise errors.MetagenomeDBError("Invalid entry (no key/value separator): %s" % text)
-
-			return key.strip(), value.strip(), command
-
 		def generator():
 			for line in csv.reader(i, delimiter = ',', quotechar='"'):
 				line = filter(lambda x: x != '', line)
@@ -140,8 +157,8 @@ def parser (fn, format):
 
 				map = {}
 				for item in line:
-					key, value, command = extract_key_value(item)
-					tree.set(map, tree.validate_key(key), (parse(value), command))
+					key, value, command = parse_key_and_value(item)
+					tree.set(map, tree.validate_key(key), (parse_value_and_modifier(value), command))
 
 				yield map
 

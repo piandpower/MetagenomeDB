@@ -43,4 +43,4 @@ The documentation for those tools is available in :doc:`this section <tools/inde
 .. _MongoDB: http://www.mongodb.org/
 
 .. toctree::
-   :hidden:
+	:hidden:

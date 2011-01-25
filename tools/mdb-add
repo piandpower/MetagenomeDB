@@ -16,7 +16,7 @@ p.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_
 	help = "If set, ignore duplicate objects errors.")
 
 p.add_option("--ignore-missing", dest = "ignore_missing", action = "store_true", default = False,
-	help = "If set, ignore relationships that points to missing objects.")
+	help = "If set, ignore relationships that refer to missing objects.")
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
 p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
@@ -78,36 +78,48 @@ class NotFound (Exception):
 # retrieve an object based on its xref (object name if the object
 # if a Collection, Collection name and object name if the object is
 # a Sequence)
+previous_sequences = {}
+
 def retrieve_xref (entry):
 	try:
 		type = entry["_type"].lower()
+		name = entry["name"]
 
 		if (not type in BUILDER):
 			raise Exception("Unknown object type '%s'" % type)
 
 		# the xref refers to a Collection
 		if (type == "collection"):
-			object = mdb.Collection.find_one({"name": entry["name"]})
+			object = mdb.Collection.find_one({"name": name})
 			if (object == None):
-				raise Exception("Unknown collection '%s'" % entry["name"])
+				raise Exception("Unknown collection '%s'" % name)
 
 			return object
 
 		# the xref refers to a Sequence
 		if (type == "sequence"):
-			# we first list all sequences having this name,
-			candidates = mdb.Sequence.find({"name": entry["name"]})
+			# first case: the xref refers to a Sequence associated to a collection
+			if ("_collection" in entry):
+				# we first list all sequences having this name,
+				candidates = mdb.Sequence.find({"name": name})
 
-			# then we filter out those that are not linked to this collection
-			candidates_ = filter(lambda s: s.count_collections({"name": entry["_collection"]}) > 0, candidates)
+				# then we filter out those that are not linked to this collection
+				candidates_ = filter(lambda s: s.count_collections({"name": entry["_collection"]}) > 0, candidates)
 
-			if (len(candidates_) == 0):
-				raise NotFound("Unknown sequence '%s' in collection '%s'" % (entry["_name"], entry["_collection"]))
+				if (len(candidates_) == 0):
+					raise NotFound("Unknown sequence '%s' in collection '%s'" % (name, entry["_collection"]))
 
-			if (len(candidates_) > 1):
-				raise Exception("Duplicate sequence '%s' in collection '%s'" % (entry["_name"], entry["_collection"]))
+				if (len(candidates_) > 1):
+					raise Exception("Duplicate sequence '%s' in collection '%s'" % (name, entry["_collection"]))
 
-			return candidates_[0]
+				return candidates_[0]
+
+			# second case: we just defined this sequence
+			elif (name in previous_sequences):
+				return previous_sequences[name]
+			
+			else:
+				raise NotFound("Unknown sequence '%s'" % name)
 
 	except KeyError as msg:
 		raise Exception("Invalid entry: %s" % msg)
@@ -117,11 +129,11 @@ def pull (map, key):
 	del map[key]
 	return value
 
-n_created, n_connected = 0, 0
-
 try:
+	n = {}
 	for entry in mdb.tools.parser(p.input_fn, p.input_format):
 		try:
+			# we check the operator; must be REPLACE only
 			entry_ = {}
 			for key, (value, command) in mdb.tree.items(entry):
 				if (command != mdb.tools.REPLACE):
@@ -131,7 +143,11 @@ try:
 
 			entry = entry_
 
+			# we extract the object type
 			type = pull(entry, "_type").lower()
+
+			if (not type in n):
+				n[type] = 0
 
 			# if the object to build is a relationship, we
 			# first retrieve its source and target objects
@@ -147,7 +163,6 @@ try:
 					source._connect_to(target, entry)
 					source.commit()
 
-				n_connected += 1
 			else:
 				if (not type in BUILDER):
 					raise Exception("Unknown object type '%s'" % type)
@@ -160,7 +175,10 @@ try:
 					object = BUILDER[type](entry)
 					object.commit()
 
-				n_created += 1
+					if (type == "sequence"):
+						previous_sequences[entry["name"]] = object
+
+			n[type] += 1
 
 		except mdb.errors.ConnectionError as msg:
 			error(str(msg))
@@ -180,13 +198,11 @@ try:
 		except Exception as msg:
 			error("Invalid entry: %s. Entry was:\n %s" % (msg, pprint.pformat(entry)))
 
-	print "%s object%s added, %s relationship%s added." % (
-		n_created, {True: 's', False: ''}[n_created > 1],
-		n_connected, {True: 's', False: ''}[n_connected > 1]
-	)
+	for type in sorted(n.keys()):
+		print "%s %s%s added" % (n[type], type, {True: 's', False: ''}[n[type] > 1])
 
 	if (p.dry_run):
 		print "(dry run)"
 
-except Exception as msg:
+except NotFound as msg:
 	error("Error when processing the input: %s." % msg)

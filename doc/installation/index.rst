@@ -26,7 +26,7 @@ All production-ready versions of MetagenomeDB are registered against the PyPI_ p
 Final step
 ''''''''''
 
-By default MetagenomeDB will read a file named ``.MetagenomeDB`` in your home directory to know how to access the MongoDB database. A template file named ``docs/examples/MetagenomeDB_configuration.txt`` is provided. Change its name to ``.MetagenomeDB``, move it in your home directory, then update it with your own parameters.
+By default MetagenomeDB will read a file named ``.MetagenomeDB`` in your home directory to know how to access the MongoDB database. A template file named ``docs/installation/MetagenomeDB_configuration.txt`` is provided. Change its name to ``.MetagenomeDB``, move it in your home directory, then update it with your own parameters.
 
 Optionally, you can provide those information when importing MetagenomeDB in your script::
 

@@ -1,7 +1,7 @@
 Additional functions
 ====================
 
-In addition to the :class:`~objects.Sequence` and :class:`~objects.Collection` classes and their methods, some more functions are available as part of the API:
+In addition to the :class:`~MetagenomeDB.Sequence` and :class:`~MetagenomeDB.Collection` classes and their methods, some more functions are available as part of the API:
 
 Setting the verbosity
 ---------------------
@@ -15,7 +15,7 @@ Most methods of the MetagenomeDB API log messages about the information they pro
 The following functions allow to filter the type of messages that will be displayed on the standard error stream when using the API:
 
 .. automodule:: MetagenomeDB
-   :members:
+	:members:
 
 Example of use::
 
@@ -28,10 +28,10 @@ Similarly, all command-line tools have a ``-v`` (or ``--verbose``) option to set
 Connecting to the database
 --------------------------
 
-By default, information about how the toolkit must connect to the MongoDB server are stored in a file `.MetagenomeDB` in the home directory (see :doc:`../installation`). However you can override those settings by using the :func:`~connection.connect()` method:
+By default, information about how the toolkit must connect to the MongoDB server are stored in a file `.MetagenomeDB` in the home directory (see :doc:`../installation/index`). However you can override those settings by using the :func:`~connection.connect()` method:
 
-.. automodule:: connection
-   :members:
+.. automodule:: MetagenomeDB.connection
+	:members:
 
 .. toctree::
-   :hidden:
+	:hidden:

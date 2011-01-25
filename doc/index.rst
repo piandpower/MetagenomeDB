@@ -6,26 +6,30 @@ Overview
 **MetagenomeDB** is a Python_-based toolkit designed to easily store, retrieve and annotate metagenomic sequences. This documentation attempts to explain everything you need to know to use **MetagenomeDB**.
 
 :doc:`introduction`
-  Introduction to the MetagenomeDB toolkit.
+	Introduction to the MetagenomeDB toolkit.
 
-:doc:`installation`
-  How to install the MetagenomeDB toolkit (latest version: |release|).
+:doc:`installation/index`
+	How to install the MetagenomeDB toolkit (latest version: |release|).
 
-.. :doc:`tutorial`
-..   How to use MetagenomeDB for common tasks.
+:doc:`tutorial/index`
+	How to use MetagenomeDB to perform common tasks.
+
+:doc:`examples/index`
+	Examples of use.
 
 :doc:`api/index`
-  Documentation for the Python library.
+	Documentation for the Python library.
 
 :doc:`tools/index`
-  Documentation for the command-line tools.
+	Documentation for the command-line tools.
 
 .. toctree::
 	:hidden:
 
 	introduction
-	installation
-	tutorial
+	installation/index
+	tutorial/index
+	examples/index
 	api/index
 	tools/index
 

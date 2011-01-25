@@ -1,7 +1,7 @@
 Exceptions
 ==========
 
-Classes used to represent exceptions. When using the MetagenomeDB API it is recommanded to use the ``try``/``except`` syntax to catch such exceptions and display meaningful error messages. For example::
+Classes used to represent exceptions. When using the MetagenomeDB API it is recommended to use the ``try``/``except`` syntax to catch such exceptions and display meaningful error messages. For example::
 
 	import MetagenomeDB as mdb
 
@@ -18,8 +18,8 @@ Classes used to represent exceptions. When using the MetagenomeDB API it is reco
 
 (see the Python `documentation <http://docs.python.org/tutorial/errors.html>`_ about handling exceptions)
 
-.. automodule:: errors
-   :members:
+.. automodule:: MetagenomeDB.errors
+	:members:
 
 .. toctree::
-   :hidden:
+	:hidden:
