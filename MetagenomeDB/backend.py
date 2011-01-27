@@ -41,12 +41,12 @@ def commit (object):
 
 	# second case: the object is not committed, and is not in the database
 	if (not "_id" in object):
-		object._properties["_creation_time"] = datetime.datetime.now()
+		object._properties["_creation_time"] = datetime.datetime.utcnow()
 		verb = "created"
 
 	# third case: the object is not committed, but a former version exists in the database
 	else:
-		object._properties["_modification_time"] = datetime.datetime.now()
+		object._properties["_modification_time"] = datetime.datetime.utcnow()
 		verb = "updated"
 
 	try:
@@ -186,7 +186,7 @@ def drop_collection (collection):
 
 	logger.debug("Collection '%s' was dropped." % collection)
 
-def list_collections():
+def list_collections (with_classes = False):
 	""" Return a list of all existing collections that are
 		represented by a CommittableObject subclass.
 	"""
@@ -194,12 +194,15 @@ def list_collections():
 	classes = {}
 	for name, object in inspect.getmembers(objects, inspect.isclass):
 		if (issubclass(object, objects.CommittableObject)):
-			classes[name] = True
+			classes[name] = object
 
 	# list all collections in the database
 	collections = []
 	for collection_name in connection.connection().collection_names():
 		if (collection_name in classes):
-			collections.append(collection_name)
+			if (with_classes):
+				collections.append((collection_name, classes[collection_name]))
+			else:
+				collections.append(collection_name)
 
 	return collections

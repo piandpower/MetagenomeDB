@@ -11,6 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger("MetagenomeDB")
 
 from connection import connect, connection
+import backend
 from objects import Collection, Sequence, Direction
 from errors import *
 from utils import tree, tools

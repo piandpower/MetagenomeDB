@@ -67,7 +67,7 @@ if (p.connection_host or p.connection_port or p.connection_db or p.connection_us
 	except Exception as msg:
 		error(msg)
 
-BUILDER = {
+builder = {
 	"collection": mdb.Collection,
 	"sequence": mdb.Sequence,
 }
@@ -75,44 +75,46 @@ BUILDER = {
 class NotFound (Exception):
 	pass
 
-# retrieve an object based on its xref (object name if the object
-# if a Collection, Collection name and object name if the object is
-# a Sequence)
 previous_sequences = {}
 
-def retrieve_xref (entry):
+def fetch (xref):
 	try:
-		type = entry["_type"].lower()
-		name = entry["name"]
+		type = xref["_type"].lower()
+		name = xref["name"]
 
-		if (not type in BUILDER):
+		if (not type in builder):
 			raise Exception("Unknown object type '%s'" % type)
 
 		# the xref refers to a Collection
 		if (type == "collection"):
-			object = mdb.Collection.find_one({"name": name})
-			if (object == None):
+			collection = mdb.Collection.find_one({"name": name})
+			if (collection == None):
 				raise Exception("Unknown collection '%s'" % name)
 
-			return object
+			return collection
 
 		# the xref refers to a Sequence
 		if (type == "sequence"):
 			# first case: the xref refers to a Sequence associated to a collection
-			if ("_collection" in entry):
+			if ("_collection" in xref):
+				collection = xref["_collection"]
+
+				if (mdb.Collection.find_one({"name": collection}) == None):
+					raise Exception("Unknown collection '%s'" % collection)
+
 				# we first list all sequences having this name,
 				candidates = mdb.Sequence.find({"name": name})
 
 				# then we filter out those that are not linked to this collection
-				candidates_ = filter(lambda s: s.count_collections({"name": entry["_collection"]}) > 0, candidates)
+				candidates = filter(lambda candidate: candidate.count_collections({"name": collection}) > 0, candidates)
 
-				if (len(candidates_) == 0):
-					raise NotFound("Unknown sequence '%s' in collection '%s'" % (name, entry["_collection"]))
+				if (len(candidates) == 0):
+					raise NotFound("Unknown sequence '%s' in collection '%s'" % (name, collection))
 
-				if (len(candidates_) > 1):
-					raise Exception("Duplicate sequence '%s' in collection '%s'" % (name, entry["_collection"]))
+				if (len(candidates) > 1):
+					raise Exception("Duplicate sequence '%s' in collection '%s'" % (name, collection))
 
-				return candidates_[0]
+				return candidates[0]
 
 			# second case: we just defined this sequence
 			elif (name in previous_sequences):
@@ -152,19 +154,19 @@ try:
 			# if the object to build is a relationship, we
 			# first retrieve its source and target objects
 			if (type == "relationship"):
-				source = retrieve_xref(pull(entry, "_source"))
-				target = retrieve_xref(pull(entry, "_target"))
-
 				if (p.dry_run):
-					print "import: relationship from %s to %s" % (source, target)
+					print "import: relationship"
 					for line in pprint.pformat(entry).split('\n'):
 						print "  %s" % line
 				else:
+					source = fetch(pull(entry, "_source"))
+					target = fetch(pull(entry, "_target"))
+
 					source._connect_to(target, entry)
 					source.commit()
 
 			else:
-				if (not type in BUILDER):
+				if (not type in builder):
 					raise Exception("Unknown object type '%s'" % type)
 
 				if (p.dry_run):
@@ -172,7 +174,7 @@ try:
 					for line in pprint.pformat(entry).split('\n'):
 						print "  %s" % line
 				else:
-					object = BUILDER[type](entry)
+					object = builder[type](entry)
 					object.commit()
 
 					if (type == "sequence"):
