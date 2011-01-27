@@ -116,7 +116,7 @@ class CommittableObject (MutableObject):
 			self._properties["_relationships"] = {}
 
 		self._indices = indices
-		self._indices["_relationships_with"] = False
+		self._indices["_relationship_with"] = False
 
 	def __setitem__ (self, key, value):
 		key_ = tree.validate_key(key)

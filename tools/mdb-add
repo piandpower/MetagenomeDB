@@ -204,5 +204,5 @@ try:
 	if (p.dry_run):
 		print "(dry run)"
 
-except NotFound as msg:
+except Exception as msg:
 	error("Error when processing the input: %s." % msg)
