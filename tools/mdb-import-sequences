@@ -88,7 +88,7 @@ if (p.connection_host or p.connection_port or p.connection_db or p.connection_us
 if (p.collection_properties):
 	m = {}
 	for (key, value) in p.collection_properties:
-		m[key] = mdb.tools.parse(value)
+		m[key] = mdb.tools.parse_value_and_modifier(value)
 
 	if ("_id" in m):
 		print >>sys.stderr, "WARNING: A '_id' field was found in the collection description and ignored."
@@ -114,7 +114,7 @@ elif (p.collection_name):
 if (p.relationship_properties):
 	m = {}
 	for (key, value) in p.relationship_properties:
-		m[key] = mdb.tools.parse(value)
+		m[key] = mdb.tools.parse_value_and_modifier(value)
 
 	p.relationship_properties = m
 else:
@@ -123,7 +123,7 @@ else:
 if (p.sequence_properties):
 	m = []
 	for (key, value) in p.sequence_properties:
-		m.append((key, mdb.tools.parse(value)))
+		m.append((key, mdb.tools.parse_value_and_modifier(value)))
 
 	p.sequence_properties = m
 
