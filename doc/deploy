@@ -1,3 +1,3 @@
 #!/bin/sh
 
-rsync -av ../build/html/ bugserv2:"/var/www/bioinformatics/tools/MetagenomeDB/"
+rsync -av --delete ../build/html/ bugserv2:"/var/www/bioinformatics/tools/MetagenomeDB/"

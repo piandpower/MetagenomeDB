@@ -6,7 +6,7 @@ This document contains important information about how relationships between obj
 Relationships are directed
 --------------------------
 
-An important concept in MetagenomeDB is that a relationship between two objects is always *directed*. I.e., in any relationship there is a *source* and a *target*. As such, linking for example a sequence A to another sequence B (using its :meth:`Sequence.relate_to_sequence() <objects.Sequence.relate_to_sequence>` method) doesn't imply that B is linked to A (as tested by the :meth:`~objects.CommittableObject.has_relationships_with` method)::
+An important concept in MetagenomeDB is that a relationship between two objects is always *directed*. I.e., in any relationship there is a *source* and a *target*. As such, linking for example a sequence A to another sequence B (using its :meth:`Sequence.relate_to_sequence() <MetagenomeDB.Sequence.relate_to_sequence>` method) doesn't imply that B is linked to A (as tested by the :meth:`~MetagenomeDB.Sequence.has_relationships_with` method)::
 
 	>>> # we retrieve two sequences, 'sequence1' and 'sequence2'
 	>>> s1 = mdb.Sequence.find_one({"name": "sequence1"})
@@ -25,8 +25,8 @@ An important concept in MetagenomeDB is that a relationship between two objects 
 
 This concept is important when you search for objects that are related to a given object of interest (*neighbors*). Methods in the API allow you to distinguish between objects *pointing to* your object, and objects your object *points to*:
 
-- :meth:`Sequence.list_collections() <objects.Sequence.list_collections>` and :meth:`Sequence.count_collections() <objects.Sequence.count_collections>` will list (or count) all collections a given sequence is related to. There is no ambiguity here, as the reverse link (a collection linked to a sequence) makes no biological sense.
-- :meth:`Sequence.list_related_sequences() <objects.Sequence.list_related_sequences()>` and :meth:`Sequence.count_related_sequences() <objects.Sequence.count_related_sequences()>` will list (or count) all sequences that are related to a given sequence, and/or the sequences a given sequence relates to (depending of the value set for the **direction** parameter). For example::
+- :meth:`Sequence.list_collections() <MetagenomeDB.Sequence.list_collections>` and :meth:`Sequence.count_collections() <MetagenomeDB.Sequence.count_collections>` will list (or count) all collections a given sequence is related to. There is no ambiguity here, as the reverse link (a collection linked to a sequence) makes no biological sense.
+- :meth:`Sequence.list_related_sequences() <MetagenomeDB.Sequence.list_related_sequences>` and :meth:`Sequence.count_related_sequences() <MetagenomeDB.Sequence.count_related_sequences>` will list (or count) all sequences that are related to a given sequence, and/or the sequences a given sequence relates to (depending of the value set for the ``direction`` parameter). For example::
 
 	>>> # if we list sequences related to s1, we find nothing:
 	>>> print list(s1.list_related_sequences(mdb.Direction.INGOING))
@@ -40,7 +40,7 @@ This concept is important when you search for objects that are related to a give
 	>>> print list(s1.list_related_sequences())
 	[<Sequence id:... name:'sequence2' length:4 state:'committed'>]
 
-- :meth:`Collection.list_related_collections() <objects.Collection.list_related_collections()>` and :meth:`Collection.count_related_collections() <objects.Collection.count_related_collections()>` will list (or count) all collections that are related to this collection (*sub*-collections), and/or the collections this collection relates to (*super*-collections). Aliases are available to access sub- or super-collections (:meth:`Collection.list_sub_collections() <objects.Collection.list_sub_collections()>` is equivalent to calling :meth:`Collection.list_related_collections() <objects.Collection.list_related_collections()>` with **direction** set to ``mdb.Direction.INGOING``, while :meth:`Collection.list_super_collections() <objects.Collection.list_super_collections()>` is equivalent to calling :meth:`Collection.list_related_collections() <objects.Collection.list_related_collections()>` with **direction** set to ``mdb.Direction.OUTGOING``).
+- :meth:`Collection.list_related_collections() <MetagenomeDB.Collection.list_related_collections>` and :meth:`Collection.count_related_collections() <MetagenomeDB.Collection.count_related_collections>` will list (or count) all collections that are related to this collection (*sub*-collections), and/or the collections this collection relates to (*super*-collections). Aliases are available to access sub- or super-collections (:meth:`Collection.list_sub_collections() <MetagenomeDB.Collection.list_sub_collections>` is equivalent to calling :meth:`Collection.list_related_collections() <MetagenomeDB.Collection.list_related_collections>` with ``direction`` set to ``mdb.Direction.INGOING``, while :meth:`Collection.list_super_collections() <MetagenomeDB.Collection.list_super_collections>` is equivalent to calling :meth:`Collection.list_related_collections() <MetagenomeDB.Collection.list_related_collections>` with ``direction`` set to ``mdb.Direction.OUTGOING``).
 
 .. note::
 	All those methods accept filters for both neighbor objects and the relationship between the current object and its neighbors. See :doc:`queries` for information about how to create filters.
@@ -48,7 +48,7 @@ This concept is important when you search for objects that are related to a give
 Relationships can be annotated
 ------------------------------
 
-All methods that create a relationship between objects (:meth:`Sequence.add_to_collection() <objects.Sequence.add_to_collection>`, :meth:`Sequence.relate_to_sequence() <objects.Sequence.relate_to_sequence>`, and :meth:`Collection.add_to_collection() <objects.Collection.add_to_collection>`) accept as a second argument a description of this relationship. This description is represented the same way as for objects' annotations; i.e., as a dictionary (see :doc:`annotations`)::
+All methods that create a relationship between objects (:meth:`Sequence.add_to_collection() <MetagenomeDB.Sequence.add_to_collection>`, :meth:`Sequence.relate_to_sequence() <MetagenomeDB.Sequence.relate_to_sequence>`, and :meth:`Collection.add_to_collection() <MetagenomeDB.Collection.add_to_collection>`) accept as a second argument a description of this relationship. This description is represented the same way as for objects' annotations; i.e., as a dictionary (see :doc:`annotations`)::
 
 	>>> s1.relate_to_sequence(s2, {"property_of_relationship": "foo"})
 
@@ -56,7 +56,7 @@ As for objects' annotations, relationship descriptions can have nested propertie
 
 	>>> s1.relate_to_sequence(s2, {"monty": {"python": "bar"}})
 
-Describing a relationship between objects is useful to explain why the *source* should be connected to its *target*. For example, a convention enforced by the mdb-tools (see :doc:`../tools/index`) is to annotate relationships between sequences with a property 'type', of which value is either 'part-of' (when a sequence is part of another sequence; e.g., a read that is part of a contig) or 'similar-to' (when a sequence is similar to another sequence; e.g., as shown by a BLAST run). Those same tools also add annotations about how the relationship was established, using which technique, any associated score, etc.
+Describing a relationship between objects is useful to explain why the *source* should be connected to its *target*. For example, a convention enforced by the command-line tools (see :doc:`../tools/index`) is to annotate relationships between sequences with a property ``type``, of which value is either ``part-of`` (when a sequence is part of another sequence; e.g., a read that is part of a contig) or ``similar-to`` (when a sequence is similar to another sequence; e.g., as shown by a BLAST run). Those same tools also add annotations about how the relationship was established, using which technique, any associated score, etc.
 
 .. note::
 	Two objects can be linked by more than one relationship, as long as their annotations are distinct. In the following example,
@@ -101,4 +101,4 @@ Knowing which method will or will not assess a new relationship can be confusing
 	When creating a relationship between a *source* and a *target* object the target must have been committed at least once in the database. If not an exception will be thrown. The reason for this constraint is the need for the API to have an internal identifier in the database when linking both objects. This identifier is only created the first time an object is committed.
 
 .. toctree::
-   :hidden:
+	:hidden:

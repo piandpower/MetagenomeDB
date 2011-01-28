@@ -1,7 +1,7 @@
 Creating a graph of collections
 ===============================
 
-Collections in MetagenomeDB can be related to each other so that any given collection can have sub- or super-collections (see :doc:`../api/relationships` and `../api/collection`). You can create a graphic of all collections in your database and their relationships using a network visualization software such as `Cytoscape <http://www.cytoscape.org/>`_.
+Collections in MetagenomeDB can be related to each other so that any given collection can have sub- or super-collections (see :doc:`../api/relationships` and :doc:`../api/collection`). You can create a graphic of all collections in your database and their relationships using a network visualization software such as `Cytoscape <http://www.cytoscape.org/>`_.
 
 Here is the code, with comments, that will generate such graphic::
 

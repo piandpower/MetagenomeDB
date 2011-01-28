@@ -48,7 +48,7 @@ Properties can be nested; i.e., the value for a property can be a set of other p
 	>>> s["results.test2"] = "passed"
 	>>> s["results.test3"] = 1e-6
 
-A good example of use of nested properties is the storage of a BLAST hit, as performed by ``mdb-import-BLAST-alignments`` (see :doc:`../tools/blast`).
+A good example of use of nested properties is the storage of a BLAST hit, as performed by ``mdb-import-BLAST-alignments`` (see :doc:`../tools/mdb_import_blast_alignments`).
 
 .. note::
    For the dot-notation to be possible, property names have one restriction: they cannot contain a dot (``.``).
@@ -57,7 +57,7 @@ A good example of use of nested properties is the storage of a BLAST hit, as per
 Retrieving annotations
 ----------------------
 
-All :class:`~objects.Sequence` and :class:`~objects.Collection` objects have two methods to retrieve annotations, :meth:`~objects.MutableObject.get_property` and :meth:`~objects.MutableObject.get_properties`. The former will retrieve the value for a given property (or a default value if this property is not set for this object), while the later return all properties of the object as a dictionary::
+All :class:`~MetagenomeDB.Sequence` and :class:`~MetagenomeDB.Collection` objects have two methods to retrieve annotations, :meth:`~MetagenomeDB.Collection.get_property` and :meth:`~MetagenomeDB.Collection.get_properties`. The former will retrieve the value for a given property (or a default value if this property is not set for this object), while the later return all properties of the object as a dictionary::
 
 	>>> print s.get_property("a_number")
 	3
@@ -69,7 +69,7 @@ All :class:`~objects.Sequence` and :class:`~objects.Collection` objects have two
 	 'a_number': 3, 'a_boolean': True, 'a_list': [1, 2, 3]}
 
 .. note::
-	- The properties returned by :meth:`~objects.MutableObject.get_properties` are shown in no particular order.
+	- The properties returned by :meth:`~MetagenomeDB.Collection.get_properties` are shown in no particular order.
 	- You can notice several properties that you never annotated the sequence with, such as ``_relationships``. All properties that start with a ``_`` are used internally by the MetagenomeDB toolkit and cannot be directly modified by the user.
 
 Properties can also be directly accessed using the dictionary syntax::
@@ -78,7 +78,7 @@ Properties can also be directly accessed using the dictionary syntax::
 	3
 
 .. note::
-	The difference between using :meth:`~objects.MutableObject.get_property` and a dictionary syntax is that the former can be set to return a default value (``None`` if no other default value is provided) in case the property you are looking for has not been set for this object. If you use a dictionary syntax for an unknown property, an exception will be thrown:
+	The difference between using :meth:`~MetagenomeDB.Collection.get_property` and a dictionary syntax is that the former can be set to return a default value (``None`` if no other default value is provided) in case the property you are looking for has not been set for this object. If you use a dictionary syntax for an unknown property, an exception will be thrown:
 
 		>>> print "a_novel_property" in s
 		False
@@ -93,7 +93,7 @@ Properties can also be directly accessed using the dictionary syntax::
 		    return d[key]
 		KeyError: 'a_novel_property'
 
-Finally, nested properties can be accessed using either :meth:`~objects.MutableObject.get_property` or the dictionary syntax::
+Finally, nested properties can be accessed using either :meth:`~MetagenomeDB.Collection.get_property` or the dictionary syntax::
 
 		>>> print s.get_property("results.test1")
 		True
@@ -107,9 +107,9 @@ Saving annotations
 
 A very important concept in MetagenomeDB is that your objects exists in two locations: in the database, and in the memory of your computer. At first the memory of your computer is empty, but whenever you are creating an object or retrieving one from the database a copy of it is placed in this memory. When you are manipulating an object by annotating it you are modifying the copy **in memory**, and **not** the copy in the database.
 
-As such, when you are done modifying an object you must **commit** it to the database. Only then this object will become queryable; i.e., visible for methods such as :meth:`~objects.CommittableObject.find` or :meth:`~objects.CommittableObject.count` (see :doc:`queries`).
+As such, when you are done modifying an object you must **commit** it to the database. Only then this object will become queryable; i.e., visible for methods such as :meth:`~MetagenomeDB.Collection.find` or :meth:`~MetagenomeDB.Collection.count` (see :doc:`queries`).
 
-Committing an object only requires to call its :meth:`~objects.CommittableObject.commit` method:
+Committing an object only requires to call its :meth:`~MetagenomeDB.Collection.commit` method:
 
 	>>> s.commit()
 
@@ -121,7 +121,7 @@ Remember, any modification you make to an object after it is retrieved from the 
 	state:'uncommitted'> has been destroyed without having been committed.	__del__() in
 	objects.py, line 537
 
-You can test if an object has been committed since its latest modification by calling its :meth:`~objects.CommittableObject.is_committed` method::
+You can test if an object has been committed since its latest modification by calling its :meth:`~MetagenomeDB.Collection.is_committed` method::
 
 	>>> print s.is_committed()
 	True

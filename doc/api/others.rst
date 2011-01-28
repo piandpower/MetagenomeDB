@@ -28,7 +28,7 @@ Similarly, all command-line tools have a ``-v`` (or ``--verbose``) option to set
 Connecting to the database
 --------------------------
 
-By default, information about how the toolkit must connect to the MongoDB server are stored in a file `.MetagenomeDB` in the home directory (see :doc:`../installation/index`). However you can override those settings by using the :func:`~connection.connect()` method:
+By default, information about how the toolkit must connect to the MongoDB server are stored in a file ``.MetagenomeDB`` in the home directory (see :doc:`../installation/index`). However you can override those settings by using the :func:`~connection.connect()` method:
 
 .. automodule:: MetagenomeDB.connection
 	:members:
