@@ -1,1 +1,11 @@
+Future versions
+---------------
+
+No task.
+
+Current version
+---------------
+
 - completion of 'mdb-export-objects'
+- add connection with authentication (appears to affect connection.database_name(), possibly db.collection_name())
+- write the documentation on mdb-remove
