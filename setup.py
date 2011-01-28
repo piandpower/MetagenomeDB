@@ -22,7 +22,7 @@ setup(
 	license = open("LICENSE.txt").read(),
 	author = "Aurelien Mazurie",
 	author_email = "ajmazurie@oenone.net",
-	url = "https://github.com/ajmazurie/MetagenomeDB",
+	url = "https://github.com/BioinformaticsCore/MetagenomeDB",
 	packages = ["MetagenomeDB", "MetagenomeDB.utils"],
 	scripts = glob("tools/*"),
 )
