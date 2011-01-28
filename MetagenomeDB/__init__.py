@@ -1,5 +1,5 @@
 
-version = "2.0.1b"
+version = "0.2.2b"
 
 import logging
 
