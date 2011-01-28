@@ -21,18 +21,18 @@ class DuplicateObjectError (MetagenomeDBError):
 		database while a formerly imported object already exists with the
 		same values for one or more unique properties.
 	"""
-	def __init__ (self, object_type, duplicate_properties, message = None):
-		self.object_type = object_type
-		self.duplicate_properties = duplicate_properties
+	def __init__ (self, object_type, duplicate_properties = None, message = None):
+		if (duplicate_properties == None) and (message == None):
+			self.msg = object_type
 
-		if (message == None):
+		else:
+			self.object_type = object_type
+			self.duplicate_properties = duplicate_properties
 			self.msg = "An object of type '%s' with propert%s %s already exists in the database." % (
 				self.object_type,
 				{True: "ies", False: "y"}[len(self.duplicate_properties) > 1],
-				', '.join(["'%s' and value '%s'" % property for property in self.duplicate_properties])
+				', '.join(["%s = '%s'" % property for property in self.duplicate_properties])
 			)
-		else:
-			self.msg = message
 
 	def __str__ (self):
 		return self.msg

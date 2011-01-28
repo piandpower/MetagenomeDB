@@ -276,11 +276,8 @@ class CommittableObject (MutableObject):
 
 		# case where this object has a connection with the target
 		else:
-			assert (target_id in self._properties["_relationship_with"]) ###
-
 			if (relationship in self._properties["_relationships"][target_id]):
-				logger.warning("A relationship %s already exists between objects %s and %s, and has been ignored." % (relationship, self, target))
-				return
+				raise errors.DuplicateObjectError("A relationship %s already exists between objects %s and %s." % (relationship, self, target))
 
 			self._properties["_relationships"][target_id].append(relationship)
 			self._committed = False
@@ -538,7 +535,7 @@ class CommittableObject (MutableObject):
 
 	def __del__ (self):
 		if (hasattr(self, "_committed") and (not self._committed)):
-			logger.warning("Object %s has been destroyed without having been committed." % self)
+			logger.debug("Object %s has been destroyed without having been committed." % self)
 
 	def __repr__ (self):
 		return self.__str__()
