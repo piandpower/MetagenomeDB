@@ -1,6 +1,7 @@
 v0.2.2b (January 28, 2011)
 - proper documentation written (with tutorial and examples), available at http://metagenomedb.org/
 - first version tested in real conditions with no bugs found
+- added: 'mdb-import-454AssemblyProject-annotations'
 
 v0.2.1b
 - now requires Pymongo v1.9 or above

@@ -1,0 +1,126 @@
+#!/usr/bin/env python
+
+import optparse, sys, os
+from xml.etree.ElementTree import ElementTree
+
+p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
+Annotate a collection with sequencing information from a 454AssemblyProject.xml
+file.""")
+
+p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
+	help = "Path to a 454AssemblyProject.xml file.")
+
+p.add_option("-c", "--collection", dest = "collection_name", metavar = "STRING",
+	help = "Name of the collection to annotate.")
+
+p.add_option("--root-property", dest = "root_property", metavar = "STRING", default = "assembly.algorithm.parameters",
+	help = "Root of the property tree to annotate the collection. Default: %default")
+
+p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
+
+g = optparse.OptionGroup(p, "Connection")
+
+g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME", default = "localhost",
+	help = "Host name or IP address of the MongoDB server (optional). Default: %default")
+
+g.add_option("--port", dest = "connection_port", metavar = "INTEGER", default = 27017,
+	help = "Port of the MongoDB server (optional). Default: %default")
+
+g.add_option("--db", dest = "connection_db", metavar = "STRING", default = "MetagenomeDB",
+	help = "Name of the database in the MongoDB server (optional). Default: '%default'")
+
+g.add_option("--user", dest = "connection_user", metavar = "STRING", default = '',
+	help = "User for the MongoDB server connection (optional). Default: '%default'")
+
+g.add_option("--password", dest = "connection_password", metavar = "STRING", default = '',
+	help = "Password for the MongoDB server connection (optional). Default: '%default'")
+
+p.add_option_group(g)
+
+(p, a) = p.parse_args()
+
+def error (msg):
+	if str(msg).endswith('.'):
+		msg = str(msg)[:-1]
+	print >>sys.stderr, "ERROR: %s." % msg
+	sys.exit(1)
+
+if (p.input_fn == None):
+	error("An input 454AssemblyProject.xml file must be provided")
+
+if (not os.path.exists(p.input_fn)):
+	error("File '%s' does not exist" % p.input_fn)
+
+if (not p.collection_name):
+	error("A collection name must be provided")
+
+p.root_property.strip()
+if (p.root_property != '') and (not p.root_property.endswith('.')):
+	p.root_property += '.'
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+import MetagenomeDB as mdb
+
+if (p.verbose):
+	mdb.max_verbosity()
+
+if (p.connection_host or p.connection_port or p.connection_db or p.connection_user or p.connection_password):
+	try:
+		mdb.connect(p.connection_host, p.connection_port, p.connection_db, p.connection_user, p.connection_password)
+	except Exception as msg:
+		error(msg)
+
+collection = mdb.Collection.find_one({"name": p.collection_name})
+if (collection == None):
+	error("Unknown collection '%s'" % p.collection_name)
+
+document = ElementTree()
+document.parse(p.input_fn)
+
+if (document.getroot().tag != "FourFiveFourProject"):
+	error("Not a valid 454AssemblyProject.xml file")
+
+config = document.findall("//Config/*")
+if (config == []):
+	error("Not a valid 454AssemblyProject.xml file")
+
+def is_number (value):
+	try:
+		int(value)
+	except:
+		return False
+
+	return True
+
+annotation = {}
+for node in config:
+	key, value = node.tag, node.text
+
+	if (value == '') or (value == None):
+		continue
+
+	if (value.lower() in ("false", "true")):
+		value += "^boolean"
+
+	elif (is_number(value)):
+		value += "^integer"
+
+	annotation["%s%s" % (p.root_property, key)] = mdb.tools.parse_value_and_modifier(value)
+
+if (p.dry_run):
+	print "Annotations for %s:" % collection
+	for key in sorted(annotation.keys()):
+		print "  %s = %s" % (key, annotation[key])
+
+else:
+	for key in annotation:
+		collection[key] = annotation[key]
+
+	collection.commit()
+
+print "Done."
+
+if (p.dry_run):
+	print "(dry run)"

@@ -52,7 +52,7 @@ if (p.input_fn == None):
 	error("An input file must be provided")
 
 if (p.input_fn != '-') and (not os.path.exists(p.input_fn)):
-	error("File '%s' does not exists" % p.input_fn)
+	error("File '%s' does not exist" % p.input_fn)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
