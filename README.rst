@@ -1,14 +1,13 @@
 MetagenomeDB
 ============
 
-Note: the most up-to-date documentation is accessible at http://cores.montana.edu/bioinformatics/tools/MetagenomeDB/
+**MetagenomeDB** is a Python_-powered toolkit designed to easily store, retrieve and annotate genomic and metagenomic sequences. It is especially useful when dealing with large amount of sequences (e.g., reads and contigs resulting from several runs of sequencing and assembly), and offers a clean, programmatic interface to manage and query this information.
 
-MetagenomeDB is a Python_-based toolkit designed to easily store, retrieve and annotate metagenomic sequences. MetagenomeDB act as an abstraction layer on top of a MongoDB_ database. It provides an API to create and modify and connect two types of objects, namely sequences and collections:
+The web site for this project is http://metagenomedb.org/
 
-- **sequences** (``Sequence`` class) can be reads, contigs, PCR clones, etc.
-- **collections** (``Collection`` class) represents sets of sequences; e.g., reads resulting from the sequencing of a sample, contigs assembled from a set of reads, PCR library
+MetagenomeDB acts as an abstraction layer on top of a MongoDB_ database. It provides an API to create and modify and connect two types of objects, namely sequences and collections. Sequences (``Sequence`` class) can be reads, contigs, PCR clones, etc. Collections (``Collection`` class) are sets of sequences; e.g., reads resulting from the sequencing of a sample, contigs assembled from a set of reads, PCR library.
 
-Any object can be annotated using a dictionary-like syntax::
+Any sequence or collection can be annotated using a dictionary-like syntax::
 
 	# first, we import the library
 	import MetagenomeDB as mdb
@@ -33,7 +32,7 @@ Objects of type ``Sequence`` or ``Collection`` can be connected to each other in
 - sequence that is similar to another sequence (relationship between two ``Sequence`` objects)
 - collection that is part of a bigger collection (relationship between two ``Collection`` objects)
 
-The result is a network of sequences and collection, which can be explored using dedicated methods; i.e.g., ``Collection.list_sequences()``, ``Sequence.list_collections()``, ``Sequence.list_related_sequences()``. Each one of those methods allow for sophisticated filters using the MongoDB `querying syntax <http://www.mongodb.org/display/DOCS/Advanced+Queries>`_::
+The result is a network of sequences and collection, which can be explored using dedicated methods; e.g., ``Collection.list_sequences()``, ``Sequence.list_collections()``, ``Sequence.list_related_sequences()``. Each one of those methods allow for sophisticated filters using the MongoDB `querying syntax <http://www.mongodb.org/display/DOCS/Advanced+Queries>`_::
 
 	# list all collections of type 'collection_of_reads'
 	# the sequence 's' belong to
