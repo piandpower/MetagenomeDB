@@ -10,31 +10,34 @@ g = optparse.OptionGroup(p, "Input")
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "CRISPR annotations to import (mandatory). Must be the 'AnnotFasta' file produced by CRISPRfinder.")
 
-g.add_option("-c", "--collection", dest = "sequences_collection_name", metavar = "STRING",
-	help = "Name of the collection the annotated sequences belong to (mandatory).")
+g.add_option("-C", "--collection", dest = "sequences_collection_name", metavar = "STRING",
+	help = "Name of the collection that contains the sequences to annotate (mandatory).")
+
+p.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
+	help = "If set, ignore duplicate objects errors.")
 
 g.add_option("--id-getter", dest = "id_getter", metavar = "PYTHON CODE", default = "%",
 	help = "Python code to reformat sequence identifers (optional); '%' will be replaced by the sequence identifier. Default: %default")
 
 g.add_option("--id-patches", dest = "id_patches_fn", metavar = "FILENAME",
 	help = """Tab-delimited text files providing alternative sequence identifiers
-(optional). The first column should be the identifier found in --input, and the
-second column the identifier to consider for this sequence.""")
+(optional). The first column should be the identifier found in the input file,
+and the second column the identifier to consider for this sequence.""")
 
 g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
 	help = "Date of the CRISPRfinder run (optional). By default, creation date of the input file.")
 
 p.add_option_group(g)
 
-g = optparse.OptionGroup(p, "Collections")
+g = optparse.OptionGroup(p, "CRISPR collections")
 
-g.add_option("-C", "--CRISPRs-collection", dest = "CRISPRs_collection_name", metavar = "STRING", default = "CRISPRs",
+g.add_option("-c", "--CRISPRs-collection", dest = "CRISPRs_collection_name", metavar = "STRING", default = "CRISPRs",
 	help = "Name of the collection the CRISPRs belong to (optional). Default: '%default'")
 
-g.add_option("-S", "--spacers-collection", dest = "spacers_collection_name", metavar = "STRING", default = "Spacers",
+g.add_option("-s", "--spacers-collection", dest = "spacers_collection_name", metavar = "STRING", default = "Spacers",
 	help = "Name of the collection the spacers belong to (optional). Default: '%default'")
 
-g.add_option("-D", "--DRs-collection", dest = "repeats_collection_name", metavar = "STRING", default = "DirectRepeats",
+g.add_option("-d", "--DRs-collection", dest = "repeats_collection_name", metavar = "STRING", default = "DirectRepeats",
 	help = "Name of the collection the direct repeats belong to (optional). Default: '%default'")
 
 p.add_option_group(g)
@@ -138,35 +141,50 @@ if (p.connection_host or p.connection_port or p.connection_db or p.connection_us
 	except Exception as msg:
 		error(msg)
 
-collection = mdb.Collection.find_one({"name": p.sequences_collection_name})
+try:
+	collection = mdb.Collection.find_one({"name": p.sequences_collection_name})
+	if (collection == None):
+		error("Unknown collection '%s'" % p.sequences_collection_name)
 
-if (collection == None):
-	error("Unknown collection '%s'" % p.sequences_collection_name)
+	# creation of the structure
+	CRISPRs = mdb.Collection.find_one({"name": p.CRISPRs_collection_name})
+	Spacers = mdb.Collection.find_one({"name": p.spacers_collection_name})
+	DRs = mdb.Collection.find_one({"name": p.repeats_collection_name})
 
-Collections = {
-	"CRISPR": p.CRISPRs_collection_name,
-	"Spacer": p.spacers_collection_name,
-	"DR": p.repeats_collection_name,
-}
+	if (CRISPRs == None):
+		print "Creating CRISPRs collection '%s'" % p.CRISPRs_collection_name
+		CRISPRs = mdb.Collection({"name": p.CRISPRs_collection_name, "class": "CRISPRs"})
+		CRISPRs.commit()
 
-if (not p.dry_run):
-	for c_class in Collections:
-		c_name = Collections[c_class]
+	if (Spacers == None):
+		print "Creating spacers collection '%s'" % p.spacers_collection_name
+		Spacers = mdb.Collection({"name": p.spacers_collection_name, "class": "spacers"})
+		Spacers.add_to_collection(CRISPRs)
+		Spacers.commit()
 
-		c = mdb.Collection.find_one({"name": c_name})
+	if (DRs == None):
+		print "Creating direct repeats collection '%s'" % p.repeats_collection_name
+		DRs = mdb.Collection({"name": p.repeats_collection_name, "class": "direct repeats"})
+		DRs.add_to_collection(CRISPRs)
+		DRs.commit()
 
-		if (c != None):
-			s = {}
-			for sequence in c.list_sequences():
-				s[str(sequence["name"])] = sequence
-		else:
-			c = mdb.Collection({"name": c_name, "class": "%ss" % c_class})
-			c.commit()
-			s = {}
-		
-		Collections[c_class] = (c, s)
+except mdb.errors.ConnectionError as msg:
+	error(msg)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+print "Importing '%s' ..." % p.input_fn
+
+print "  validating sequences ..."
+
+Sequences, DuplicateSequences = {}, {}
+
+for sequence in collection.list_sequences():
+	sequence_name = str(sequence["name"])
+	if (sequence_name in Sequences):
+		DuplicateSequences[sequence_name] = True
+
+	Sequences[sequence_name] = sequence
 
 def clean_sequence (sequence):
 	sequence_ = ''
@@ -215,21 +233,8 @@ def parser (fn):
 			else:
 				error("Malformed input: '%s'" % line)
 
-print "Importing '%s' ..." % p.input_fn
-
-print "  validating sequences ..."
-
-Sequences, DuplicateSequences = {}, {}
-
-for sequence in collection.list_sequences():
-	sequence_name = str(sequence["name"])
-	if (sequence_name in Sequences):
-		DuplicateSequences[sequence_name] = True
-
-	Sequences[sequence_name] = sequence
-
 seen = {}
-for (sequence_id, CRISPR, DRs, spacers) in parser(p.input_fn):
+for (sequence_id, CRISPR_sequence, DR_sequences, spacer_sequences) in parser(p.input_fn):
 	if (sequence_id in seen):
 		error("Duplicate sequence '%s' in input" % sequence_id)
 
@@ -240,6 +245,8 @@ for (sequence_id, CRISPR, DRs, spacers) in parser(p.input_fn):
 
 	if (sequence_id in DuplicateSequences):
 		error("Duplicate sequence '%s'" % sequence_id)
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 print "  importing annotations ..."
 
@@ -260,25 +267,18 @@ class ProgressBar:
 		sys.stdout.write(' ' * (2 + 80 + 8) + "\r")
 		sys.stdout.flush()
 
-def hash_CRISPR_sequence (sequence):
+show_pb = (not p.dry_run)
+
+N, n = len(seen), 0
+pb = ProgressBar(N)
+
+if (show_pb):
+	pb = ProgressBar(N)
+
+def generate_CRISPR_name (sequence):
 	return hashlib.md5(sequence.upper()).hexdigest()
 
-def declare_CRISPR (sequence):
-	CRISPRs_c, CRISPRs_s = Collections["CRISPR"]
-
-	CRISPR_id = hash_CRISPR_sequence(sequence)
-
-	if (CRISPR_id in CRISPRs_s):
-		return CRISPRs_s[CRISPR_id]
-
-	CRISPR = mdb.Sequence({"name": CRISPR_id, "sequence": sequence, "class": "CRISPR"})
-	CRISPR.add_to_collection(CRISPRs_c)
-	CRISPR.commit()
-
-	CRISPRs_s[CRISPR_id] = CRISPR
-	return CRISPR
-
-def hash_DR_or_spacer_sequence (sequence):
+def generate_spacer_name (sequence):
 	# find the reverse complement
 	sequence_ = ''
 	for c in sequence.upper():
@@ -289,47 +289,66 @@ def hash_DR_or_spacer_sequence (sequence):
 			'C': 'G',
 		}[c]
 
-	return sorted((sequence, sequence_))[0]
+	return sorted((sequence.upper(), sequence_))[0]
 
-def declare_DR (sequence):
-	DRs_c, DRs_s = Collections["DR"]
+generate_DR_name = generate_spacer_name
 
-	DR_id = hash_DR_or_spacer_sequence(sequence)
+# check if a sequence with a given name already exists in a collection
+def exists (collection, name):
+	result = list(collection.list_sequences({"name": name}))
+	n = len(result)
 
-	if (DR_id in DRs_s):
-		return DRs_s[DR_id]
+	if (n == 0):
+		return None
+	elif (n == 1):
+		return result[0]
+	else:
+		error("Duplicate sequence '%s' in collection %s" % (name, collection))
 
-	DR = mdb.Sequence({"name": DR_id, "sequence": sequence, "class": "direct repeat"})
-	DR.add_to_collection(DRs_c)
-	DR.commit()
+def declare_CRISPR (sequence):
+	name = generate_CRISPR_name(sequence)
+	CRISPR = exists(CRISPRs, name)
 
-	DRs_s[DR_id] = DR
-	return DR
+	if (CRISPR == None):
+		CRISPR = mdb.Sequence({"name": name, "sequence": sequence, "class": "CRISPR"})
+		CRISPR.add_to_collection(CRISPRs)
+		CRISPR.commit()
+
+	return CRISPR
 
 def declare_spacer (sequence):
-	spacers_c, spacers_s = Collections["Spacer"]
+	name = generate_spacer_name(sequence)
+	spacer = exists(Spacers, name)
 
-	spacer_id = hash_DR_or_spacer_sequence(sequence)
+	if (spacer == None):
+		spacer = mdb.Sequence({"name": name, "sequence": sequence, "class": "spacer"})
+		spacer.add_to_collection(Spacers)
+		spacer.commit()
 
-	if (spacer_id in spacers_s):
-		return spacers_s[spacer_id]
-
-	spacer = mdb.Sequence({"name": spacer_id, "sequence": sequence, "class": "spacer"})
-	spacer.add_to_collection(spacers_c)
-	spacer.commit()
-
-	spacers_s[spacer_id] = spacer
 	return spacer
 
-show_pb = (not p.dry_run)
+def declare_DR (sequence):
+	name = generate_DR_name(sequence)
+	DR = exists(DRs, name)
 
-N, n = len(seen), 0
-pb = ProgressBar(N)
+	if (DR == None):
+		DR = mdb.Sequence({"name": name, "sequence": sequence, "class": "direct repeat"})
+		DR.add_to_collection(DRs)
+		DR.commit()
 
-if (show_pb):
-	pb = ProgressBar(N)
+	return DR
 
-for (sequence_id, CRISPR, DRs, spacers) in parser(p.input_fn):
+def connect (source, target, relationship):
+	try:
+		source.relate_to_sequence(target, relationship)
+	
+	except mdb.errors.DuplicateObjectError as msg:
+		if (p.ignore_duplicates):
+			print >>sys.stderr, "WARNING: %s" % str(msg)
+		else:
+			error(msg)
+
+for (sequence_id, CRISPR_sequence, DR_sequences, spacer_sequences) in parser(p.input_fn):
 	sequence = Sequences[sequence_id]
 
 	r = {
@@ -344,42 +363,41 @@ for (sequence_id, CRISPR, DRs, spacers) in parser(p.input_fn):
 	}
 
 	if (not p.dry_run):
-		CRISPR = declare_CRISPR(CRISPR)
-
-		seen_DR = {}
-		for DR in DRs:
-			DR = declare_DR(DR)
-			if (DR in seen_DR):
-				continue
-
-			# DR -> CRISPR
-			DR.relate_to_sequence(CRISPR, r)
-			DR.commit()
-			seen_DR[DR] = True
+		# declare the CRISPR, if not already done
+		CRISPR = declare_CRISPR(CRISPR_sequence)
 
 		seen_spacer = {}
-		for spacer in spacers:
-			spacer = declare_spacer(spacer)
+		for spacer_sequence in spacer_sequences:
+			spacer = declare_spacer(spacer_sequence)
 			if (spacer in seen_spacer):
 				continue
 
-			# Spacer -> CRISPR
-			spacer.relate_to_sequence(CRISPR, r)
+			# declare the spacer -> CRISPR|sequence relationships
+			connect(spacer, CRISPR, r)
+			connect(spacer, sequence, r)
 			spacer.commit()
 			seen_spacer[spacer] = True
 
-	if (p.dry_run):
-		print "    CRISPR '%s...' (%s spacers) to sequence '%s'" % (CRISPR[:10], len(spacers), sequence_id)
-		for line in pprint.pformat(r).split('\n'):
-			print "      %s" % line
+		seen_DR = {}
+		for DR_sequence in DR_sequences:
+			DR = declare_DR(DR_sequence)
+			if (DR in seen_DR):
+				continue
 
-	else:
-		# CRISPR -> Sequence
-		CRISPR.relate_to_sequence(sequence, r)
+			# declare the DR -> CRISPR|sequence relationships
+			connect(DR, CRISPR, r)
+			connect(DR, sequence, r)
+			DR.commit()
+			seen_DR[DR] = True
+
+		# declare the CRISPR -> sequence relationship
+		connect(CRISPR, sequence, r)
 		CRISPR.commit()
 
-	if (show_pb):
 		pb.display(n)
+
+	else:
+		print "    CRISPR '%s...' (%s spacers) to sequence '%s'" % (CRISPR_sequence[:10], len(spacer_sequences), sequence_id)
 
 	n += 1
 

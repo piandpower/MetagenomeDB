@@ -18,7 +18,7 @@ Importing sequence alignments:
 	- :doc:`mdb_import_ace_alignments` (``mdb-import-ACE-alignments``)
 
 Importing sequence annotations:
-	- :doc:`mdb_import_crisprfinder_annotations` (``mdb-import-CRISPRfinder-annotations``)
+	- :doc:`mdb_import_crisprfinder_annotations`
 
 Other tools:
 	- :doc:`mdb_import_454assemblyproject_annotations`

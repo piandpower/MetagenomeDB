@@ -189,7 +189,7 @@ try:
 			if (p.ignore_duplicates):
 				print >>sys.stderr, "WARNING: %s" % str(msg)
 			else:
-				error(str(msg))
+				error(msg)
 
 		except NotFound as msg:
 			if (p.ignore_missing):

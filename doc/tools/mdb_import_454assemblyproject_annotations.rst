@@ -18,12 +18,12 @@ The syntax of this command-line tool is the following::
 	Options:
 	  -h, --help            show this help message and exit
 	  -i FILENAME, --input=FILENAME
-	                        Path to a 454AssemblyProject.xml file.
+	                        Path to a 454AssemblyProject.xml file (mandatory).
 	  -C STRING, --collection=STRING
-	                        Name of the collection to annotate.
+	                        Name of the collection to annotate (mandatory).
 	  --root-property=STRING
-	                        Root of the property tree to annotate the collection.
-	                        Default: assembly.algorithm.parameters
+	                        Root of the property tree to annotate the collection
+	                        (optional). Default: assembly.algorithm.parameters
 	  -v, --verbose         
 	  --dry-run             
 	
