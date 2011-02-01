@@ -20,6 +20,9 @@ Importing sequence alignments:
 Importing sequence annotations:
 	- :doc:`mdb_import_crisprfinder_annotations` (``mdb-import-CRISPRfinder-annotations``)
 
+Other tools:
+	- :doc:`mdb_import_454assemblyproject_annotations`
+
 .. toctree::
 	:hidden:
 
@@ -32,3 +35,4 @@ Importing sequence annotations:
 	mdb_import_fasta_alignments
 	mdb_import_ace_alignments
 	mdb_import_crisprfinder_annotations
+	mdb_import_454assemblyproject_annotations

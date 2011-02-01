@@ -10,7 +10,7 @@ file.""")
 p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "Path to a 454AssemblyProject.xml file.")
 
-p.add_option("-c", "--collection", dest = "collection_name", metavar = "STRING",
+p.add_option("-C", "--collection", dest = "collection_name", metavar = "STRING",
 	help = "Name of the collection to annotate.")
 
 p.add_option("--root-property", dest = "root_property", metavar = "STRING", default = "assembly.algorithm.parameters",

@@ -183,6 +183,8 @@ Similarly for contigs in a ``contigs.fasta`` file::
 
 For a complete documentation of ``mdb-import-sequences``, see :doc:`../tools/mdb_import_sequences`.
 
+.. note:: When importing contigs assembled using Newbler (gsAssembler) you can further annotate your contigs collection from a ``454AssemblyProject.xml`` file using the ``mdb-import-454AssemblyProject-annotations`` command-line tools (see :doc:`../tools/mdb_import_454assemblyproject_annotations`).
+
 Connecting sequences
 --------------------
 
