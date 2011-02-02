@@ -36,11 +36,17 @@ The syntax of this command-line tool is the following::
 							should be the identifier found in the input file, and
 							the second column the identifier to consider for this
 							sequence.
+		--CRISPR-property=KEY VALUE
+							CRISPRs property (optional).
+		--spacer-property=KEY VALUE
+							Spacers property (optional).
+		--DR-property=KEY VALUE
+							Direct repeats property (optional).
 		--date=YEAR MONTH DAY
 							Date of the CRISPRfinder run (optional). By default,
 							creation date of the input file.
 
-	  CRISPR collections:
+	  Collections:
 		-c STRING, --CRISPRs-collection=STRING
 							Name of the collection the CRISPRs belong to
 							(optional). Default: 'CRISPRs'
@@ -98,16 +104,7 @@ Finally, both 'Spacers' and 'DirectRepeats' collections will be linked to the 'C
 
 This structure will allow easy retrieval of all spacers that are part of a sequence, or for example all sequences that contains a given direct repeat.
 
-Note: Naming conventions
-------------------------
-
-All CRISPRs, spacers and direct repeats created by ``mdb-import-CRISPRfinder-annotations`` during the importation process are given a specific name that cannot be modified. This name is chosen to ensure that two objects (CRISPRs, spacers and/or direct repeats) from different importation with the exact same sequence result in only one object being created in the database. This allows to link sequences that would contain the same direct repeat, for example.
-
-To ensure this behavior the sequence objects created by ``mdb-import-CRISPRfinder-annotations`` obey a strict naming convention. Hence,
-
-- Names for CRISPRs are the `MD5 hash <http://en.wikipedia.org/wiki/Md5>`_ of their upper-case nucleotide sequence.
-
-- Names for spacers and direct repeats are created as follow: (1) the reverse complement of their sequence is generated, then (2) the name is chosen as either the original sequence or its reverse complement, whichever comes first when sorted by `lexicographic order <http://en.wikipedia.org/wiki/Lexicographical_order>`_.
+.. note:: All CRISPRs, spacers and direct repeats created by ``mdb-import-CRISPRfinder-annotations`` during the importation process are given an automatically generated name that cannot be modified. This name is the `MD5 hash <http://en.wikipedia.org/wiki/Md5>`_ of the upper-case nucleotide sequence.
 
 .. toctree::
 	:hidden:

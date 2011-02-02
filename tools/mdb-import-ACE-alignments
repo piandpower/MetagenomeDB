@@ -10,7 +10,7 @@ g = optparse.OptionGroup(p, "ACE")
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "ACE file (mandatory).")
 
-g.add_option("-R", "--reads-collection", dest = "reads_collection", metavar = "STRING",
+g.add_option("--reads-collection", dest = "reads_collection", metavar = "STRING",
 	help = "Name of the collection the reads belong to (mandatory).")
 
 g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%",
@@ -19,7 +19,7 @@ g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE
 g.add_option("--ignore-missing-reads", dest = "ignore_missing_reads", action = "store_true", default = False,
 	help = "If set, ignore reads that are not found in the reads collection.")
 
-g.add_option("-C", "--contigs-collection", dest = "contigs_collection", metavar = "STRING",
+g.add_option("--contigs-collection", dest = "contigs_collection", metavar = "STRING",
 	help = "Name of the collection the contigs belong to (mandatory).")
 
 g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON CODE", default = "%",

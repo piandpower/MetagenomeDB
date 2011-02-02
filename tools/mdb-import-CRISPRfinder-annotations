@@ -24,12 +24,21 @@ g.add_option("--id-patches", dest = "id_patches_fn", metavar = "FILENAME",
 (optional). The first column should be the identifier found in the input file,
 and the second column the identifier to consider for this sequence.""")
 
+g.add_option("--CRISPR-property", dest = "CRISPR_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
+	help = "CRISPRs property (optional).")
+
+g.add_option("--spacer-property", dest = "spacer_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
+	help = "Spacers property (optional).")
+
+g.add_option("--DR-property", dest = "DR_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
+	help = "Direct repeats property (optional).")
+
 g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
 	help = "Date of the CRISPRfinder run (optional). By default, creation date of the input file.")
 
 p.add_option_group(g)
 
-g = optparse.OptionGroup(p, "CRISPR collections")
+g = optparse.OptionGroup(p, "Collections")
 
 g.add_option("-c", "--CRISPRs-collection", dest = "CRISPRs_collection_name", metavar = "STRING", default = "CRISPRs",
 	help = "Name of the collection the CRISPRs belong to (optional). Default: '%default'")
@@ -113,6 +122,25 @@ if (p.id_patches_fn):
 			error("Duplicate original identifier '%s' found in '%s'" % (original_id, p.id_patches_fn))
 
 		Patch[original_id] = alternative_id
+
+def parse_properties (properties):
+	properties_ = []
+	for (key, value) in properties:
+		if (key.lower() in ("name", "sequence", "length")):
+			error("Property '%s' cannot be modified" % key)
+
+		properties_.append((key, mdb.tools.parse_value_and_modifier(value)))
+
+	return properties_
+
+if (p.CRISPR_properties):
+	p.CRISPR_properties = parse_properties(p.CRISPR_properties)
+
+if (p.spacer_properties):
+	p.spacer_properties = parse_properties(p.spacer_properties)
+
+if (p.DR_properties):
+	p.DR_properties = parse_properties(p.DR_properties)
 
 if (not p.date):
 	date = time.localtime(os.path.getmtime(p.input_fn))
@@ -275,9 +303,12 @@ pb = ProgressBar(N)
 if (show_pb):
 	pb = ProgressBar(N)
 
-def generate_CRISPR_name (sequence):
+def generate_name (sequence):
 	return hashlib.md5(sequence.upper()).hexdigest()
 
+generate_CRISPR_name = generate_spacer_name = generate_DR_name = generate_name
+
+"""
 def generate_spacer_name (sequence):
 	# find the reverse complement
 	sequence_ = ''
@@ -292,6 +323,7 @@ def generate_spacer_name (sequence):
 	return sorted((sequence.upper(), sequence_))[0]
 
 generate_DR_name = generate_spacer_name
+"""
 
 # check if a sequence with a given name already exists in a collection
 def exists (collection, name):
@@ -311,6 +343,9 @@ def declare_CRISPR (sequence):
 
 	if (CRISPR == None):
 		CRISPR = mdb.Sequence({"name": name, "sequence": sequence, "class": "CRISPR"})
+		for (key, value) in p.CRISPR_properties:
+			CRISPR[key] = value
+
 		CRISPR.add_to_collection(CRISPRs)
 		CRISPR.commit()
 
@@ -322,6 +357,9 @@ def declare_spacer (sequence):
 
 	if (spacer == None):
 		spacer = mdb.Sequence({"name": name, "sequence": sequence, "class": "spacer"})
+		for (key, value) in p.spacer_properties:
+			spacer[key] = value
+
 		spacer.add_to_collection(Spacers)
 		spacer.commit()
 
@@ -333,6 +371,9 @@ def declare_DR (sequence):
 
 	if (DR == None):
 		DR = mdb.Sequence({"name": name, "sequence": sequence, "class": "direct repeat"})
+		for (key, value) in p.DR_properties:
+			DR[key] = value
+
 		DR.add_to_collection(DRs)
 		DR.commit()
 

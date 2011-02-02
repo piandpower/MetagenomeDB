@@ -15,7 +15,7 @@ p.add_option("-s", "--sequence", dest = "nucleus_sequence", metavar = "COLLECTIO
 	help = """Sequence to start from (optional). The name of the collection the
 sequence belong to as well as the name of the sequence itself must be provided.""")
 
-p.add_option("-c", "--collection", dest = "nucleus_collection", metavar = "COLLECTION_NAME",
+p.add_option("-C", "--collection", dest = "nucleus_collection", metavar = "COLLECTION_NAME",
 	help = """Collection to start from (optional). The name of the collection
 must be provided. If neither '-s' or '-c' options are used, all objects in the
 database are exported.""")

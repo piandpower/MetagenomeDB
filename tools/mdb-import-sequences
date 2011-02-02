@@ -21,7 +21,7 @@ p.add_option_group(g)
 
 g = optparse.OptionGroup(p, "Collection")
 
-g.add_option("-C", "--collection-name", dest = "collection_name", metavar = "STRING",
+g.add_option("-C", "--collection", dest = "collection_name", metavar = "STRING",
 	help = "Name of the collection the sequences belong to (mandatory).")
 
 g.add_option("-c", "--collection-property", dest = "collection_properties", nargs = 2, action = "append", metavar = "KEY VALUE",
