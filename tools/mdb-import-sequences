@@ -101,7 +101,7 @@ if (p.collection_properties):
 		collection = mdb.Collection(m)
 		collection.commit()
 
-	except ValueError, msg:
+	except ValueError as msg:
 		error("Malformed collection description: %s" % msg)
 
 # Retrieval of an existing collection
@@ -203,3 +203,6 @@ for record in read():
 pb.clear()
 
 print "  %s sequences imported." % n
+
+if (p.dry_run):
+	print "(dry run)"

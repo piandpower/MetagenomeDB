@@ -3,25 +3,15 @@
 import optparse, sys, os, pprint
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
-Export objects (collections and sequences) and their relationships from the database.""")
+List collections and sequences in the database.""")
 
-p.add_option("-p", "--prefix", dest = "prefix", metavar = "STRING",
-	help = "Prefix for the output files (mandatory).")
+p.add_option("-o", "--output", dest = "output_fn", metavar = "FILENAME",
+	help = "Destination for the output (optional). Default: standard output.")
 
-p.add_option("-f", "--format", dest = "output_format", choices = ("html", "cytoscape"), metavar = "STRING", default = "html",
-	help = "Format of the output (optional). Either 'html' or 'cytoscape'. Default: %default")
-
-p.add_option("-s", "--sequence", dest = "nucleus_sequence", metavar = "COLLECTION_NAME SEQUENCE_NAME", nargs = 2,
-	help = """Sequence to start from (optional). The name of the collection the
-sequence belong to as well as the name of the sequence itself must be provided.""")
-
-p.add_option("-C", "--collection", dest = "nucleus_collection", metavar = "COLLECTION_NAME",
-	help = """Collection to start from (optional). The name of the collection
-must be provided. If neither '-s' or '-c' options are used, all objects in the
-database are exported.""")
+p.add_option("-p", "--with-properties", dest = "display_properties", action = "store_true", default = False,
+	help = """If set, collections' properties will be displayed as well.""")
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
-p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
 
 g = optparse.OptionGroup(p, "Connection")
 
@@ -50,14 +40,10 @@ def error (msg):
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
-if (p.nucleus_sequence != None) and (p.nucleus_collection != None):
-	error("A starting sequence OR collection object must be provided, but not both.")
-
-if (p.prefix == None):
-	error("A prefix must be provided.")
-
-if (p.prefix[-1] == '/'):
-	p.prefix = p.prefix[:-1]
+if (p.output_fn == None):
+	output_fh = sys.stdout
+else:
+	output_fh = open(p.output_fn, 'w')
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -72,173 +58,61 @@ if (p.connection_host or p.connection_port or p.connection_db or p.connection_us
 	except Exception as msg:
 		error(msg)
 
-if (p.nucleus_collection):
-	root = mdb.Collection.find_one({"name": p.nucleus_collection})
-	if (root == None):
-		error("Unknown collection '%s'" % p.nucleus_collection)
+# List all collections and their sub-collections, as a list of edges
+nodes, edges = {}, {}
 
-	root = [root]
+for a in mdb.Collection.find():
+	if (not a in edges):
+		edges[a] = {}
 
-if (p.nucleus_sequence):
-	collection_name, sequence_name = p.nucleus_sequence
-	collection = mdb.Collection.find_one({"name": collection_name})
-	if (collection == None):
-		error("Unknown collection '%s'" % collection_name)
+	for b in a.list_sub_collections():
+		if (not b in edges[a]):
+			edges[a][b] = True
 
-	candidates = mdb.Sequence.find({"name": sequence_name})
-	candidates = filter(lambda s: s.count_collections({"name": collection_name}) > 0, candidates)
+	nodes[a] = True
 
-	if (len(candidates) == 0):
-		error("Unknown sequence '%s' in collection '%s'" % (sequence_name, collection_name))
+for node in nodes:
+	if (not node in edges):
+		edges[node] = {}
 
-	if (len(candidates) > 1):
-		print >>sys.stderr, "WARNING: Duplicate sequence '%s' in collection '%s'" % (sequence_name, collection_name)
-
-	root = candidates
-
-print root
+del nodes
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-def walk (root):
-	pass
+def collection_title (collection):
+	n = collection.count_sequences()
+	return "%s (%s sequence%s)" % (
+		collection["name"],
+		n,
+		{True: 's', False: ''}[n > 1]
+	)
 
-def export_to_html (prefix, root):
-	fn = prefix + ".html"
-	fh = open(fn, 'w')
+def traverse (map, prefix = None):
+	for key in sorted(map.keys()):
+		if (key.startswith('_')):
+			continue
 
-	print "  creating: '%s'" % fn
-
-	print >>fh, """<html>
-	<head>
-		<style type='text/css'>
-BODY, TD {
-	font-family: lucida grande, sans-serif;
-	font-size: 11pt;
-}
-DIV {
-	padding: 5px;
-	border: 1px solid #555;
-	background: #f0f0fd;
-	-webkit-border-radius: 8px;
-	-moz-border-radius: 8px;
-	-webkit-box-shadow: 2px 2px 5px #aaa;
-	-moz-box-shadow: 2px 2px 5px #aaa;
-}
-DIV > DIV {
-	margin: 10px 0 0 10px;
-}
-A {
-	color: black;
-	text-decoration: none;
-}
-TABLE {
-	width: 100%;
-	margin-top: 10px;
-	background: #e0e0ed;
-	padding-left: 5px;
-	-webkit-border-radius: 5px;
-	-moz-border-radius: 5px;
-}
-TD:first-child {
-	font-family: Fixedsys, Monaco, Courier;
-	font-size: 9pt;
-	color: #888;
-	width: 25%;
-}	
-TD:first-child B {
-	font-weight: normal;
-	color: black;
-}
-		</style>
-	</head>
-	<body>
-		<script type='text/javascript'>
-function toggle_visibility (id) {
-	var e = document.getElementById(id);
-	if (e.style.display == 'table')
-		e.style.display = 'none';
-	else
-		e.style.display = 'table';
-}
-		</script>
-
-"""
-
-	def traverse (map, prefix = None):
-		for key in sorted(map.keys()):
-			if (key.startswith('_')):
-				continue
-
-			if (prefix == None):
-				prefix_ = [key]
-			else:
-				prefix_ = prefix + [key]
-
-			if (type(map[key]) == dict):
-				for item in traverse(map[key], prefix_):
-					yield item
-			else:
-				yield (prefix_, map[key])
-
-	table_id = 0
-
-	def trim (value, max_length = 80):
-		value = str(value)
-		if (len(value) > max_length):
-			return "... " + value[-max_length:]
+		if (prefix == None):
+			prefix_ = [key]
 		else:
-			return value
+			prefix_ = prefix + [key]
 
-	def dump_properties (map):
-		global table_id
-		print >>fh, "	<table id='id%s' style='display: none;'>" % table_id
+		if (type(map[key]) == dict):
+			for item in traverse(map[key], prefix_):
+				yield item
+		else:
+			yield (prefix_, map[key])
 
-		seen = {}
-		for key, value in traverse(map):
-			items = []
-			for i, subkey in enumerate(key):
-				if (not i in seen):
-					seen[i] = {}
+for collection in sorted(edges):
+	print >>sys.stdout, collection_title(collection)
 
-				if (subkey in seen[i]):
-					items.append(subkey)
-				else:
-					items.append("<b>%s</b>" % subkey)
+	if (p.display_properties):
+		for (key, value) in traverse(collection.get_properties()):
+			if (type(value) == unicode):
+				value = "'%s'" % value
+			print "	%s = %s" % ('.'.join(key), value)
 
-				seen[i][subkey] = True
+	for subcollection in sorted(edges[collection]):
+		print >>sys.stdout, "	(sub-collection: '%s')" % subcollection["name"]
 
-			if (type(value) == list):
-				value = "<br>".join([trim(v) for v in value])
-			else:
-				value = trim(value)
-
-			print >>fh, "		<tr><td>%s</td><td>%s</td></tr>" % ('.'.join(items), value)
-
-		print >>fh, "	</table>"
-		print >>fh, "	<a href='#' onclick='toggle_visibility(\"id%s\");' style='float: right;'>Properties</a><br>" % table_id
-		table_id += 1
-	
-
-	print >>fh, """
-	</body>
-</html>"""
-
-def export_to_cytoscape (prefix, root):
-	pass
-
-#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
-print "Exporting to '%s*' (%s format) ..." % (p.prefix, p.output_format)
-
-try:
-	if (p.output_format == "html"):
-		export_to_html(p.prefix, root)
-
-	elif (p.output_format == "cytoscape"):
-		export_to_cytoscape(p.prefix, root)
-
-	print "done."
-
-except Exception as msg:
-	error(msg)
+	print >>sys.stdout

@@ -14,6 +14,10 @@ p.add_option("-r", "--recursive", dest = "recursive", action = "store_true", def
 are exported. If set, this option will force all sequences belonging to sub-collections
 to be exported as well.""")
 
+p.add_option("-p", "--property-filter", dest = "property_filter", action = "append", nargs = 2, metavar = "KEY VALUE",
+	help = """Filter the sequences according to a given key and value. If several
+filters are declared, only sequences satisfying them all will be returned.""")
+
 p.add_option("-o", "--output", dest = "output_fn", metavar = "FILENAME",
 	help = "Destination for the sequences (optional). Default: standard output.")
 
@@ -90,6 +94,17 @@ if (p.recursive):
 
 	walk(collection)
 
+if (p.property_filter):
+	try:
+		filter = {}
+		for (key, value) in p.property_filter:
+			filter[key] = mdb.tools.parse_value_and_modifier(value)
+
+	except Exception as msg:
+		error(msg)
+else:
+	filter = None
+
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 try:
@@ -122,36 +137,48 @@ N = 0
 
 try:
 	for collection in collections:
-		n_sequences = collection.count_sequences()
+		n_sequences = collection.count_sequences(filter)
 
-		print "  from %scollection '%s' (%s sequences)" % ({True: '', False: "sub"}[N == 0], collection["name"], n_sequences)
+		print "  from %scollection '%s' (%s sequence%s)" % (
+			{True: '', False: "sub"}[N == 0],
+			collection["name"],
+			n_sequences,
+			{True: 's', False: ''}[n_sequences > 1]
+		)
 
-		pb = ProgressBar(n_sequences)
-		n = 0
+		if (not p.dry_run):
+			pb = ProgressBar(n_sequences)
+			n = 0
 
-		def sequences():
-			global n
+			def sequences():
+				global n
 
-			for sequence in collection.list_sequences():
-				record = SeqRecord(
-					id = sequence["name"],
-					seq = Seq(sequence["sequence"]),
-					description = sequence.get_property("description", ''),
-				)
+				for sequence in collection.list_sequences(filter):
+					record = SeqRecord(
+						id = sequence["name"],
+						seq = Seq(sequence["sequence"]),
+						description = sequence.get_property("description", ''),
+					)
 
-				yield record
+					yield record
 
-				n += 1
-				pb.display(n)
+					n += 1
+					pb.display(n)
 
-			pb.clear()
+				pb.clear()
 
-		SeqIO.write(sequences(), output_fh, p.output_format)
+			SeqIO.write(sequences(), output_fh, p.output_format)
 
-		print "    %s sequences exported." % n
-		N += n
+			print "    %s sequences exported." % n
+			N += n
 
-	print "done (%s sequences exported total)." % N
+		else:
+			N += n_sequences
+
+	print "Done (%s sequences exported total)." % N
+
+	if (p.dry_run):
+		print "(dry run)"
 
 except Exception as msg:
 	error(msg)
