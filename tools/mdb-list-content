@@ -103,7 +103,9 @@ def traverse (map, prefix = None):
 		else:
 			yield (prefix_, map[key])
 
-for collection in sorted(edges):
+sorted_ = lambda x: sorted(x, lambda x, y: cmp(x["name"], y["name"]))
+
+for collection in sorted_(edges):
 	print >>sys.stdout, collection_title(collection)
 
 	if (p.display_properties):
@@ -112,7 +114,7 @@ for collection in sorted(edges):
 				value = "'%s'" % value
 			print "	%s = %s" % ('.'.join(key), value)
 
-	for subcollection in sorted(edges[collection]):
+	for subcollection in sorted_(edges[collection]):
 		print >>sys.stdout, "	(sub-collection: '%s')" % subcollection["name"]
 
 	print >>sys.stdout

@@ -28,11 +28,15 @@ class DuplicateObjectError (MetagenomeDBError):
 		else:
 			self.object_type = object_type
 			self.duplicate_properties = duplicate_properties
-			self.msg = "An object of type '%s' with propert%s %s already exists in the database." % (
-				self.object_type,
-				{True: "ies", False: "y"}[len(self.duplicate_properties) > 1],
-				', '.join(["%s = '%s'" % property for property in self.duplicate_properties])
-			)
+
+			if (message == None):
+				self.msg = "An object of type '%s' with propert%s %s already exists in the database." % (
+					self.object_type,
+					{True: "ies", False: "y"}[len(self.duplicate_properties) > 1],
+					', '.join(["%s = '%s'" % property for property in self.duplicate_properties])
+				)
+			else:
+				self.msg = message
 
 	def __str__ (self):
 		return self.msg

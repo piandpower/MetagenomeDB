@@ -28,6 +28,9 @@ g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON 
 g.add_option("--ignore-missing-contigs", dest = "ignore_missing_contigs", action = "store_true", default = False,
 	help = "If set, ignore contigs that are not found in the contigs collection.")
 
+p.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
+	help = "If set, ignore duplicate objects errors.")
+
 p.add_option_group(g)
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
@@ -208,8 +211,15 @@ for contig in i:
 			for line in pprint.pformat(r).split('\n'):
 				print "      %s" % line
 		else:
-			read_o.relate_to_sequence(contig_o, r)
-			read_o.commit()
+			try:
+				read_o.relate_to_sequence(contig_o, r)
+				read_o.commit()
+
+			except mdb.errors.DuplicateObjectError as msg:
+				if (p.ignore_duplicates):
+					print >>sys.stderr, "WARNING: %s" % str(msg)
+				else:
+					error(msg)
 
 		c += 1
 		pb.display(c)
