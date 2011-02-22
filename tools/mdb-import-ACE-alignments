@@ -28,7 +28,7 @@ g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON 
 g.add_option("--ignore-missing-contigs", dest = "ignore_missing_contigs", action = "store_true", default = False,
 	help = "If set, ignore contigs that are not found in the contigs collection.")
 
-p.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
+g.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
 	help = "If set, ignore duplicate objects errors.")
 
 p.add_option_group(g)
