@@ -34,6 +34,7 @@ g.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_
 p.add_option_group(g)
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+p.add_option("--no-progress-bar", dest = "display_progress_bar", action = "store_false", default = True)
 p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
 
 g = optparse.OptionGroup(p, "Connection")
@@ -222,9 +223,11 @@ for contig in i:
 					error(msg)
 
 		c += 1
-		pb.display(c)
+		if (p.display_progress_bar):
+			pb.display(c)
 
-pb.clear()
+if (p.display_progress_bar):
+	pb.clear()
 
 print "    done."
 
