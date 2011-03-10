@@ -92,7 +92,7 @@ if (not p.sequences_collection_name):
 	error("A collection name must be provided")
 
 try:
-	get_sequence_id = eval("lambda x: " + p.id_getter.replace('%', 'x'))
+	get_sequence_id = eval("lambda x: " + p.id_getter.replace('%', 'x').replace("\\x", '%'))
 
 except SyntaxError, e:
 	error("Invalid getter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
@@ -262,7 +262,11 @@ def parser (fn):
 			if (sequence_id != None):
 				yield send()
 
-			sequence_id = get_sequence_id(line[1:])
+			try:
+				sequence_id = get_sequence_id(line[1:])
+			except Exception as msg:
+				error("Unable to retrieve the sequence identifier. Message was \"%s\"; original identifier was \"%s\"" % (msg, line[1:]))
+
 			sequence_id = Patch.get(sequence_id, sequence_id)
 			entry = []
 		else:
@@ -409,8 +413,18 @@ def connect (source, target, relationship):
 		source.relate_to_sequence(target, relationship)
 	
 	except mdb.errors.DuplicateObjectError as msg:
+		source_class = source["class"]
+		target_class = target["class"] if ("class" in target) else "sequence"
+		source_name = source["sequence"] if (source_class in ("direct repeat", "spacer")) else source["name"]
+		target_name = target["sequence"] if (target_class in ("direct repeat", "spacer")) else target["name"]
+
+		msg = "%s '%s' is already linked to %s '%s'" % (
+			source_class, source_name,
+			target_class, target_name
+		)
+
 		if (p.ignore_duplicates):
-			print >>sys.stderr, "WARNING: %s" % str(msg)
+			print >>sys.stderr, "WARNING: %s" % msg
 		else:
 			error(msg)
 
@@ -464,7 +478,12 @@ for (sequence_id, CRISPR_sequence, DR_sequences, spacer_sequences) in parser(p.i
 			pb.display(n)
 
 	else:
-		print "    CRISPR '%s...' (%s spacers) added to sequence '%s'" % (CRISPR_sequence[:20], len(spacer_sequences), sequence_id)
+		print "    CRISPR '%s...' (%s spacer%s) added to sequence '%s'" % (
+			CRISPR_sequence[:20],
+			len(spacer_sequences),
+			{True: 's', False: ''}[len(spacer_sequences) > 1],
+			sequence_id
+		)
 
 	n += 1
 
