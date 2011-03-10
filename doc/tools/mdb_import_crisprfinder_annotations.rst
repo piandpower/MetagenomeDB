@@ -68,6 +68,8 @@ The syntax of this command-line tool is the following::
 		--password=STRING   Password for the MongoDB server connection (optional).
 							Default: ''
 
+For a description of the ``--id-getter`` option and its syntax, please refer to :doc:`id_getters`.
+
 Usage
 -----
 

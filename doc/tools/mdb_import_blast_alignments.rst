@@ -107,7 +107,7 @@ The query identifier that ``mdb-import-BLAST-alignments`` will consider is the w
 
 	$ mdb-import-BLAST-alignments --query-id-getter "%.split()[0]"
 
-Any '%' character in the string you provide will be replaced by the value of the query identifier. In this example, the short Python code used above will split the original string (resulting in the list "CH0704v-contig00010", "length=3963", "numreads=678") and select the first element. The same comments applies for ``--hit-id-getter``.
+Any '%' character in the string you provide will be replaced by the value of the query identifier. In this example, the short Python code used above will split the original string (resulting in the list "CH0704v-contig00010", "length=3963", "numreads=678") and select the first element. The same comments applies for ``--hit-id-getter``. For a more complete documentation, see :doc:`id_getters`.
 
 Hits filtering
 --------------
