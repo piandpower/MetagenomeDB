@@ -97,8 +97,19 @@ In details,
 - one sequence object (see :doc:`../api/sequence`) will be created to represent the CRISPR (with property ``class`` equal to 'CRISPR'); this object will be related to both the sequence to annotate and to the 'CRISPRs' collection
 - five sequence objects will be created to represent the five spacers (with properties ``class`` equal to 'spacer'); these objects will be related to the sequence to annotate, the 'Spacers' collection and the CRISPR object they are part of
 - one sequence object will be created to represent the direct repeat (with property ``class`` equal to 'direct repeat'); this object will be related to the sequence to annotate, the 'DirectRepeats' collection and the CRISPR object it is part of
+- all relationships between CRISPR, spacer and direct repeat sequences will have the following properties:
 
-Finally, both 'Spacers' and 'DirectRepeats' collections will be linked to the 'CRISPRs' collection.
+====================== =====
+Property               Value
+====================== =====
+``type``               Type of relationship (always 'part-of')
+``run.date.year``      Year the CRISPRfinder run was completed
+``run.date.month``     Month the CRISPRfinder run was completed
+``run.date.day``       Day the CRISPRfinder run was completed
+``run.algorithm.name`` Name of the algorithm (always 'CRISPRfinder')
+====================== =====
+
+- finally, both 'Spacers' and 'DirectRepeats' collections will be linked to the 'CRISPRs' collection.
 
 .. note:: The name of the 'CRISPRs', 'Spacers' and 'DirectRepeats' collections can be modified at will by using the ``--CRISPRs-collection``, ``--spacers-collection`` and ``--DRs-collection`` options, respectively
 
