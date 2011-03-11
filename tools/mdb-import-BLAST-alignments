@@ -27,9 +27,6 @@ g.add_option("--query-id-getter", dest = "query_id_getter", metavar = "PYTHON CO
 g.add_option("--hit-id-getter", dest = "hit_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
 	help = "Python code to reformat hit identifiers (optional); '%' will be replaced by the hit identifier. Default: %default")
 
-g.add_option("--no-check", dest = "check", action = "store_false", default = True,
-	help = "If set, bypass the query and hit sequences identifier check (not recommended).")
-
 p.add_option_group(g)
 
 g = optparse.OptionGroup(p, "Input filtering")
@@ -144,58 +141,44 @@ print "Importing '%s' ..." % p.input_fn
 # Check query and hit sequences
 print "  validating query and hit sequences ..."
 
+queries = mdb.Collection.find_one({"name": p.queries_collection})
+if (queries == None):
+	error("Unknown queries collection '%s'" % p.queries_collection)
+
+if (p.hits_collection):
+	hits = mdb.Collection.find_one({"name": p.hits_collection})
+	if (hits == None):
+		error("Unknown hits collection '%s'" % p.hits_collection)
+
 QuerySequences, HitSequences = {}, {}
-DuplicateQueries, DuplicateHits = {}, {}
+n_records = 0
 
-try:
-	queries = mdb.Collection.find_one({"name": p.queries_collection})
-	if (queries == None):
-		error("Unknown collection '%s'" % p.queries_collection)
+for record in NCBIXML.parse(open(p.input_fn, 'r')):
+	query_id = get_query_id(record.query)
+	query_candidates = list(queries.list_sequences({"name": query_id}))
 
-	for sequence in queries.list_sequences():
-		sequence_name = str(sequence["name"]) 
-		if (sequence_name in QuerySequences):
-			DuplicateQueries[sequence_name] = True
+	if (len(query_candidates) == 0):
+		error("Unknown query sequence '%s'" % query_id)
 
-		QuerySequences[sequence_name] = sequence
+	if (len(query_candidates) > 1):
+		error("Duplicate query sequence '%s'" % query_id)
+
+	QuerySequences[query_id] = query_candidates[0]
 
 	if (p.hits_collection):
-		hits = mdb.Collection.find_one({"name": p.hits_collection})
-		if (hits == None):
-			error("Unknown collection '%s'" % p.hits_collection)
+		for hit in record.alignments:
+			hit_id = get_hit_id(hit.title)
+			hit_candidates = list(hits.list_sequences({"name": hit_id})
 
-		for sequence in hits.list_sequences():
-			sequence_name = str(sequence["name"]) 
-			if (sequence_name in HitSequences):
-				DuplicateHits[sequence_name] = True
+			if (len(hit_candidates) == 0):
+				error("Unknown hit sequence '%s'" % hit_id)
 
-			HitSequences[sequence_name] = sequence
+			if (len(hit_candidates) > 1):
+				error("Duplicate hit sequence '%s'" % hit_id)
 
-except Exception as msg:
-	error(msg)
+			HitSequences[hit_id] = hit_candidates[0]
 
-if (p.check):
-	n_records = 0
-	for record in NCBIXML.parse(open(p.input_fn, 'r')):
-		query_id = get_query_id(record.query)
-
-		if (not query_id in QuerySequences):
-			error("Unknown query sequence '%s'" % query_id)
-
-		if (query_id in DuplicateQueries):
-			error("Duplicate query sequence '%s'" % query_id)
-
-		if (p.hits_collection):
-			for hit in record.alignments:
-				hit_id = get_hit_id(hit.title)
-
-				if (not hit_id in HitSequences):
-					error("Unknown hit sequence '%s'" % hit_id)
-
-				if (hit_id in DuplicateHits):
-					error("Duplicate hit sequence '%s'" % hit_id)
-
-		n_records += 1
+	n_records += 1
 
 # Import
 print "  importing HSPs ..."
@@ -217,11 +200,7 @@ class ProgressBar:
 		sys.stdout.write(' ' * (4 + 80 + 8) + "\r")
 		sys.stdout.flush()
 
-show_pb = p.check and (not p.dry_run)
-
-if (show_pb):
-	pb = ProgressBar(n_records)
-
+pb = ProgressBar(n_records)
 external_hits = (p.hits_collection == None)
 
 n = 0
@@ -328,12 +307,12 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 		query_o["alignments"] = hits
 		query_o.commit()
 
-	if (show_pb) and (p.display_progress_bar):
+	if (not p.dry_run) and (p.display_progress_bar):
 		pb.display(n)
 
 	n += 1
 
-if (show_pb) and (p.display_progress_bar):
+if (not p.dry_run) and (p.display_progress_bar):
 	pb.clear()
 
 print "    done."
