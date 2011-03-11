@@ -204,14 +204,14 @@ def clean_sequence (sequence):
 			sequence_ += c
 	return sequence_
 
-SEQUENCE = "[ATGCN]+"
+SEQUENCE = "[ATGCNw]+"
 
 def parser (fn):
 	sequence_id, entry = None, []
 
-	DR_spacer_pattern = re.compile("(%s)\s+(%s)\s+[0-9]+" % (SEQUENCE, SEQUENCE))
-	spacer_pattern = re.compile("(%s)\s+[0-9]+" % SEQUENCE)
-	DR_pattern = re.compile("(%s)" % SEQUENCE)
+	DR_spacer_pattern = re.compile("^(%s)\s+(%s)\s+[0-9]+$" % (SEQUENCE, SEQUENCE))
+	spacer_pattern = re.compile("^(%s)\s+[0-9]+$" % SEQUENCE)
+	DR_pattern = re.compile("^(%s)$" % SEQUENCE)
 
 	def send():
 		CRISPR, DRs, spacers = [], {}, []
@@ -219,7 +219,7 @@ def parser (fn):
 		for line in entry:
 			DR_spacer_match = DR_spacer_pattern.match(line)
 			if (DR_spacer_match != None):
-				DR, spacer = DR_spacer_match.groups()
+				DR, spacer = [clean_sequence(sequence) for sequence in DR_spacer_match.groups()]
 
 				CRISPR.append(DR)
 				CRISPR.append(spacer)
@@ -229,7 +229,7 @@ def parser (fn):
 
 			spacer_match = spacer_pattern.match(line)
 			if (spacer_match != None):
-				spacer = spacer_match.group(1)
+				spacer = clean_sequence(spacer_match.group(1))
 
 				CRISPR.append(spacer)
 				spacers.append(spacer)
@@ -237,7 +237,7 @@ def parser (fn):
 
 			DR_match = DR_pattern.match(line)
 			if (DR_match != None):
-				DR = DR_match.group(1)
+				DR = clean_sequence(DR_match.group(1))
 
 				CRISPR.append(DR)
 				DRs[DR] = True
