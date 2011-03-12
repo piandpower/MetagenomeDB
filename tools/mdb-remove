@@ -139,7 +139,7 @@ try:
 			raise Exception("Unknown object type '%s'" % p.remove_type)
 
 		collection_name = mapping[p.remove_type]
-		print "Removing all objects of type '%s' (%s)" % (p.remove_type, plural(mdb.backend.count(collection_name, {}), "%s object"))
+		print "Removing all objects of type %s (%s)" % (p.remove_type.title(), plural(mdb.backend.count(collection_name, {}), "%s object"))
 
 		if (not p.dry_run):
 			mdb.backend.drop_collection(collection_name)
@@ -152,7 +152,7 @@ try:
 		print "Removing all objects created since %s" % timestamp.strftime("%c")
 
 		for (collection_name, collection) in mdb.backend.list_collections(True):
-			print "  %s: %s" % (collection_name.lower(), plural(collection.count(query), "%s object"))
+			print "  objects of type %s: %s removed" % (collection_name.title(), plural(collection.count(query), "%s object"))
 
 			for object in collection.find(query):
 				if (p.dry_run):
@@ -172,7 +172,7 @@ try:
 		)
 
 		for (collection_name, collection) in mdb.backend.list_collections(True):
-			print "  %s: %s" % (collection_name.lower(), plural(collection.count(query), "%s object"))
+			print "  objects of type %s: %s removed" % (collection_name.title(), plural(collection.count(query), "%s object"))
 
 			for object in collection.find(query):
 				if (p.dry_run):
