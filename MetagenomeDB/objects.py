@@ -711,6 +711,45 @@ class Sequence (CommittableObject):
 		"""
 		return self._out_vertices("Collection", collection_filter, relationship_filter, True)
 
+	def list_top_collections (self, collection_filter = None):
+		""" List top collections this sequence is linked to.
+		
+		Explore all collections this sequence belong to, and the collection these
+		collections belong to (if any) until reaching the 'top' collections which
+		belong to no other collection.
+
+		Parameters:
+			- **collection_filter**: filter for the top collections (optional). See :doc:`queries`.
+		"""
+		# we list all top collections
+		top, visited = {}, {}
+		def crawl (collection):
+			if (collection.count_super_collections() == 0):
+				top[collection] = True
+			else:
+				for super_collection in collection.list_super_collections():
+					if (super_collection in visited):
+						continue
+
+					crawl(super_collection)
+					visited[super_collection] = True
+
+		for collection in self.list_collections():
+			crawl(collection)
+
+		# we then filter these collections, if needed
+		if (collection_filter == None):
+			return collection.keys()
+
+		else:
+			query = {"_id": {"$in": [collection["_id"] for collection in top]}}
+
+			collection_filter = parse_properties(collection_filter)
+			for key in collection_filter:
+				query[key] = collection_filter[key]
+
+			return backend.find("Collection", query)
+
 	def relate_to_sequence (self, sequence, relationship = None):
 		""" Link this sequence to another sequence.
 		
