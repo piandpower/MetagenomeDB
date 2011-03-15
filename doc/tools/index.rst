@@ -10,7 +10,7 @@ Adding and modifying objects:
 
 Importing and exporting sequences:
 	- :doc:`mdb_import_sequences` (``mdb-import-sequences``)
-	- :doc:`mdb_export_sequences` (``mdb-export-sequences``)
+	- :doc:`mdb_export_sequences`
 
 Importing sequence alignments:
 	- :doc:`mdb_import_blast_alignments`

@@ -17,36 +17,36 @@ Syntax
 	Options:
 	  -h, --help            show this help message and exit
 	  -C STRING, --collection=STRING
-							Name of the collection to retrieve the sequences from
-							(mandatory).
+				Name of the collection to retrieve the sequences from
+				(mandatory).
 	  -r, --recursive       By default only the sequences belonging to the
-							collection provided are exported. If set, this option
-							will force all sequences belonging to sub-collections
-							to be exported as well.
+				collection provided are exported. If set, this option
+				will force all sequences belonging to sub-collections
+				to be exported as well.
 	  -o FILENAME, --output=FILENAME
-							Destination for the sequences (optional). Default:
-							standard output.
+				Destination for the sequences (optional). Default:
+				standard output.
 	  -f STRING, --format=STRING
-							Format of the sequences (optional). Default: fasta
-							(see http://biopython.org/wiki/SeqIO for a list of the
-							formats supported)
+				Format of the sequences (optional). Default: fasta
+				(see http://biopython.org/wiki/SeqIO for a list of the
+				formats supported)
 	  -v, --verbose         
 	  --no-progress-bar     
 	  --dry-run             
 
 	  Filtering:
 		-p KEY VALUE, --property-filter=KEY VALUE
-							Filter the sequences according to a given key and
-							value. If several filters are declared, only sequences
-							satisfying them all will be returned (optional).
+				Filter the sequences according to a given key and
+				value. If several filters are declared, only sequences
+				satisfying them all will be returned (optional).
 		-w FILENAME, --white-list=FILENAME
-							Text file to read sequence names from (one name per
-							line). Only sequences with names found in this file
-							will be returned (optional).
+				Text file to read sequence names from (one name per
+				line). Only sequences with names found in this file
+				will be returned (optional).
 		-b FILENAME, --black-list=FILENAME
-							Text file to read sequence names from (one name per
-							line). Only sequences with names not found in this
-							file will be returned (optional).
+				Text file to read sequence names from (one name per
+				line). Only sequences with names not found in this
+				file will be returned (optional).
 
 	  Connection:
 		--host=HOSTNAME     Host name or IP address of the MongoDB server
