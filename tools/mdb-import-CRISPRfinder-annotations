@@ -13,9 +13,6 @@ g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 g.add_option("-C", "--collection", dest = "sequences_collection_name", metavar = "STRING",
 	help = "Name of the collection that contains the sequences to annotate (mandatory).")
 
-p.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
-	help = "If set, ignore duplicate objects errors.")
-
 g.add_option("--id-getter", dest = "id_getter", metavar = "PYTHON CODE", default = "%",
 	help = "Python code to reformat sequence identifers (optional); '%' will be replaced by the sequence identifier. Default: %default")
 
@@ -114,11 +111,10 @@ if (p.id_patches_fn):
 			continue
 
 		line = line.split('\t')
-
 		if (len(line) != 2):
 			error("Malformated patch file '%s': the file should contains only two columns" % p.id_patches_fn)
 
-		original_id, alternative_id = line
+		original_id, alternative_id = [item.strip() for item in line]
 		if (original_id in Patch):
 			error("Duplicate original identifier '%s' found in '%s'" % (original_id, p.id_patches_fn))
 
@@ -407,20 +403,7 @@ def connect (source, target, relationship):
 		source.relate_to_sequence(target, relationship)
 	
 	except mdb.errors.DuplicateObjectError as msg:
-		source_class = source["class"]
-		target_class = target["class"] if ("class" in target) else "sequence"
-		source_name = source["sequence"] if (source_class in ("direct repeat", "spacer")) else source["name"]
-		target_name = target["sequence"] if (target_class in ("direct repeat", "spacer")) else target["name"]
-
-		msg = "%s '%s' is already linked to %s '%s'" % (
-			source_class, source_name,
-			target_class, target_name
-		)
-
-		if (p.ignore_duplicates):
-			print >>sys.stderr, "WARNING: %s" % msg
-		else:
-			error(msg)
+		pass
 
 for (sequence_id, CRISPR_sequence, DR_sequences, spacer_sequences) in parser(p.input_fn):
 	sequence = Sequences[sequence_id]
@@ -484,7 +467,7 @@ for (sequence_id, CRISPR_sequence, DR_sequences, spacer_sequences) in parser(p.i
 if (show_pb) and (p.display_progress_bar):
 	pb.clear()
 
-print "  %s sequences annotated." % n
+print "  %s sequence%s annotated." % (n, {True: 's', False: ''}[n > 1])
 
 if (p.dry_run):
 	print "(dry run)"
