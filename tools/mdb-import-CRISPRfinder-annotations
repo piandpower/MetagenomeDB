@@ -294,8 +294,6 @@ for (sequence_id, CRISPR_sequence, DR_sequences, spacer_sequences) in parser(p.i
 
 	Sequences[sequence_id] = sequence[0]
 
-del seen
-
 if (len(Sequences) == 0):
 	error("No sequence in the input")
 
