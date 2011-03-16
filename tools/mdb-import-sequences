@@ -205,7 +205,7 @@ for record in read():
 if (p.display_progress_bar):
 	pb.clear()
 
-print "  %s sequences imported." % n
+print "  %s sequence%s imported." % (n, {True: 's', False: ''}[n > 1])
 
 if (p.dry_run):
 	print "(dry run)"

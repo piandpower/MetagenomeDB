@@ -279,15 +279,11 @@ print "Importing '%s' ..." % p.input_fn
 
 print "  validating sequences ..."
 
-seen = {}
+Sequences = {}
 for (sequence_id, CRISPR_sequence, DR_sequences, spacer_sequences) in parser(p.input_fn):
-	if (sequence_id in seen):
+	if (sequence_id in Sequences):
 		error("Duplicate sequence '%s' in input" % sequence_id)
 
-	seen[sequence_id] = True
-
-Sequences = {}
-for sequence_id in sorted(seen.keys()):
 	sequence = list(collection.list_sequences({"name": sequence_id}))
 
 	if (len(sequence) == 0):
