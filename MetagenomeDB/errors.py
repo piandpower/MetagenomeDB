@@ -51,3 +51,8 @@ class InvalidObjectError (MetagenomeDBError):
 	""" Exception thrown when an object is created with incorrect initial parameters.
 	"""
 	pass
+
+class InvalidObjectOperationError (MetagenomeDBError):
+	""" Exception thrown when an object is accessed or modified incorrectly.
+	"""
+	pass
