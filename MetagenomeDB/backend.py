@@ -8,14 +8,8 @@ import weakref, datetime, re, logging, inspect
 import pymongo, bson
 
 import connection, errors
-from sequence import Sequence
-from collection import Collection
+import classes, objects
 from utils import tree
-
-__CLASSES = {
-	"Sequence": Sequence,
-	"Collection": Collection
-}
 
 logger = logging.getLogger("MetagenomeDB.backend")
 
@@ -152,7 +146,7 @@ def _forge_from_entry (collection, entry):
 		return __objects[id]
 
 	# select the class for this object
-	clazz = __CLASSES[collection]
+	clazz = getattr(objects, collection)
 
 	# trick: we store a non-volatile object in the __objects dictionary so
 	# that during the instanciation the identifier is present in the cache
@@ -197,12 +191,18 @@ def list_collections (with_classes = False):
 	""" Return a list of all existing collections that are
 		represented by a CommittableObject subclass.
 	"""
+	# list all CommittableObject subclasses
+	classes = {}
+	for name, object in inspect.getmembers(objects, inspect.isclass):
+		if (issubclass(object, classes.CommittableObject)):
+			classes[name] = object
+
 	# list all collections in the database
 	collections = []
 	for collection_name in connection.connection().collection_names():
 		if (collection_name in __CLASSES):
 			if (with_classes):
-				collections.append((collection_name, __CLASSES[collection_name]))
+				collections.append((collection_name, classes[collection_name]))
 			else:
 				collections.append(collection_name)
 

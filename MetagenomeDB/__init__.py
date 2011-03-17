@@ -12,9 +12,7 @@ logger = logging.getLogger("MetagenomeDB")
 
 from connection import connect, connection
 import backend, errors
-from objects import Direction
-from sequence import Sequence
-from collection import Collection
+from objects import *
 from utils import tree, tools
 
 def set_verbosity (level):

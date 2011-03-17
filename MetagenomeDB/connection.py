@@ -57,10 +57,7 @@ def connect (host = None, port = None, db = None, user = None, password = None):
 
 	url = "%s:%s/%s" % (host, port, db)
 	if (user != ''):
-		if (password != ''):
-			url = "%s:%s@%s" % (user, password, url)
-		else:
-			url = "%s@%s" % (user, url)
+		url = "%s:%s@%s" % (user, password, url)
 
 	logger.debug("Connection requested to %s" % url)
 
