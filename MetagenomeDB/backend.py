@@ -192,17 +192,17 @@ def list_collections (with_classes = False):
 		represented by a CommittableObject subclass.
 	"""
 	# list all CommittableObject subclasses
-	classes = {}
+	class2object = {}
 	for name, object in inspect.getmembers(objects, inspect.isclass):
 		if (issubclass(object, classes.CommittableObject)):
-			classes[name] = object
+			class2object[name] = object
 
 	# list all collections in the database
 	collections = []
 	for collection_name in connection.connection().collection_names():
-		if (collection_name in __CLASSES):
+		if (collection_name in class2object):
 			if (with_classes):
-				collections.append((collection_name, classes[collection_name]))
+				collections.append((collection_name, class2object[collection_name]))
 			else:
 				collections.append(collection_name)
 
