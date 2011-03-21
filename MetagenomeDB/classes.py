@@ -5,7 +5,7 @@ from utils import tree
 import bson
 import sys, copy, logging
 
-logger = logging.getLogger("MetagenomeDB.objects")
+logger = logging.getLogger("MetagenomeDB.classes")
 
 def parse_properties (properties):
 	properties_ = {}

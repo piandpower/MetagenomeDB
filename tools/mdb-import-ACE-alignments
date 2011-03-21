@@ -111,46 +111,29 @@ try:
 except Exception as msg:
 	error(msg)
 
-print "Importing '%s' ..." % p.input_fn
-
-print "  validating read and contig sequences ..."
-
-Reads, Contigs = {}, {}
-DuplicateReads, DuplicateContigs = {}, {}
-
 try:
 	reads = mdb.Collection.find_one({"name": p.reads_collection})
 	if (reads == None):
 		error("Unknown collection '%s'" % p.reads_collection)
 
-	for read in reads.list_sequences():
-		read_name = str(read["name"])
-		if (read_name in Reads):
-			DuplicateReads[read_name] = True
-
-		Reads[read_name] = read
-
 	contigs = mdb.Collection.find_one({"name": p.contigs_collection})
 	if (contigs == None):
 		error("Unknown collection '%s'" % p.contigs_collection)
 
-	for contig in contigs.list_sequences():
-		contig_name = str(contig["name"])
-		if (contig_name in Contigs):
-			DuplicateContigs[contig_name] = True
-
-		Contigs[contig_name] = contig
-
-except Exception as msg:
+except mdb.errors.ConnectionError as msg:
 	error(msg)
 
-i = Ace.parse(open(p.input_fn, 'r'))
-c = 0
+print "Importing '%s' ..." % p.input_fn
 
-for contig in i:
+print "  validating read and contig sequences ..."
+
+Reads, Contigs, n = {}, {}, 0
+for contig in Ace.parse(open(p.input_fn, 'r')):
 	contig_id = get_contig_id(contig)
 
-	if (not contig_id in Contigs):
+	candidates = list(contigs.list_sequences({"name": contig_id}))
+
+	if (len(candidates) == 0):
 		msg = "Unknown contig '%s'" % contig_id
 		if (p.ignore_missing_contigs):
 			print >>sys.stderr, "WARNING: " + msg
@@ -158,13 +141,17 @@ for contig in i:
 		else:
 			error(msg)
 
-	if (contig_id in DuplicateContigs):
-		error("Duplicate contig sequence '%s'" % contig_id)
+	if (len(candidates) > 1):
+		error("Duplicate contig '%s'" % contig_id)
+
+	Contigs[contig_id] = candidates[0]
 
 	for read in contig.reads:
 		read_id = get_read_id(read)
 
-		if (not read_id in Reads):
+		candidates = list(reads.list_sequences({"name": read_id}))
+
+		if (len(candidates) == 0):
 			msg = "Unknown read '%s' (mapped to contig '%s')" % (read_id, contig_id)
 			if (p.ignore_missing_reads):
 				print >>sys.stderr, "WARNING: " + msg
@@ -172,10 +159,16 @@ for contig in i:
 			else:
 				error(msg)
 
-		if (read_id in DuplicateReads):
-			error("Duplicate read sequence '%s'" % read_id)
+		if (len(candidates) > 1):
+			error("Duplicate read '%s'" % read_id)
 
-		c += 1
+		Reads[read_id] = candidates[0]
+		n += 1
+
+if (n == 0):
+	error("No mapping in the input")
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 print "  importing mapping ..."
 
@@ -196,12 +189,10 @@ class ProgressBar:
 		sys.stdout.write(' ' * (2 + 80 + 8) + "\r")
 		sys.stdout.flush()
 
-pb = ProgressBar(c)
+pb = ProgressBar(n)
+n = 0
 
-i = Ace.parse(open(p.input_fn, 'r'))
-c = 0
-
-for contig in i:
+for contig in Ace.parse(open(p.input_fn, 'r')):
 	contig_id = get_contig_id(contig)
 	if (not contig_id in Contigs):
 		continue
@@ -235,9 +226,10 @@ for contig in i:
 				else:
 					error(msg)
 
-		c += 1
 		if (p.display_progress_bar):
-			pb.display(c)
+			pb.display(n)
+
+		n += 1
 
 if (p.display_progress_bar):
 	pb.clear()
