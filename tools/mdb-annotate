@@ -54,8 +54,9 @@ p.add_option_group(g)
 (p, a) = p.parse_args()
 
 def error (msg):
-	if str(msg).endswith('.'):
-		msg = str(msg)[:-1]
+	msg = str(msg)
+	if msg.endswith('.'):
+		msg = msg[:-1]
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
@@ -192,7 +193,7 @@ try:
 					object.commit()
 
 		except mdb.errors.ConnectionError as msg:
-			error(str(msg))
+			error(msg)
 
 		except NotFound as msg:
 			if (p.ignore_unknown):

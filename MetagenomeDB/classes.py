@@ -213,7 +213,8 @@ class CommittableObject (MutableObject):
 			self._properties[key] = value
 		"""
 
-		backend.commit(self)
+		with errors._protect():
+			backend._commit(self)
 
 		"""
 		# post-flight: we restore the object's properties, if needed
@@ -546,7 +547,8 @@ class CommittableObject (MutableObject):
 		# if the object has been committed at least once,
 		if ("_id" in self._properties):
 			# remove the object from the database
-			backend.remove_object(self)
+			with errors._protect():
+				backend.remove_object(self)
 
 			# and declare it has never having been committed
 			del self._properties["_id"]

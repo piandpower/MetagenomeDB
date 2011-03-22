@@ -22,7 +22,7 @@ __objects = weakref.WeakValueDictionary()
 # support concurrent modifications. I.e., if another client modifies the
 # backend database after an object has been instanciated, a commit() will
 # overwrite those modifications.
-def commit (object):
+def _commit (object):
 	db = connection.connection()
 
 	collection_name = object.__class__.__name__
@@ -59,12 +59,13 @@ def commit (object):
 		object._properties["_id"] = object_id
 		__objects[object_id] = object
 
-	except pymongo.errors.OperationFailure as msg:
-		if ("E11000" in str(msg)):
-			properties = [(key, object[key]) for key in filter(lambda x: "$%s_" % x in str(msg), object._indices)]
+	except pymongo.errors.OperationFailure as e:
+		# we process index-related errors independently
+		if ("E11000" in str(e)):
+			properties = [(key, object[key]) for key in filter(lambda x: "$%s_" % x in str(e), object._indices)]
 			raise errors.DuplicateObjectError(collection_name, properties)
-		else:
-			raise errors.MetagenomeDBError("Unable to commit. Reason: %s" % msg)
+
+		raise e
 
 	logger.debug("Object %s %s in collection '%s'." % (object, verb, collection_name))
 
@@ -113,7 +114,7 @@ def find (collection, query, find_one = False, count = False):
 			query = {"_id": bson.objectid.ObjectId(query)}
 
 		except bson.errors.InvalidId:
-			raise errors.MetagenomeDBError("Invalid identifier: %s" % query)
+			raise errors.InvalidObjectOperationError("Invalid identifier: %s" % query)
 
 	if (query_t == bson.objectid.ObjectId):
 		query = {"_id": query}
@@ -124,7 +125,7 @@ def find (collection, query, find_one = False, count = False):
 			query = None
 
 	elif (query != None):
-		raise errors.MetagenomeDBError("Invalid query: %s" % query)
+		raise errors.InvalidObjectOperationError("Invalid query: %s" % query)
 
 	logger.debug("Querying %s in collection '%s'." % (query, collection))
 
@@ -175,7 +176,10 @@ def remove_object (object):
 	""" Remove an object from a collection.
 	"""
 	collection_name = object.__class__.__name__
-	connection.connection()[collection_name].remove({"_id": object["_id"]})
+
+	with errors._protect():
+		connection.connection()[collection_name].remove({"_id": object["_id"]})
+
 	del __objects[object["_id"]]
 
 	logger.debug("Object %s was removed from collection '%s'." % (object, collection_name))
@@ -183,7 +187,8 @@ def remove_object (object):
 def drop_collection (collection):
 	""" Drop a collection.
 	"""
-	connection.connection().drop_collection(collection)
+	with errors._protect():
+		connection.connection().drop_collection(collection)
 
 	logger.debug("Collection '%s' was dropped." % collection)
 

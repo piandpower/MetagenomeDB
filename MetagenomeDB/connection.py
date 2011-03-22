@@ -63,28 +63,27 @@ def connect (host = None, port = None, db = None, user = None, password = None):
 
 	try:
 		connection = pymongo.connection.Connection(host, port)
-
-		# test for the existence of the database
-		try:
-			exists = (db in connection.database_names())
-		except:
-			exists = False
-
-		if (not exists):
-			logger.warning("The database '%s' doesn't exist and will be created." % db)
-
-		database = connection[db]
+		database = pymongo.database.Database(connection, db)
 
 		# use credentials, if any
 		if (user != ''):
-			database.authenticate(user, password)
+			success = database.authenticate(user, password)
+			if (not success):
+				raise errors.ConnectionError(db, host, port, "Authentication failed (user: '%s', password: '%s')." % (user, password))
+
 			logger.debug("Authenticated as '%s'." % user)
 
+		database.collection_names()
+
 	except pymongo.errors.ConnectionFailure as msg:
+		# the mongodb server couldn't be located
 		raise errors.ConnectionError(db, host, port, msg)
 
 	except pymongo.errors.OperationFailure as msg:
-		raise errors.ConnectionError(db, host, port, "Incorrect credentials.")
+		if ("database error: unauthorized" in str(msg)):
+			msg = "Incorrect credentials or database doesn't exist."
+
+		raise errors.ConnectionError(db, host, port, msg)
 
 	logger.debug("Connected to %s" % url)
 
@@ -93,8 +92,7 @@ def connect (host = None, port = None, db = None, user = None, password = None):
 	return __connection
 
 def connection():
-	""" Obtain a connection object to a MongoDB database. If no connection
-		exists, connect() is called without argument.
+	""" Obtain a connection object to a MongoDB database. If no connection exists, connect() is called without argument.
 	
 	.. note::
 		connection() is a singleton; i.e., any call to this function will

@@ -71,24 +71,28 @@ try:
 except Exception as msg:
 	error(msg)
 
-# List all collections and their sub-collections, as a list of edges
-nodes, edges = {}, {}
+try:
+	# List all collections and their sub-collections, as a list of edges
+	nodes, edges = {}, {}
 
-for a in mdb.Collection.find():
-	if (not a in edges):
-		edges[a] = {}
+	for a in mdb.Collection.find():
+		if (not a in edges):
+			edges[a] = {}
 
-	for b in a.list_sub_collections():
-		if (not b in edges[a]):
-			edges[a][b] = True
+		for b in a.list_sub_collections():
+			if (not b in edges[a]):
+				edges[a][b] = True
 
-	nodes[a] = True
+		nodes[a] = True
 
-for node in nodes:
-	if (not node in edges):
-		edges[node] = {}
+	for node in nodes:
+		if (not node in edges):
+			edges[node] = {}
 
-del nodes
+	del nodes
+
+except mdb.errors.ConnectionError as msg:
+	error(msg)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 

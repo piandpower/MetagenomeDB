@@ -196,7 +196,7 @@ try:
 			n[type] += 1
 
 		except mdb.errors.ConnectionError as msg:
-			error(str(msg))
+			error(msg)
 
 		except mdb.errors.DuplicateObjectError as msg:
 			if (p.ignore_duplicates):
