@@ -1,11 +1,12 @@
 
-import os, logging, ConfigParser
+import os, logging, ConfigParser, copy
 import pymongo
 import errors
 
 logger = logging.getLogger("MetagenomeDB.connection")
 
 __connection = None
+__connection_info = {}
 
 def connect (host = None, port = None, db = None, user = None, password = None):
 	""" Open a connection to a MongoDB database.
@@ -89,6 +90,16 @@ def connect (host = None, port = None, db = None, user = None, password = None):
 
 	global __connection
 	__connection = database
+
+	global __connection_info
+	__connection_info = {
+		"host": host,
+		"port": port,
+		"db": db,
+		"user": user,
+		"password": password
+	}
+
 	return __connection
 
 def connection():
@@ -104,3 +115,11 @@ def connection():
 		connect()
 
 	return __connection
+
+def connection_information():
+	""" Obtain information about the connection to MongoDB, as a dictionary.
+	"""
+	if (__connection == None):
+		connect()
+
+	return copy.deepcopy(__connection_info)

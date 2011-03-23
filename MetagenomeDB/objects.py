@@ -119,7 +119,7 @@ class Sequence (CommittableObject):
 
 	def _getitem_precallback (self, key, value):
 		if (key == ("sequence",)):
-			if (type(value) == str):
+			if (type(value) in (str, unicode)):
 				return value
 
 			if ("data" in value):
