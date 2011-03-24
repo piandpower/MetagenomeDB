@@ -3,3 +3,4 @@ include LICENSE.txt
 include README.rst
 recursive-include MetagenomeDB *.py
 recursive-include doc *
+global-exclude .DS_Store
