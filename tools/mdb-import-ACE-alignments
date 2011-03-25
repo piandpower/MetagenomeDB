@@ -128,7 +128,7 @@ print "Importing '%s' ..." % p.input_fn
 
 print "  validating read and contig sequences ..."
 
-Reads, Contigs, n = {}, {}, 0
+n = 0
 for contig in Ace.parse(open(p.input_fn, 'r')):
 	contig_id = get_contig_id(contig)
 
@@ -144,8 +144,6 @@ for contig in Ace.parse(open(p.input_fn, 'r')):
 
 	if (len(candidates) > 1):
 		error("Duplicate contig '%s'" % contig_id)
-
-	Contigs[contig_id] = candidates[0]
 
 	for read in contig.reads:
 		read_id = get_read_id(read)
@@ -163,7 +161,6 @@ for contig in Ace.parse(open(p.input_fn, 'r')):
 		if (len(candidates) > 1):
 			error("Duplicate read '%s'" % read_id)
 
-		Reads[read_id] = candidates[0]
 		n += 1
 
 if (n == 0):
@@ -193,19 +190,24 @@ class ProgressBar:
 pb = ProgressBar(n)
 n = 0
 
+def get_sequence (collection, name):
+	candidates = collection.list_sequences({"name": name})
+	if (candidates == []):
+		return None
+	else:
+		return candidate[0]
+
 for contig in Ace.parse(open(p.input_fn, 'r')):
 	contig_id = get_contig_id(contig)
-	if (not contig_id in Contigs):
+	contig_o = get_sequence(contigs, contig_id)
+	if (contig_o is None):
 		continue
-
-	contig_o = Contigs[contig_id]
 
 	for read_idx, read in enumerate(contig.reads):
 		read_id = get_read_id(read)
-		if (not read_id in Reads):
+		read_o = get_sequence(reads, read_id)
+		if (read_id is None):
 			continue
-
-		read_o = Reads[read_id]
 
 		r = {
 			"type": "part-of",

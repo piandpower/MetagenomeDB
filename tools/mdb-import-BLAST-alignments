@@ -167,9 +167,7 @@ print "Importing '%s' ..." % p.input_fn
 
 print "  validating query and hit sequences ..."
 
-QuerySequences, HitSequences = {}, {}
-n_records = 0
-
+n = 0
 for record in NCBIXML.parse(open(p.input_fn, 'r')):
 	query_id = get_query_id(record.query)
 
@@ -180,8 +178,6 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 
 	if (len(candidates) > 1):
 		error("Duplicate query sequence '%s'" % query_id)
-
-	QuerySequences[query_id] = candidates[0]
 
 	if (p.hits_collection):
 		for hit in record.alignments:
@@ -194,11 +190,13 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 			if (len(candidates) > 1):
 				error("Duplicate hit sequence '%s'" % hit_id)
 
-			HitSequences[hit_id] = candidates[0]
+	n += 1
 
-	n_records += 1
+if (n == 0):
+	error("No BLAST hit in the input")
 
-# Import
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
 print "  importing HSPs ..."
 
 class ProgressBar:
@@ -218,13 +216,21 @@ class ProgressBar:
 		sys.stdout.write(' ' * (4 + 80 + 8) + "\r")
 		sys.stdout.flush()
 
-pb = ProgressBar(n_records)
+pb = ProgressBar(n)
+n = 0
+
+def get_sequence (collection, name):
+	candidates = collection.list_sequences({"name": name})
+	if (candidates == []):
+		return None
+	else:
+		return candidate[0]
+
 external_hits = (p.hits_collection == None)
 
-n = 0
 for record in NCBIXML.parse(open(p.input_fn, 'r')):
 	query_id = get_query_id(record.query)
-	query_o = QuerySequences[query_id]
+	query_o = get_sequence(queries, query_id)
 
 	if (external_hits):
 		hits = query_o.get_property("alignments", [])
@@ -233,7 +239,7 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 	for hit in record.alignments:
 		hit_id = get_hit_id(hit.title)
 		if (not external_hits):
-			hit_o = HitSequences[hit_id]
+			hit_o = get_sequence(hits, hit_id)
 
 		m += 1
 		if (p.max_hits) and (m > p.max_hits):
