@@ -220,11 +220,7 @@ pb = ProgressBar(n)
 n = 0
 
 def get_sequence (collection, name):
-	candidates = list(collection.list_sequences({"name": name}))
-	if (candidates == []):
-		return None
-	else:
-		return candidates[0]
+	return list(collection.list_sequences({"name": name}))[0]
 
 external_hits = (p.hits_collection == None)
 

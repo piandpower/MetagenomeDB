@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import optparse, sys, os, re, time, pprint
+import optparse, sys, os, re, time, pprint, itertools
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
 Imports ACE-formatted mapping between reads and contigs into the database.""")
@@ -10,8 +10,9 @@ g = optparse.OptionGroup(p, "ACE")
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "ACE file (mandatory).")
 
-g.add_option("--reads-collection", dest = "reads_collection", metavar = "STRING",
-	help = "Name of the collection the reads belong to (mandatory).")
+g.add_option("--reads-collection", dest = "reads_collection_names", metavar = "STRING", action = "append",
+	help = """Name of the collection the reads belong to (mandatory). More than
+one reads collection can be provided by using this option multiple times.""")
 
 g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%",
 	help = "Python code to reformat read identifiers (optional); '%s' will be replaced by a Biopython ACE read object. Default: %default")
@@ -19,7 +20,7 @@ g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE
 g.add_option("--ignore-missing-reads", dest = "ignore_missing_reads", action = "store_true", default = False,
 	help = "If set, ignore reads that are not found in the reads collection.")
 
-g.add_option("--contigs-collection", dest = "contigs_collection", metavar = "STRING",
+g.add_option("--contigs-collection", dest = "contigs_collection_name", metavar = "STRING",
 	help = "Name of the collection the contigs belong to (mandatory).")
 
 g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON CODE", default = "%",
@@ -85,7 +86,7 @@ if (p.input_fn == None):
 if (not os.path.exists(p.input_fn)):
 	error("File '%s' not found" % p.input_fn)
 
-if (p.reads_collection == None)  or (p.contigs_collection == None):
+if (p.reads_collection_names == None)  or (p.contigs_collection_name == None):
 	error("A collection must be provided for both reads and contigs")
 
 try:
@@ -113,13 +114,16 @@ except Exception as msg:
 	error(msg)
 
 try:
-	reads = mdb.Collection.find_one({"name": p.reads_collection})
-	if (reads == None):
-		error("Unknown collection '%s'" % p.reads_collection)
+	reads_collections = []
+	for name in p.reads_collection_names:
+		reads_collection = mdb.Collection.find_one({"name": name})
+		if (reads_collection == None):
+			error("Unknown collection '%s'" % name)
+		reads_collections.append(reads_collection)
 
-	contigs = mdb.Collection.find_one({"name": p.contigs_collection})
-	if (contigs == None):
-		error("Unknown collection '%s'" % p.contigs_collection)
+	contigs_collection = mdb.Collection.find_one({"name": p.contigs_collection_name})
+	if (contigs_collection == None):
+		error("Unknown collection '%s'" % p.contigs_collection_name)
 
 except mdb.errors.ConnectionError as msg:
 	error(msg)
@@ -132,7 +136,7 @@ n = 0
 for contig in Ace.parse(open(p.input_fn, 'r')):
 	contig_id = get_contig_id(contig)
 
-	candidates = list(contigs.list_sequences({"name": contig_id}))
+	candidates = list(contigs_collection.list_sequences({"name": contig_id}))
 
 	if (len(candidates) == 0):
 		msg = "Unknown contig '%s'" % contig_id
@@ -148,7 +152,7 @@ for contig in Ace.parse(open(p.input_fn, 'r')):
 	for read in contig.reads:
 		read_id = get_read_id(read)
 
-		candidates = list(reads.list_sequences({"name": read_id}))
+		candidates = list(itertools.chain(*[reads_collection.list_sequences({"name": read_id}) for reads_collection in reads_collections]))
 
 		if (len(candidates) == 0):
 			msg = "Unknown read '%s' (mapped to contig '%s')" % (read_id, contig_id)
@@ -159,7 +163,7 @@ for contig in Ace.parse(open(p.input_fn, 'r')):
 				error(msg)
 
 		if (len(candidates) > 1):
-			error("Duplicate read '%s'" % read_id)
+			error("Ambiguous read '%s'" % read_id)
 
 		n += 1
 
@@ -190,8 +194,12 @@ class ProgressBar:
 pb = ProgressBar(n)
 n = 0
 
-def get_sequence (collection, name):
-	candidates = list(collection.list_sequences({"name": name}))
+def get_sequence (collection, name, is_list = False):
+	if (is_list):
+		candidates = list(itertools.chain(*[collection_.list_sequences({"name": name}) for collection_ in collection]))
+	else:
+		candidates = list(collection.list_sequences({"name": name}))
+
 	if (candidates == []):
 		return None
 	else:
@@ -199,13 +207,13 @@ def get_sequence (collection, name):
 
 for contig in Ace.parse(open(p.input_fn, 'r')):
 	contig_id = get_contig_id(contig)
-	contig_o = get_sequence(contigs, contig_id)
+	contig_o = get_sequence(contigs_collection, contig_id)
 	if (contig_o is None):
 		continue
 
 	for read_idx, read in enumerate(contig.reads):
 		read_id = get_read_id(read)
-		read_o = get_sequence(reads, read_id)
+		read_o = get_sequence(reads_collections, read_id, is_list = True)
 		if (read_id is None):
 			continue
 
