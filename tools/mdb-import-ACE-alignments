@@ -191,7 +191,7 @@ pb = ProgressBar(n)
 n = 0
 
 def get_sequence (collection, name):
-	candidates = collection.list_sequences({"name": name})
+	candidates = list(collection.list_sequences({"name": name}))
 	if (candidates == []):
 		return None
 	else:
