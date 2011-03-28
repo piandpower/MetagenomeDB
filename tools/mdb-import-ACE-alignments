@@ -195,7 +195,7 @@ def get_sequence (collection, name):
 	if (candidates == []):
 		return None
 	else:
-		return candidate[0]
+		return candidates[0]
 
 for contig in Ace.parse(open(p.input_fn, 'r')):
 	contig_id = get_contig_id(contig)

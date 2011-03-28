@@ -224,7 +224,7 @@ def get_sequence (collection, name):
 	if (candidates == []):
 		return None
 	else:
-		return candidate[0]
+		return candidates[0]
 
 external_hits = (p.hits_collection == None)
 
