@@ -5,7 +5,7 @@ import optparse, sys, os, re, time, pprint, itertools
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
 Imports ACE-formatted mapping between reads and contigs into the database.""")
 
-g = optparse.OptionGroup(p, "ACE")
+g = optparse.OptionGroup(p, "Input")
 
 g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "ACE file (mandatory).")
@@ -14,17 +14,27 @@ g.add_option("--reads-collection", dest = "reads_collection_names", metavar = "S
 	help = """Name of the collection the reads belong to (mandatory). More than
 one reads collection can be provided by using this option multiple times.""")
 
-g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%",
-	help = "Python code to reformat read identifiers (optional); '%s' will be replaced by a Biopython ACE read object. Default: %default")
-
-g.add_option("--ignore-missing-reads", dest = "ignore_missing_reads", action = "store_true", default = False,
-	help = "If set, ignore reads that are not found in the reads collection.")
-
 g.add_option("--contigs-collection", dest = "contigs_collection_name", metavar = "STRING",
 	help = "Name of the collection the contigs belong to (mandatory).")
 
+p.add_option_group(g)
+
+g = optparse.OptionGroup(p, "Identifiers manipulation")
+
+g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%",
+	help = """Python code to reformat read identifiers (optional); '%s' will be
+replaced by a Biopython ACE read object. Default: %default".""")
+
 g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON CODE", default = "%",
-	help = "Python code to reformat contigs identifiers (optional); '%s' will be replaced by a Biopython ACE record object. Default: %default")
+	help = """Python code to reformat contigs identifiers (optional); '%s' will
+be replaced by a Biopython ACE record object. Default: %default".""")
+
+p.add_option_group(g)
+
+g = optparse.OptionGroup(p, "Missing and duplicate objects")
+
+g.add_option("--ignore-missing-reads", dest = "ignore_missing_reads", action = "store_true", default = False,
+	help = "If set, ignore reads that are not found in the reads collection.")
 
 g.add_option("--ignore-missing-contigs", dest = "ignore_missing_contigs", action = "store_true", default = False,
 	help = "If set, ignore contigs that are not found in the contigs collection.")
