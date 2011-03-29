@@ -9,7 +9,7 @@ def _protect():
 		yield
 
 	except pymongo.errors.ConnectionFailure as e:
-		raise ConnectionError("Unable to access the database. Reason: " + str(e))
+		raise DBConnectionError("Unable to access the database. Reason: " + str(e))
 
 	except pymongo.errors.OperationFailure as e:
 		try:
@@ -22,13 +22,16 @@ def _protect():
 		else:
 			msg, code = error["err"], error.get("code")
 
-		if ("unauthorized" in msg):
-			msg = "Incorrect credentials."
+		if ("unauthorized" in msg) or ("auth fails" in msg):
+			raise DBConnectionError("Incorrect credentials.")
 
 		if (code != None):
 			msg += " (error code: %s)" % code
 
-		raise ConnectionError("Unable to perform the operation. Reason: " + msg)
+		raise DBOperationError("Unable to perform the operation. Reason: " + msg)
+
+	except pymongo.errors.PyMongoError as e:
+		raise DBOperationError("Unable to perform the operation. Reason: " + str(e))
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -37,8 +40,8 @@ class MetagenomeDBError (Exception):
 	"""
 	pass
 
-class ConnectionError (MetagenomeDBError):
-	""" Exception that is raised when failing to connect to, or interact with a MongoDB server.
+class DBConnectionError (MetagenomeDBError):
+	""" Exception raised when failing to connect to the database.
 	"""
 	def __init__ (self, database = None, host = None, port = None, message = None):
 		if (host == None) and (port == None) and (message == None):
@@ -51,6 +54,11 @@ class ConnectionError (MetagenomeDBError):
 
 	def __str__ (self):
 		return self.msg
+
+class DBOperationError (MetagenomeDBError):
+	""" Exception raised when an invalid operation is attempted on the database.
+	"""
+	pass
 
 class DuplicateObjectError (MetagenomeDBError):
 	""" Exception that is raised when attempting to add an object in the

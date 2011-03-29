@@ -202,7 +202,7 @@ try:
 		Spacers.add_to_collection(CRISPRs)
 		Spacers.commit()
 
-except mdb.errors.ConnectionError as msg:
+except mdb.errors.DBConnectionError as msg:
 	error(msg)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::

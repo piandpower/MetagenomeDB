@@ -9,11 +9,11 @@ Classes used to represent exceptions. When using the MetagenomeDB API it is reco
 		mdb.connect(database = "My database")
 
 	# here we catch any exception related to the database connection
-	except mdb.ConnectionError as msg:
+	except mdb.errors.DBConnectionError as msg:
 		print "Connection error: %s" % msg
 
 	# here we catch any other exception thrown by the toolkit
-	except mdb.MetagenomeDBerror as msg:
+	except mdb.errors.MetagenomeDBerror as msg:
 		print "General error: %s" % msg
 
 (see the Python `documentation <http://docs.python.org/tutorial/errors.html>`_ about handling exceptions)

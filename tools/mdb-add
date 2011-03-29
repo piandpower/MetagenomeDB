@@ -195,7 +195,7 @@ try:
 
 			n[type] += 1
 
-		except mdb.errors.ConnectionError as msg:
+		except (mdb.errors.DBConnectionError, mdb.errors.DBOperationError) as msg:
 			error(msg)
 
 		except mdb.errors.DuplicateObjectError as msg:

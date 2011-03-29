@@ -192,7 +192,7 @@ try:
 				else:
 					object.commit()
 
-		except mdb.errors.ConnectionError as msg:
+		except (mdb.errors.DBConnectionError, mdb.errors.DBOperationError) as msg:
 			error(msg)
 
 		except NotFound as msg:

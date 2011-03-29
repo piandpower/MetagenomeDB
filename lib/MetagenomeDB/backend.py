@@ -11,7 +11,7 @@ import connection, errors
 import classes, objects
 from utils import tree
 
-logger = logging.getLogger("MetagenomeDB.backend")
+logger = logging.getLogger("MetagenomeDB")
 
 # Object cache, as a map with weak values
 __objects = weakref.WeakValueDictionary()
@@ -192,9 +192,43 @@ def drop_collection (collection):
 
 	logger.debug("Collection '%s' was dropped." % collection)
 
+def copy_database (target_db, admin_user = None, admin_password = None, force = False):
+	""" Copy the current database to a new database name.
+	(see http://www.mongodb.org/display/DOCS/Clone+Database)
+	"""
+	with errors._protect():
+		# save the current connection
+		db_connection = connection.connection()
+		db_connection_ = connection.connection_information()
+
+		source_db = db_connection_["db"]
+		if (source_db == target_db):
+			logger.debug("Ignored request to copy '%s' into itself." % target_db)
+			return
+
+		# open a connection to the admin collection
+		admin_connection = connection.connect(db = "admin", user = admin_user, password = admin_password)
+
+		if (target_db in admin_connection.connection.database_names()):
+			if (force):
+				logger.debug("'%s' already exists and will be merged with content of '%s'." % (source_db, target_db))
+			else:
+				raise errors.DBOperationError("Unable to copy database '%s' to '%s': target already exists." % (source_db, target_db))
+
+		# copy the database
+		try:
+			admin_connection.connection.copy_database(source_db, target_db)
+
+		# restore the current connection
+		finally:
+			connection._connection = db_connection
+			connection._connection_information = db_connection_
+
+	logger.debug("Copy of '%s' into '%s' successful." % (source_db, target_db))
+
 def list_collections (with_classes = False):
 	""" Return a list of all existing collections that are
-		represented by a CommittableObject subclass.
+	represented by a CommittableObject subclass.
 	"""
 	# list all CommittableObject subclasses
 	class2object = {}
@@ -203,8 +237,12 @@ def list_collections (with_classes = False):
 			class2object[name] = object
 
 	# list all collections in the database
+	with errors._protect():
+		collection_names = connection.connection().collection_names()
+
+	# return collections represented by CommittableObject subclasses
 	collections = []
-	for collection_name in connection.connection().collection_names():
+	for collection_name in collection_names:
 		if (collection_name in class2object):
 			if (with_classes):
 				collections.append((collection_name, class2object[collection_name]))

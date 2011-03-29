@@ -160,7 +160,7 @@ try:
 		if (hits == None):
 			error("Unknown hits collection '%s'" % p.hits_collection)
 
-except mdb.errors.ConnectionError as msg:
+except mdb.errors.DBConnectionError as msg:
 	error(msg)
 
 print "Importing '%s' ..." % p.input_fn

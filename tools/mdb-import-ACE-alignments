@@ -125,7 +125,7 @@ try:
 	if (contigs_collection == None):
 		error("Unknown collection '%s'" % p.contigs_collection_name)
 
-except mdb.errors.ConnectionError as msg:
+except mdb.errors.DBConnectionError as msg:
 	error(msg)
 
 print "Importing '%s' ..." % p.input_fn

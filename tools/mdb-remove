@@ -194,7 +194,7 @@ try:
 				else:
 					mdb.backend.remove_object(object)
 
-except mdb.errors.ConnectionError as msg:
+except (mdb.errors.DBConnectionError, mdb.errors.DBOperationError) as msg:
 	error(msg)
 
 print "Done."

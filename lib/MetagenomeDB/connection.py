@@ -3,10 +3,10 @@ import os, logging, ConfigParser, copy
 import pymongo
 import errors
 
-logger = logging.getLogger("MetagenomeDB.connection")
+logger = logging.getLogger("MetagenomeDB")
 
-__connection = None
-__connection_info = {}
+_connection = None # connection to a database (warning: instance of pymongo.database.Database, NOT pymongo.connection.Connection)
+_connection_info = {} # information about the connection
 
 def connect (host = None, port = None, db = None, user = None, password = None):
 	""" Open a connection to a MongoDB database.
@@ -56,9 +56,10 @@ def connect (host = None, port = None, db = None, user = None, password = None):
 	user = get("user", user, '')
 	password = get("password", password, '')
 
-	url = "%s:%s/%s" % (host, port, db)
+	url = "mongodb://"
 	if (user != ''):
-		url = "%s:%s@%s" % (user, password, url)
+		url += "%s@" % user
+	url += "%s:%s/%s" % (host, port, db)
 
 	logger.debug("Connection requested to %s" % url)
 
@@ -70,7 +71,7 @@ def connect (host = None, port = None, db = None, user = None, password = None):
 		if (user != ''):
 			success = database.authenticate(user, password)
 			if (not success):
-				raise errors.ConnectionError(db, host, port, "Authentication failed (user: '%s', password: '%s')." % (user, password))
+				raise errors.DBConnectionError(db, host, port, "Authentication failed (user: '%s', password: '%s')." % (user, password))
 
 			logger.debug("Authenticated as '%s'." % user)
 
@@ -78,29 +79,30 @@ def connect (host = None, port = None, db = None, user = None, password = None):
 
 	except pymongo.errors.ConnectionFailure as msg:
 		# the mongodb server couldn't be located
-		raise errors.ConnectionError(db, host, port, msg)
+		raise errors.DBConnectionError(db, host, port, msg)
 
 	except pymongo.errors.OperationFailure as msg:
 		if ("database error: unauthorized" in str(msg)):
 			msg = "Incorrect credentials or database doesn't exist."
 
-		raise errors.ConnectionError(db, host, port, msg)
+		raise errors.DBConnectionError(str(msg))
 
 	logger.debug("Connected to %s" % url)
 
-	global __connection
-	__connection = database
+	global _connection
+	_connection = database
 
-	global __connection_info
-	__connection_info = {
+	global _connection_info
+	_connection_info = {
 		"host": host,
 		"port": port,
 		"db": db,
 		"user": user,
-		"password": password
+		"password": password,
+		"url": url
 	}
 
-	return __connection
+	return _connection
 
 def connection():
 	""" Obtain a connection object to a MongoDB database. If no connection exists, connect() is called without argument.
@@ -109,17 +111,17 @@ def connection():
 		connection() is a singleton; i.e., any call to this function will
 		return the same connection object.
 	"""
-	logger.debug("Connection requested by PID %s" % os.getpid())
-
-	if (__connection == None):
+	if (_connection == None):
+		logger.debug("New connection requested by PID %s" % os.getpid())
 		connect()
 
-	return __connection
+	return _connection
 
 def connection_information():
 	""" Obtain information about the connection to MongoDB, as a dictionary.
 	"""
-	if (__connection == None):
+	if (_connection == None):
+		logger.debug("New connection information requested by PID %s" % os.getpid())
 		connect()
 
-	return copy.deepcopy(__connection_info)
+	return copy.deepcopy(_connection_info)
