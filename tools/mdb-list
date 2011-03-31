@@ -71,38 +71,14 @@ try:
 except Exception as msg:
 	error(msg)
 
-try:
-	# List all collections and their sub-collections, as a list of edges
-	nodes, edges = {}, {}
-
-	for a in mdb.Collection.find():
-		if (not a in edges):
-			edges[a] = {}
-
-		for b in a.list_sub_collections():
-			if (not b in edges[a]):
-				edges[a][b] = True
-
-		nodes[a] = True
-
-	for node in nodes:
-		if (not node in edges):
-			edges[node] = {}
-
-	del nodes
-
-except mdb.errors.DBConnectionError as msg:
-	error(msg)
-
-#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
 def collection_title (collection):
 	n = collection.count_sequences()
-	return "%s (%s sequence%s)" % (
-		collection["name"],
-		n,
-		{True: 's', False: ''}[n > 1]
-	)
+	title = collection["name"]
+	if (n > 1):
+		title += " (%s sequences)" % n
+	elif (n > 0):
+		title += " (%s sequence)" % n
+	return title
 
 def traverse (map, prefix = None):
 	for key in sorted(map.keys()):
@@ -122,16 +98,23 @@ def traverse (map, prefix = None):
 
 sorted_ = lambda x: sorted(x, lambda x, y: cmp(x["name"], y["name"]))
 
-for collection in sorted_(edges):
-	print >>sys.stdout, collection_title(collection)
+try:
+	for collection in sorted_(mdb.Collection.find()):
+		print >>sys.stdout, collection_title(collection)
 
-	if (p.display_properties):
-		for (key, value) in traverse(collection.get_properties()):
-			if (type(value) == unicode):
-				value = "'%s'" % value
-			print "	%s = %s" % ('.'.join(key), value)
+		if (p.display_properties):
+			for (key, value) in traverse(collection.get_properties()):
+				if (type(value) == unicode):
+					value = "'%s'" % value
+				print "	%s = %s" % ('.'.join(key), value)
 
-	for subcollection in sorted_(edges[collection]):
-		print >>sys.stdout, "	(sub-collection: '%s')" % subcollection["name"]
+		for supercollection in sorted_(collection.list_super_collections()):
+			print >>sys.stdout, "	(super-collection: '%s')" % supercollection["name"]
 
-	print >>sys.stdout
+		for subcollection in sorted_(collection.list_sub_collections()):
+			print >>sys.stdout, "	(sub-collection: '%s')" % subcollection["name"]
+
+		print >>sys.stdout
+
+except mdb.errors.DBConnectionError as msg:
+	error(msg)
