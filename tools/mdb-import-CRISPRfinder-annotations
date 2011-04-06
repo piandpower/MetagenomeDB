@@ -106,7 +106,7 @@ if (not p.sequences_collection_name):
 try:
 	get_sequence_id = eval("lambda x: " + p.id_getter.replace('%', 'x').replace("\\x", '%'))
 
-except SyntaxError, e:
+except SyntaxError as e:
 	error("Invalid getter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
 
 Patch = {}

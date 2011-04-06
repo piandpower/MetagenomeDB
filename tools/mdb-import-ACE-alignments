@@ -114,10 +114,10 @@ if (p.contigs_collection_name == None):
 	error("A collection must be provided for both reads and contigs")
 
 try:
-	get_read_id = eval("lambda x: " + p.read_id_getter.replace('%', 'x.rd.name').replace("\\x", '%'))
-	get_contig_id = eval("lambda x: " + p.contig_id_getter.replace('%', 'x.name').replace("\\x", '%'))
+	get_read_id = eval("lambda x: " + p.read_id_getter.replace('%', "x.rd.name").replace("\\x", '%'))
+	get_contig_id = eval("lambda x: " + p.contig_id_getter.replace('%', "x.name").replace("\\x", '%'))
 
-except SyntaxError, e:
+except SyntaxError as e:
 	error("Invalid getter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::

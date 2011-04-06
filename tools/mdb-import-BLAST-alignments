@@ -118,7 +118,7 @@ try:
 	get_query_id = eval("lambda x: " + p.query_id_getter.replace('%', 'x').replace("\\x", '%'))
 	get_hit_id = eval("lambda x: " + p.hit_id_getter.replace('%', 'x').replace("\\x", '%'))
 
-except SyntaxError, e:
+except SyntaxError as e:
 	error("Invalid getter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
 
 if (p.max_e_value):
