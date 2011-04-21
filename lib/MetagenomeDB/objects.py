@@ -268,7 +268,7 @@ class Sequence (CommittableObject):
 
 		# we then filter these collections, if needed
 		if (collection_filter == None):
-			return collection.keys()
+			return sorted(top.keys())
 
 		else:
 			query = {"_id": {"$in": [collection["_id"] for collection in top]}}
