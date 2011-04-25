@@ -41,7 +41,7 @@ g.add_option("--max-hits", dest = "max_hits", type = "int", metavar = "INTEGER",
 	help = "If set, keep only the first '--max-hits' hits for each query.")
 
 g.add_option("--ignore-alignment", dest = "include_alignment", action = "store_false", default = True,
-	help = "If set, will not store information about the sequence alignment (HSP coordinates and sequences).")
+	help = "If set, will not store HSP sequences and conservation lines.")
 
 p.add_option_group(g)
 
@@ -256,7 +256,6 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 			# - http://www.biopython.org/DIST/docs/api/Bio.Blast.Record-pysrc.html for information about how the result is stored as a Record
 			r = {
 				"type": "similar-to",
-
 				"run": {
 					"date": {"year": p.date[0], "month": p.date[1], "day": p.date[2]},
 					"algorithm": {
@@ -278,23 +277,22 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 						"number_of_letters": record.num_letters_in_database,
 					}
 				},
-
 				"score": {
 					"fraction_identical": identity,
 					"fraction_conserved": 100.0 * hsp.positives / hsp.align_length,
 					"e_value": hsp.expect,
 					"gaps": hsp.gaps,
-				}
+				},
+				"alignment": {
+					"source_coordinates": (hsp.query_start, hsp.query_end),
+					"target_coordinates": (hsp.sbjct_start, hsp.sbjct_end),
+				},
 			}
 
 			if (p.include_alignment):
-				r["alignment"] = {
-					"source_coordinates": (hsp.query_start, hsp.query_end),
-					"source": hsp.query,
-					"match": hsp.match,
-					"target": hsp.sbjct,
-					"target_coordinates": (hsp.sbjct_start, hsp.sbjct_end),
-				}
+				r["alignment"]["source"] = hsp.query
+				r["alignment"]["match"] = hsp.match
+				r["alignment"]["target"] = hsp.sbjct
 
 			# the hit should be in the database. In this case, we store the HSP
 			# as properties of a relationship between query and hit sequences.
