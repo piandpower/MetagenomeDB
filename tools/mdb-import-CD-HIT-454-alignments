@@ -15,7 +15,12 @@ g.add_option("-l", "--input-log", dest = "input_log_fn", metavar = "FILENAME",
 	help = "File with the log from the CD-HIT-454 run (mandatory).")
 
 g.add_option("-C", "--collection", dest = "sequences_collection_name", metavar = "STRING",
-	help = "Name of the collection that contains the sequences that have been processed by CD-HIT-454 (mandatory).")
+	help = """Name of the collection that contains the sequences that have been
+processed by CD-HIT-454 (mandatory).""")
+
+g.add_option("--id-getter", dest = "id_getter", metavar = "PYTHON CODE", default = "%",
+	help = """Python code to reformat sequence identifers (optional); '%' will
+be replaced by the sequence identifier. Default: %default""")
 
 p.add_option_group(g)
 
@@ -75,10 +80,16 @@ if (p.input_log_fn == None):
 	error("A CD-HIT-454 log file must be provided")
 
 if (not os.path.exists(p.input_log_fn)):
-	error("File '%s' not found" % p.input_fn)
+	error("File '%s' not found" % p.input_log_fn)
 
 if (not p.sequences_collection_name):
 	error("A collection name must be provided")
+
+try:
+	get_sequence_id = eval("lambda x: " + p.id_getter.replace('%', 'x').replace("\\x", '%'))
+
+except SyntaxError as e:
+	error("Invalid getter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -118,106 +129,102 @@ def readlines (fn):
 
 print "Extracting metainformation from '%s' ..." % p.input_log_fn
 
-template = (
-	re.compile("^=+$"),
-	re.compile("^Program: CD-HIT, V([0-9\.]+)"),
-	re.compile("^Command:$"),
-	re.compile("^.*cd-hit-454$"),
-	re.compile("(.*)"),
-	re.compile("^Started: ([a-zA-Z0-9 :]+)$"),
-	re.compile("^=+$")
+is_header = False
+header = []
+for line in readlines(p.input_log_fn):
+	if (line.startswith('=')):
+		if (is_header == False):
+			is_header = True
+			continue
+		else:
+			break
+
+	header.append(line.strip())
+
+if (is_header == False) or (len(header) == 0):
+	error("Invalid log file: no header found")
+
+template = re.compile("Program: CD-HIT, V([0-9\.]+).*?Command: .*?cd-hit-454\s(.*?) Started: ([a-zA-Z0-9 :]+)")
+match = template.match(' '.join(header))
+
+if (match == None):
+	error("Invalid log file: malformed header")
+
+# CD-HIT version number
+cd_hit_version = match.group(1)
+
+# CD-HIT command line options
+parser = optparse.OptionParser()
+
+options = (
+	("i", "string", None),
+	("o", "string", None),
+	("c", "float", 0.98),
+	("b", "int", 10),
+	("M", "int", None),
+	("T", "int", None),
+	("n", "int", 10),
+	("aL", "float", 0.0),
+	("AL", "int", 99999999),
+	("aS", "float", 0.0),
+	("AS", "int", 99999999),
+	("B", "int", None),
+	("g", "int", 0),
+	("D", "int", 1),
+	("match", "int", 2),
+	("mismatch", "int", -1),
+	("gap", "int", -3),
+	("gap-ext", "int", -1),
 )
 
-n = 0
-for line in readlines(p.input_log_fn):
-	if (n == len(template)):
-		break
+for (option, type, default) in options:
+	parser.add_option("--" + option, dest = option, type = type, default = default)
 
-	match = template[n].match(line)
-	if (match == None):
-		error("Malformed log file: invalid line '%s'" % line)
+items = shlex.split(match.group(2))
+if (len(items) % 2 != 0):
+	error("Invalid command line options for CD-HIT-454: %s" % match.group(2))
 
-	if (n == 1):
-		cd_hit_version = match.group(1)
-		n += 1
+for i, item in enumerate(items):
+	if (i % 2 == 0):
+		items[i] = '-' + item
 
-	elif (n == 4):
-		# parsing of the cd-hit-454 command line options
-		parser = optparse.OptionParser()
+try:
+	options, dummy = parser.parse_args(items)
+except:
+	error("Invalid command line options for CD-HIT-454: %s" % match.group(2))
 
-		options = (
-			("i", "string", None),
-			("o", "string", None),
-			("c", "float", 0.98),
-			("b", "int", 10),
-			("M", "int", None),
-			("T", "int", None),
-			("n", "int", 10),
-			("aL", "float", 0.0),
-			("AL", "int", 99999999),
-			("aS", "float", 0.0),
-			("AS", "int", 99999999),
-			("B", "int", None),
-			("g", "int", 0),
-			("D", "int", 1),
-			("match", "int", 2),
-			("mismatch", "int", -1),
-			("gap", "int", -3),
-			("gap-ext", "int", -1),
-		)
+# retrieving of non-null option values
+cd_hit_options = {}
+for key, value in options.__dict__.iteritems():
+	if (value != None):
+		cd_hit_options[key] = value
 
-		for (option, type, default) in options:
-			parser.add_option("--" + option, dest = option, type = type, default = default)
+# removal of non algorithm-specific options
+for option in "ioMTB":
+	if (option in cd_hit_options):
+		del cd_hit_options[option]
 
-		items = shlex.split(match.group(0))
-		if (len(items) % 2 != 0):
-			error("Invalid command line options for CD-HIT-454: %s" % match.group(0))
-
-		for i, item in enumerate(items):
-			if (i % 2 == 0):
-				items[i] = '-' + item
-
-		try:
-			options, dummy = parser.parse_args(items)
-		except:
-			error("Invalid command line options for CD-HIT-454: %s" % match.group(0))
-
-		# retrieving of non-null option values
-		cd_hit_options = {}
-		for key, value in options.__dict__.iteritems():
-			if (value != None):
-				cd_hit_options[key] = value
-
-		# removal of non algorithm-specific options
-		for option in "ioMTB":
-			if (option in cd_hit_options):
-				del cd_hit_options[option]
-
-		n += 1
-
-	elif (n == 5):
-		try:
-			cd_hit_run_date = datetime.datetime.strptime(match.group(1), "%a %b %d %H:%M:%S %Y")
-		except:
-			error("Invalid run date: '%s'" % match.group(1))
-
-		n += 1
+# CD-HIT run date
+try:
+	cd_hit_run_date = datetime.datetime.strptime(match.group(3), "%a %b %d %H:%M:%S %Y")
+except:
+	error("Invalid run date: '%s'" % match.group(3))
 
 print "Importing '%s' ..." % p.input_clstr_fn
 
 print "  validating sequence identifiers ..."
 
-TEMPLATE = re.compile("([0-9]+)\s+[0-9]+nt, >(.*?)\.\.\.\s+(?:(\*)|(?:at ([0-9\:])+/([+\-])/([0-9\.]+)%))")
+entry = re.compile("([0-9]+)\s+[0-9]+nt, >(.*?)\.\.\.\s+(?:(\*)|(?:at ([0-9\:]+)+/([+\-])/([0-9\.]+)%))")
 
 representatives = {}
 n = 0
 for line in readlines(p.input_clstr_fn):
-	m = TEMPLATE.match(line)
-	if (m == None):
+	match = entry.match(line)
+	if (match == None):
 		error("Malformed line: \"%s\"" % line)
 
-	cluster_id = m.group(1)
-	sequence_id = m.group(2)
+	cluster_id = match.group(1)
+	sequence_id = get_sequence_id(match.group(2))
 
 	candidates = list(collection.list_sequences({"name": sequence_id}))
 
@@ -227,7 +234,7 @@ for line in readlines(p.input_clstr_fn):
 	if (len(candidates) > 1):
 		error("Ambiguous sequence '%s'" % sequence_id)
 
-	if (m.group(3) == '*'):
+	if (match.group(3) == '*'):
 		if (cluster_id in representatives):
 			error("Cluster #%s has more than one representative" % cluster_id)
 
@@ -263,29 +270,29 @@ pb = ProgressBar(n)
 n = 0
 
 for line in readlines(p.input_clstr_fn):
-	m = TEMPLATE.match(line)
+	match = entry.match(line)
 
-	cluster_id = m.group(1)
-	sequence_name = m.group(2)
+	cluster_id = match.group(1)
+	sequence_id = get_sequence_id(match.group(2))
 
-	sequence_o = list(collection.list_sequences({"name": sequence_name}))[0]
+	sequence_o = list(collection.list_sequences({"name": sequence_id}))[0]
 
 	# first case: the sequence is a representative
-	if (m.group(3) == '*'):
+	if (match.group(3) == '*'):
 		if (p.dry_run):
-			print "    sequence '%s' is representative of cluster #%s" % (sequence_name, cluster_id)
+			print "    sequence '%s' is representative of cluster #%s" % (sequence_id, cluster_id)
 
 	# second case: the sequence belong to a cluster
 	else:
 		if (not cluster_id in representatives):
-			error("Cluster #%s has no representative; unable to add '%s' to it" % (cluster_id, sequence_name))
+			error("Cluster #%s has no representative; unable to add '%s' to it" % (cluster_id, sequence_id))
 
 		representative = list(collection.list_sequences({"name": representatives[cluster_id]}))[0]
-		sequence_start, sequence_stop, representative_start, representative_stop = [int(v) for v in m.group(4).split(':')]
-		strand = m.group(5)
+		sequence_start, sequence_stop, representative_start, representative_stop = [int(v) for v in match.group(4).split(':')]
+		strand = match.group(5)
 
 		r = {
-			"type": "part-of",
+			"type": "similar-to",
 			"run": {
 				"date": {
 					"year": cd_hit_run_date.year,
@@ -299,7 +306,7 @@ for line in readlines(p.input_clstr_fn):
 				}
 			},
 			"score": {
-				"fraction_identical": float(m.group(4))
+				"fraction_identical": float(match.group(6))
 			},
 			"alignment": {
 				"source_coordinates": (sequence_start, sequence_stop),
@@ -308,7 +315,7 @@ for line in readlines(p.input_clstr_fn):
 		}
 
 		if (p.dry_run):
-			print "    sequence '%s' is a member of cluster #%s" % (sequence_name, cluster_id)
+			print "    sequence '%s' is a member of cluster #%s" % (sequence_id, cluster_id)
 			for line in pprint.pformat(r).split('\n'):
 				print "      %s" % line
 		else:
