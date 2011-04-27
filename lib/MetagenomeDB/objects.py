@@ -4,7 +4,7 @@ import errors
 import zlib, itertools
 
 ### needed for list_top_collections(); should probably be not here
-from classes import parse_properties
+from utils import tree
 import backend
 ###
 
@@ -273,7 +273,7 @@ class Sequence (CommittableObject):
 		else:
 			query = {"_id": {"$in": [collection["_id"] for collection in top]}}
 
-			collection_filter = parse_properties(collection_filter)
+			collection_filter = tree.expand(collection_filter)
 			for key in collection_filter:
 				query[key] = collection_filter[key]
 

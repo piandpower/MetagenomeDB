@@ -278,8 +278,8 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 					}
 				},
 				"score": {
-					"fraction_identical": identity,
-					"fraction_conserved": 100.0 * hsp.positives / hsp.align_length,
+					"percent_identity": identity,
+					"percent_positives": 100.0 * hsp.positives / hsp.align_length,
 					"e_value": hsp.expect,
 					"gaps": hsp.gaps,
 				},

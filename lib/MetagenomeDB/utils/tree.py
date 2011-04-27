@@ -1,70 +1,123 @@
-# Manipulation of a tree as a nested dictionary
+# Manipulation of a JSON objects as nested dictionaries
 
-from __future__ import absolute_import
-
-from .. import errors
-
-def validate_key (key, separator = '.'):
+def expand_key (key, separator = '.'):
+	""" Expand a dot-notation key into a list
+	"""
 	key_t = type(key)
 
 	if (key_t == list):
 		key = tuple(key)
 
-	elif (key_t == str):
+	elif (key_t == str) or (key_t == unicode):
 		key = tuple(key.split(separator))
 
 	elif (key_t != tuple):
-		raise errors.MetagenomeDBError("Malformed key hierarchy: '%s'" % key)
+		raise ValueError("Malformed key: '%s'" % key)
 
 	if (len(key) == 0):
-		raise errors.MetagenomeDBError("Empty key hierarchy")
+		raise ValueError("Empty key")
+
+	for i, subkey in enumerate(key):
+		if (subkey.startswith('$')) and (i+1 < len(key)):
+			raise ValueError("Malformed key '%s': special keys ('%s'?) must be last" % (separator.join(key), subkey))
 
 	return key
 
-# Insert a key/value pair into an existing dictionary
-# - d: dictionary to consider
-# - keys: hiearchy of keys, as a list
-# - value: value to associate to the last key in the hierarchy
-# Example:
-#   > m = {}
-#   > set(m, ('a', 'b', 'c'), 1)
-#   > print m
-#   {'a': {'b': {'c': 1}}}
-def set (d, keys, value):
-	leaf, key = (len(keys) == 1), keys[0]
+def set (dictionary, key, value):
+	""" Insert a nested key into a dictionary
 
-	if (leaf):
-		d[key] = value
+	Parameters:
+		- **dictionary**: dictionary to populate
+		- **key**: nested key, as a list
+		- **value**: value to set
+
+	Example:
+		> m = {}
+		> set(m, ('a', 'b', 'c'), 1)
+		> print m
+		{'a': {'b': {'c': 1}}}
+	"""
+	is_leaf, root = (len(key) == 1), key[0]
+
+	if (is_leaf):
+		dictionary[root] = value
 	else:
-		if (not key in d):
-			d[key] = {}
+		if (not root in dictionary):
+			dictionary[root] = {}
 
-		set(d[key], keys[1:], value)
+		set(dictionary[root], key[1:], value)
 
-# Retrieve the value associated to a hierarchy of key
-# - d: dictionary to consider
-# - keys: hiearchy of keys, as a list
-def get (d, keys):
-	leaf, key = (len(keys) == 1), keys[0]
+def get (dictionary, key):
+	""" Query a nested key from a dictionary
 
-	if (leaf):
-		return d[key]
+	Parameters:
+		- **dictionary**: dictionary to query
+		- **key**: nested key, as a list
+	"""
+	is_leaf, root = (len(key) == 1), key[0]
+
+	if (is_leaf):
+		return dictionary[root]
 	else:
-		return get(d[key], keys[1:])
+		return get(dictionary[root], key[1:])
 
-# Iterate through a given nested dictionary and return all
-# key hierarchies as lists of keys
-# - d: dictionary to consider
-# Example:
-#   > m = {'a': {'b': {'c': 1}, 'd': 2}}
-#   > print keys(m)
-#   [(('a', 'b', 'c'), 1), (('a', 'd'), 2)]
-def items (d):
-	def walk (d, b = []):
+def delete (dictionary, key):
+	""" Delete a nested key from a dictionary
+
+	Parameters:
+		- **dictionary**: dictionary to modify
+		- **key**: nested key to delete, as a list
+	"""
+	is_leaf, root = (len(key) == 1), key[0]
+
+	if (type(dictionary) != dict):
+		raise KeyError(root)
+
+	if (is_leaf):
+		del dictionary[root]
+
+	else:
+		delete(dictionary[root], key[1:])
+		if (len(dictionary[root]) == 0):
+			del dictionary[root]
+
+def contains (dictionary, key):
+	""" Test if a dictionary contains a nested key
+	
+	Parameters:
+		- **dictionary**: dictionary to evaluate
+		- **key**: nested key to test, as a list
+	"""
+	is_leaf, root = (len(key) == 1), key[0]
+
+	if (root in dictionary):
+		if (is_leaf):
+			return True
+
+		if (type(dictionary[root]) != dict):
+			return False
+
+		return contains(dictionary[root], key[1:])
+
+	return False
+
+def items (dictionary):
+	""" Iterate through a nested dictionary and return all
+	keys (as lists) and values
+
+	Parameters:
+		- **dictionary**: dictionary to browse
+
+	Example:
+		> m = {'a': {'b': {'c': 1}, 'd': 2}}
+		> print items(m)
+		[(('a', 'b', 'c'), 1), (('a', 'd'), 2)]
+	"""
+	def walk (node, b = []):
 		items = []
 
-		for key in d:
-			branch, value = b + [key], d[key]
+		for key in node:
+			branch, value = b + list(expand_key(key)), node[key]
 
 			if (type(value) == dict):
 				items.extend(walk(value, branch))
@@ -73,48 +126,63 @@ def items (d):
 
 		return items
 
-	return walk(d)
+	return walk(dictionary)
 
-# Delete a hiearchy of keys
-def delete (d, keys):
-	leaf, key = (len(keys) == 1), keys[0]
+def expand (dictionary, separator = '.'):
+	""" Transform a dictionary with dot-notation keys into a nested dictionary
 
-	if (type(d) != dict):
-		raise errors.MetagenomeDBError("Not found: %s" % key)
+	Parameters:
+		- **dictionary**: dictionary to transform
 
-	if (leaf):
-		del d[key]
+	Example:
+		> m = {"a.b.c": 1}
+		> print expand(m)
+		{"a": {"b": {"c": 1}}}
+	"""
+	d = {}
+	for key, value in dictionary.iteritems():
+		set(d, expand_key(key, separator), value)
 
-	else:
-		delete(d[key], keys[1:])
-		if (len(d[key]) == 0):
-			del d[key]
+	return d
 
-# Test if a dictionary contains a value for a given hiearchy of keys
-def contains (d, keys):
-	leaf, key = (len(keys) == 1), keys[0]
+def flatten (dictionary, separator = '.'):
+	""" Transform a nested dictionary into a dictionary with dot-notations
 
-	if (key in d):
-		if (leaf):
-			return True
+	Parameters:
+		- **dictionary**: dictionary to transform
 
-		if (type(d[key]) != dict):
-			return False
+	Example:
+		> m = {"a": {"b": {"c": 1}}}
+		> print flatten(m)
+		{"a.b.c": 1}
+	"""
+	d = {}
+	for (key, value) in items(dictionary):
+		# hack: we don't want to flatten special MongoDB
+		# keys (everything starting with a '$')
+		if (key[-1].startswith('$')):
+			d[separator.join(key[:-1])] = {key[-1]: value}
+		else:
+			d[separator.join(key)] = value
 
-		return contains(d[key], keys[1:])
+	return d
 
-	return False
+def traverse (dictionary, selector = lambda x: False, key_modifier = lambda x: x, value_modifier = lambda x: x):
+	""" Traverse a nested dictionary and modify keys or values
 
-# Traverse a nested dictionary and modify selected key and/or values
-# - d: dictionary to consider
-# - selector: boolean function; should return true for key that should be modified
-# - key_modifier: function that will be applied on selected keys
-# - value_modifier: function that will be applied on values of selected keys
-def traverse (d, selector = lambda x: False, key_modifier = lambda x: x, value_modifier = lambda x: x):
+	Parameters:
+		- **dictionary**: dictionary to transform
+		- **selector**: boolean function receiving each key and sub-key; if
+		  returns True, then this key and its value will be modified
+		- **key_modifier**: function receiving a key to modify; its return is
+		  used as the new key value
+		- **value_modifier**: function receiving a value to modify; its return
+		  is used as the new value
+	"""
 	tree = {}
 
-	for key in d:
-		value = d[key]
+	for key in dictionary:
+		value = dictionary[key]
 		selected = selector(key)
 
 		if (selected):

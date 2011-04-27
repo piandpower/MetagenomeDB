@@ -1,5 +1,5 @@
-Annotating objects
-------------------
+Annotating objects: mdb-annotate (in construction)
+==================================================
 
 * Syntax of the CSV and JSON files used by mdb-annotate:
 	- differences between replacing, appending and removing properties
@@ -9,4 +9,4 @@ Annotating objects
 	- protecting value and/or key with quotes
 
 .. toctree::
-   :hidden:
+	:hidden:

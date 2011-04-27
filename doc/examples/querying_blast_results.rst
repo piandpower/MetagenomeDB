@@ -29,8 +29,8 @@ Property                                 Value
 ``run.database.name``                    Database name
 ``run.database.number_of_sequences``     Database size, as the number of sequences
 ``run.database.number_of_letters``       Database size, as the number of letters
-``score.fraction_identical``             Percent of identities in the HSP
-``score.fraction_conserved``             Percent of positive substitutions in the HSP
+``score.percent_identity``               Percent of identities in the HSP
+``score.percent_positives``              Percent of positive substitutions in the HSP
 ``score.e_value``                        Except value of the HSP
 ``score.gaps``                           Number of gaps in the HSP
 ``alignment.source_coordinates``         Coordinates of the alignment in the query sequence

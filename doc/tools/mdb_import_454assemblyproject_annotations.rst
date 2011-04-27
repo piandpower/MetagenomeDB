@@ -1,4 +1,4 @@
-mdb-import-454AssemblyProject-annotations: Importing sequencing parameters from Newbler
+Importing sequencing parameters from Newbler: mdb-import-454AssemblyProject-annotations
 =======================================================================================
 
 ``mdb-import-sequences`` (:doc:`mdb_import_sequences`) can be used to import, among else, contigs produced by an assembly run. If this assembly was performed using the `Newbler <http://en.wikipedia.org/wiki/Newbler>`_ (or gsAssembler) software, all configuration parameters are stored in a file called ``454AssemblyProject.xml``.

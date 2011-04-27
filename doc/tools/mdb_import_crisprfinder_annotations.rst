@@ -1,4 +1,4 @@
-mdb-import-CRISPRfinder-annotations: Importing CRISPR annotations from CRISPRfinder
+Importing CRISPR annotations from CRISPRfinder: mdb-import-CRISPRfinder-annotations
 ===================================================================================
 
 ``mdb-import-CRISPRfinder-annotations`` annotates sequences with `CRISPR <http://en.wikipedia.org/wiki/CRISPR>`_ loci as annotated by the `CRISPRfinder <http://crispr.u-psud.fr/Server/>`_ online tool; more specifically, by reading the ``AnnotFasta`` file produced by this later tool.

@@ -7,14 +7,6 @@ import sys, copy, logging
 
 logger = logging.getLogger("MetagenomeDB.classes")
 
-def parse_properties (properties):
-	properties_ = {}
-	for key, value in properties.iteritems():
-		key = tree.validate_key(key)
-		tree.set(properties_, key, value)
-
-	return properties_
-
 class MutableObject (object):
 	""" MutableObject: Base object that can receive arbitrary properties.
 	"""
@@ -27,7 +19,7 @@ class MutableObject (object):
 			  Nested properties can be expressed using dot notation or by nested
 			  dictionaries.
 		"""
-		self._properties = parse_properties(properties)
+		self._properties = tree.expand(properties)
 		self._modified = False
 
 	def get_properties (self):
@@ -75,7 +67,7 @@ class MutableObject (object):
 		pass
 
 	def __setitem__ (self, key, value):
-		key = tree.validate_key(key)
+		key = tree.expand_key(key)
 		value = self._setitem_precallback(key, value)
 
 		# only modify the property if the value is different from its previous one (if any)
@@ -100,7 +92,7 @@ class MutableObject (object):
 		return None
 
 	def __getitem__ (self, key):
-		key = tree.validate_key(key)
+		key = tree.expand_key(key)
 		value = copy.deepcopy(tree.get(self._properties, key))
 
 		value_ = self._getitem_precallback(key, value)
@@ -120,7 +112,7 @@ class MutableObject (object):
 		pass
 
 	def __delitem__ (self, key):
-		key = tree.validate_key(key)
+		key = tree.expand_key(key)
 		self._delitem_precallback(key)
 
 		tree.delete(self._properties, key)
@@ -129,7 +121,7 @@ class MutableObject (object):
 		self._delitem_postcallback()
 
 	def __contains__ (self, key):
-		key_ = tree.validate_key(key)
+		key_ = tree.expand_key(key)
 		return tree.contains(self._properties, key_)
 
 class CommittableObject (MutableObject):
@@ -313,7 +305,7 @@ class CommittableObject (MutableObject):
 		if (relationship == None):
 			relationship = {}
 		else:
-			relationship = parse_properties(relationship)
+			relationship = tree.expand(relationship)
 
 		# case where this object has no connection with the target yet
 		if (not target_id in self._properties["_relationships"]):
@@ -374,13 +366,10 @@ class CommittableObject (MutableObject):
 			to_remove = []
 
 			for n in range(n_relationships):
-				query = tree.traverse(
-					parse_properties(relationship_filter),
-					selector = lambda x: not x.startswith('$'),
-					key_modifier = lambda x: "_relationships.%s.%s.%s" % (target_id, n, x)
-				)
+				query = {"_id": self._properties["_id"]}
 
-				query["_id"] = self._properties["_id"]
+				for key, value in tree.flatten(relationship_filter).iteritems():
+					query["_relationships.%s.%s.%s" % (target_id, n, key)] = value
 
 				if (backend.find(clazz, query, count = True) == 0):
 					continue
@@ -388,7 +377,7 @@ class CommittableObject (MutableObject):
 				to_remove.append(n)
 
 			if (len(to_remove) == 0):
-				raise errors.InvalidObjectOperationError("%s is not connected to %s by any relationship matching %s." % (self, target, relationship_filter))
+				raise errors.InvalidObjectOperationError("%s is not connected to %s by any relationship matching %s." % (self, target, tree.flatten(relationship_filter)))
 
 			for n in sorted(to_remove, reverse = True):
 				logger.debug("Removed relationship %s between %s and %s." % (self._properties["_relationships"][target_id][n], self, target))
@@ -421,10 +410,10 @@ class CommittableObject (MutableObject):
 		query = {"_relationship_with": object_id}
 
 		if (relationship_filter != None):
-			query["_relationships.%s" % object_id] = {"$elemMatch": parse_properties(relationship_filter)}
+			query["_relationships.%s" % object_id] = {"$elemMatch": tree.flatten(relationship_filter)}
 
 		if (neighbor_filter != None):
-			neighbor_filter = parse_properties(neighbor_filter)
+			neighbor_filter = tree.expand(neighbor_filter)
 			for key in neighbor_filter:
 				query[key] = neighbor_filter[key]
 
@@ -458,13 +447,10 @@ class CommittableObject (MutableObject):
 
 			candidates = []
 			for target_id in targets:
-				query = tree.traverse(
-					parse_properties(relationship_filter),
-					selector = lambda x: not x.startswith('$'),
-					key_modifier = lambda x: "_relationships.%s.%s" % (target_id, x)
-				)
-
-				query["_id"] = self._properties["_id"]
+				query = {
+					"_id": self._properties["_id"],
+					"_relationships.%s" % target_id: {"$elemMatch": tree.flatten(relationship_filter)}
+				}
 
 				if (backend.find(self.__class__.__name__, query, count = True) == 0):
 					continue
@@ -481,7 +467,7 @@ class CommittableObject (MutableObject):
 		query = {"_id": {"$in": [bson.objectid.ObjectId(id) for id in candidates]}}
 
 		if (neighbor_filter != None):
-			neighbor_filter = parse_properties(neighbor_filter)
+			neighbor_filter = tree.expand(neighbor_filter)
 			for key in neighbor_filter:
 				query[key] = neighbor_filter[key]
 

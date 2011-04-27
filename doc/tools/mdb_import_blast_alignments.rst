@@ -1,5 +1,5 @@
-mdb-import-BLAST-alignments: Importing BLAST alignment results
-==============================================================
+Importing BLAST sequence alignments: mdb-import-BLAST-alignments
+================================================================
 
 Sequence alignments produced by `NCBI BLAST <http://www.ncbi.nlm.nih.gov/blast/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download>`_ can be imported and manipulated in MetagenomeDB as relationships between query and hit sequences.
 

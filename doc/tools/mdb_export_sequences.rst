@@ -1,5 +1,5 @@
-mdb-export-sequences: Exporting sequences
-=========================================
+Exporting sequences in various formats: mdb-export-sequences
+============================================================
 
 ``mdb-export-sequences`` exports sequences previously stored in collections as files in many format, including FASTA (for a complete list of the formats supported, see `http://biopython.org/wiki/SeqIO <http://biopython.org/wiki/SeqIO>`_).
 

@@ -1,5 +1,5 @@
-Identifier getters
-==================
+Sequence identifiers setters and getters
+========================================
 
 Some of the mdb tools (namely, ``mdb-import-ACE-alignments``, ``mdb-import-BLAST-alignments`` and ``mdb-import-CRISPRfinder-alignments``) have options with names ``--id-getter``, ``--read-id-getter``, etc. These 'getter' options allow on-the-fly modifications of sequence identifiers as they are read from the input files.
 

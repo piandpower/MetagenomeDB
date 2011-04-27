@@ -316,8 +316,8 @@ for query_id in HSP:
 			},
 
 			"score": {
-				"fraction_identical": identity,
-				"fraction_conserved": 100 * float(hsp["bs_sim"]),
+				"percent_identity": identity,
+				"percent_similarity": 100 * float(hsp["bs_sim"]),
 				"e_value": e_value,
 			}
 		}

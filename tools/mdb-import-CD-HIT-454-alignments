@@ -306,7 +306,7 @@ for line in readlines(p.input_clstr_fn):
 				}
 			},
 			"score": {
-				"fraction_identical": float(match.group(6))
+				"percent_identity": float(match.group(6))
 			},
 			"alignment": {
 				"source_coordinates": (sequence_start, sequence_stop),

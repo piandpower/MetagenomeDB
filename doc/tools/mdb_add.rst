@@ -1,5 +1,5 @@
-mdb-add: Adding objects
-=======================
+Adding objects: mdb-add (in construction)
+=========================================
 
 Sequence and collections can be created in the database using the ``mdb-add`` command-line tool, together with a file in CSV or JSON format that describes these objects.
 
