@@ -59,14 +59,17 @@ Usage
 
 ``mdb-import-CD-HIT-454-alignments`` require at least the three following: the log file of a ``cd-hit-454`` run (``-l|--input-log`` option), the output file (``.bak.clstr`` extension; ``-i|--input`` option), and the name of the collection the reads belong to (``-C|--collection`` option). 
 
-.. note::
-	The ``cd-hit-454`` log file contains all information about the run date, as well as the ``cd-hit-454`` parameters and version number. However, ``cd-hit-454`` does not provide a direct way to create this log file; you will need to capture what it prints on the screen::
+The ``cd-hit-454`` log file contains all information about the run date, as well as the ``cd-hit-454`` parameters and version number. However, ``cd-hit-454`` does not provide a direct way to create this log file; you will need to capture what it prints on the screen::
 
-		$ cd-hit-454 -i my_reads.fasta -o my_clusters -c 0.95 > my_log.log
+	$ cd-hit-454 -i my_reads.fasta -o my_clusters -c 0.95 > my_log.log
 
-	Alternatively, you can use the ``tee`` executable to have the output both on screen and in a log file::
+Alternatively, you can use the ``tee`` executable to have the output both on screen and in a log file::
 
-		$ cd-hit-454 -i my_reads.fasta -o my_clusters -c 0.95 | tee my_log.log
+	$ cd-hit-454 -i my_reads.fasta -o my_clusters -c 0.95 | tee my_log.log
+
+Once ``cd-hit-454`` done processing your reads, you can import the results by typing e.g. ::
+
+	$ mdb-import-CD-HIT-454-alignments -i my_clusters.bak.clstr -l my_log.log -C my_reads
 	
 Any sequence A found to be better represented by a larger sequence B (i.e., A and B are in a same cluster, and B is set by ``cd-hit-454`` as the cluster representative) will result in a relationship being created from A to B. This relationship has the following properties:
 
@@ -93,10 +96,10 @@ Once imported, deduplication information can be queried through the relationship
 	import MetagenomeDB as mdb
 
 	# we first select the collection containing the reads
-	collection = mdb.Collection.find_one({"name": "CH0704_cellularDNA:reads-JCVI"})
+	collection = mdb.Collection.find_one({"name": "my_reads"})
 
 	# then, for all sequences in this collection,
-	for read in collection.list_sequences({"name": "1108430788244"}):
+	for read in collection.list_sequences():
 
 		# we will ask for any outgoing relationship between this sequence
 		# and a possible representative identified by cd-hit-454, by preparing
