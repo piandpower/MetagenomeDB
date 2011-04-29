@@ -137,11 +137,9 @@ try:
 except Exception as msg:
 	error(msg)
 
-print "Validating reads and contigs collections ..."
+print "Importing '%s' ..." % p.input_fn
 
 try:
-	mapping = {}
-
 	# test reads collections provided as arguments
 	if (p.reads_collection_names):
 		reads_collections = []
@@ -149,14 +147,18 @@ try:
 			reads_collection = mdb.Collection.find_one({"name": reads_collection_name})
 			if (reads_collection == None):
 				error("Unknown reads collection '%s'" % reads_collection_name)
+
 			reads_collections.append(reads_collection)
+
+		mapping = None
 
 	# test reads collections mentioned in the mapping file
 	else:
-		print "  validating '%s' ..." % p.reads_mapping_fn
+		print "  loading '%s' ..." % p.reads_mapping_fn
+
+		reads_collections, mapping = {}, {}
 
 		fh = open(p.reads_mapping_fn, 'rU')
-		reads_collections = {}
 		while True:
 			line = fh.readline()
 			if (line == ''):
@@ -174,26 +176,26 @@ try:
 			if (current_read_id in mapping):
 				error("Duplicate mapping for read '%s'" % current_read_id)
 
-			if (not reads_collection_name in reads_collections):
+			if (reads_collection_name in reads_collections):
 				reads_collection = reads_collections[reads_collection_name]
 			else:
 				reads_collection = mdb.Collection.find_one({"name": reads_collection_name})
 				if (reads_collection == None):
 					error("Unknown reads collection '%s'" % reads_collection_name)
+
 				reads_collections[reads_collection_name] = reads_collection
 
 			mapping[current_read_id] = (original_read_id, reads_collection)
 
 		del reads_collections
 
+	# test the contigs collection
 	contigs_collection = mdb.Collection.find_one({"name": p.contigs_collection_name})
 	if (contigs_collection == None):
 		error("Unknown contigs collection '%s'" % p.contigs_collection_name)
 
 except mdb.errors.DBConnectionError as msg:
 	error(msg)
-
-print "Importing '%s' ..." % p.input_fn
 
 print "  validating read and contig sequences ..."
 
@@ -217,11 +219,15 @@ for contig in Ace.parse(open(p.input_fn, 'r')):
 	for read in contig.reads:
 		read_id = get_read_id(read)
 
-		if (read_id in mapping):
+		if (mapping == None):
+			candidates = list(itertools.chain(*[reads_collection.list_sequences({"name": read_id}) for reads_collection in reads_collections]))
+
+		elif (read_id not in mapping):
+			candidates = []
+
+		else:
 			read_id, reads_collection = mapping[read_id]
 			candidates = list(reads_collection.list_sequences({"name": read_id}))
-		else:
-			candidates = list(itertools.chain(*[reads_collection.list_sequences({"name": read_id}) for reads_collection in reads_collections]))
 
 		if (len(candidates) == 0):
 			msg = "Unknown read '%s' (mapped to contig '%s')" % (read_id, contig_id)
