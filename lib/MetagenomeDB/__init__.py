@@ -1,5 +1,15 @@
 
-version = "0.2.2b"
+__version_major__ = 0
+__version_minor__ = 2
+__revision__ = 1
+__build__ = "ACA902D"
+
+version = "%s.%s (revision %s, build %s)" % (
+	__version_major__,
+	__version_minor__,
+	__revision__,
+	__build__
+)
 
 import logging
 
