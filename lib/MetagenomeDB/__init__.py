@@ -1,7 +1,7 @@
 
 __version_major__ = 0
 __version_minor__ = 2
-__revision__ = 1
+__revision__ = 2
 __build__ = "ACA902D"
 
 version = "%s.%s (revision %s, build %s)" % (
