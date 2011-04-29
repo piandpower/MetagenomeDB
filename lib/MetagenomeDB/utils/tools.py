@@ -158,7 +158,7 @@ def parser (fn, format):
 				map = {}
 				for item in line:
 					key, value, command = parse_key_and_value(item)
-					tree.set(map, tree.validate_key(key), (parse_value_and_modifier(value), command))
+					tree.set(map, tree.expand_key(key), (parse_value_and_modifier(value), command))
 
 				yield map
 
