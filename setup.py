@@ -18,7 +18,7 @@ setup(
 		"Topic :: Database :: Front-Ends",
 		"Topic :: Scientific/Engineering :: Bio-Informatics",
 	],
-	version = open("VERSION.txt").read(),
+	version = open("VERSION.txt").read().strip(),
 	license = open("LICENSE.txt").read(),
 	author = "Aurelien Mazurie",
 	author_email = "ajmazurie@oenone.net",
