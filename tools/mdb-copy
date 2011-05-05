@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import optparse, sys, os, pprint
+import MetagenomeDB as mdb
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
 Copy the current database.""")
@@ -26,6 +27,7 @@ p.add_option("--admin-password", dest = "admin_password", metavar = "STRING",
 'password' property in ~/.MetagenomeDB, or none if not found.""")
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+p.add_option("--version", dest = "display_version", action = "store_true", default = False)
 
 g = optparse.OptionGroup(p, "Connection")
 
@@ -68,6 +70,10 @@ def error (msg):
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
+if (p.display_version):
+	print mdb.version
+	sys.exit(0)
+
 if (p.target_db == None):
 	error("A target database name must be provided")
 
@@ -75,8 +81,6 @@ admin_connection_parameters["target_db"] = p.target_db
 admin_connection_parameters["force"] = p.force_copy
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
-import MetagenomeDB as mdb
 
 if (p.verbose):
 	mdb.max_verbosity()

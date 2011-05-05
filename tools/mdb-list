@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import optparse, sys, os, pprint
+import MetagenomeDB as mdb
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
 List collections and sequences in the database.""")
@@ -12,6 +13,7 @@ p.add_option("-p", "--with-properties", dest = "display_properties", action = "s
 	help = """If set, collections' properties will be displayed as well.""")
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+p.add_option("--version", dest = "display_version", action = "store_true", default = False)
 
 g = optparse.OptionGroup(p, "Connection")
 
@@ -54,14 +56,16 @@ def error (msg):
 	print >>sys.stderr, "ERROR: %s." % msg
 	sys.exit(1)
 
+if (p.display_version):
+	print mdb.version
+	sys.exit(0)
+
 if (p.output_fn == None):
 	output_fh = sys.stdout
 else:
 	output_fh = open(p.output_fn, 'w')
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
-import MetagenomeDB as mdb
 
 if (p.verbose):
 	mdb.max_verbosity()

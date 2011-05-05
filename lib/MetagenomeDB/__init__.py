@@ -1,8 +1,8 @@
 
 __version_major__ = 0
 __version_minor__ = 2
-__revision__ = 4
-__build__ = "B162C31"
+__revision__ = 5
+__build__ = "73CEE94"
 
 version = "%s.%s (revision %s, build %s)" % (
 	__version_major__,
