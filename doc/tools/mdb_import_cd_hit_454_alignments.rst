@@ -115,7 +115,7 @@ Once imported, deduplication information can be queried through the relationship
 
 		# we now ask if there is any representative sequence that the current
 		# read is related to with such a relationship
-		representatives = list(read.list_related_sequences(mdb.Direction.OUTGOING, relationship_filter = filter))
+		representatives = list(read.list_related_sequences(mdb.Direction.OUTGOING, relationship_filter = f))
 
 		# if yes, then this read is better represented by one (or more) representatives sequences
 		if (len(representatives) > 0):
@@ -129,7 +129,7 @@ Once imported, deduplication information can be queried through the relationship
 		# list any sequence this sequence represents, if any
 		print "%s has no representant" % read["name"]
 
-		represented = list(read.list_related_sequences(mdb.Direction.INGOING, relationship_filter = filter))
+		represented = list(read.list_related_sequences(mdb.Direction.INGOING, relationship_filter = f))
 
 		if (len(represented) > 0):
 			print "however, it represents the following sequence(s): %s" % ', '.join([sequence["name"] for sequence in represented])
