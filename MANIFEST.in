@@ -1,6 +1,7 @@
 include CHANGES.txt
 include LICENSE.txt
 include README.rst
+include VERSION.txt
 recursive-include MetagenomeDB *.py
 recursive-include doc *
 global-exclude .DS_Store
