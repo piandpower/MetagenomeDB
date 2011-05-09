@@ -337,7 +337,7 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 if (not p.dry_run) and (p.display_progress_bar):
 	pb.clear()
 
-print "    done."
+print "    %s queries imported." % (n, {True: 's', False: ''}[n > 1])
 
 if (p.dry_run):
 	print "(dry run)"
