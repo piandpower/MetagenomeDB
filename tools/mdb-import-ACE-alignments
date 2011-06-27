@@ -23,17 +23,23 @@ g.add_option("--reads-mapping", dest = "reads_mapping_fn", metavar = "STRING",
 the name of this read in a reads collection and the name of this collection.
 Cannot be used in combination with --reads-collection.""")
 
+g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
+	help = "Date of the assembly (optional). By default, creation date of the ACE file.")
+
+g.add_option("--ignore-alignment", dest = "include_alignment", action = "store_false", default = True,
+	help = "If set, will not store HSP sequences and conservation lines.")
+
 p.add_option_group(g)
 
 g = optparse.OptionGroup(p, "Identifiers manipulation")
 
 g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%",
 	help = """Python code to reformat read identifiers (optional); '%s' will be
-replaced by a Biopython ACE read object. Default: %default".""")
+replaced by a Biopython ACE read object. Default: %default.""")
 
 g.add_option("--contig-id-getter", dest = "contig_id_getter", metavar = "PYTHON CODE", default = "%",
 	help = """Python code to reformat contigs identifiers (optional); '%s' will
-be replaced by a Biopython ACE record object. Default: %default".""")
+be replaced by a Biopython ACE record object. Default: %default.""")
 
 p.add_option_group(g)
 
@@ -106,6 +112,20 @@ if (p.input_fn == None):
 
 if (not os.path.exists(p.input_fn)):
 	error("File '%s' not found" % p.input_fn)
+
+if (not p.date):
+	date = time.localtime(os.path.getmtime(p.input_fn))
+	p.date = (date.tm_year, date.tm_mon, date.tm_mday)
+
+else:
+	try:
+		y, m, d = p.date
+		assert (y > 1990), "value '%s' is incorrect for year" % y
+		assert (m > 0) and (m < 13), "value '%s' is incorrect for month" % m
+		assert (d > 0) and (d < 32), "value '%s' is incorrect for day" % d
+
+	except Exception, msg:
+		error("Invalid date: %s" % msg)
 
 if (p.reads_collection_names != None) and (p.reads_mapping_fn != None):
 	error("--reads-collection and --reads-mapping cannot be used simultaneously")
@@ -284,12 +304,18 @@ def get_sequence (collection, name, is_list = False):
 	else:
 		return candidates[0]
 
+# documentation for ACE file format: http://bcr.musc.edu/manuals/CONSED.txt
+# see also http://www.cbcb.umd.edu/research/contig_representation.shtml#ACE
+
 for contig in Ace.parse(open(p.input_fn, 'r')):
 	contig_id = get_contig_id(contig)
 	contig_o = get_sequence(contigs_collection, contig_id)
 
 	if (contig_o is None):
 		continue
+
+	contig_complemented = (contig.uorc == "C")
+	contig_sequence = contig.sequence.upper()
 
 	for read_idx, read in enumerate(contig.reads):
 		read_id = get_read_id(read)
@@ -303,10 +329,56 @@ for contig in Ace.parse(open(p.input_fn, 'r')):
 		if (read_o is None):
 			continue
 
+		read_complemented = (contig.af[read_idx].coru == "C")
+		read_sequence = read.rd.sequence.upper()
+
+		read_start = read.qa.align_clipping_start
+		read_stop = read.qa.align_clipping_end
+
+		if (read_complemented):
+			read_start_, read_stop_ = read_stop, read_start
+		else:
+			read_start_, read_stop_ = read_start, read_stop
+
+		offset = contig.af[read_idx].padded_start
+		if (offset < 0):
+			contig_start = 1
+		else:
+			contig_start = offset + read_start - 1
+
+		contig_stop = contig_start + (read_stop - read_start)
+
+		if (contig_complemented):
+			contig_start_, contig_stop_ = contig_stop, contig_start
+		else:
+			contig_start_, contig_stop_ = contig_start, contig_stop
+
 		r = {
-			"type": "part-of",
-			"position": contig.af[read_idx].padded_start
+			"type": "similar-to",
+			"run": {
+				"date": {"year": p.date[0], "month": p.date[1], "day": p.date[2]}
+			},
+			"alignment": {
+				"source_coordinates": (read_start_, read_stop_),
+				"target_coordinates": (contig_start_, contig_stop_)
+			}
 		}
+
+		if (p.include_alignment):
+			source = contig_sequence[contig_start-1:contig_stop].replace('*', '-')
+			target = read_sequence[read_start-1:read_stop].replace('*', '-')
+			match = ''
+			for i, c in enumerate(source):
+				if (c == '-') or (target[i] == '-'):
+					match += ' '
+				elif (c == target[i]):
+					match += ':'
+				else:
+					match += ' '
+
+			r["alignment"]["source"] = source
+			r["alignment"]["match"] = match
+			r["alignment"]["target"] = target
 
 		if (p.dry_run):
 			print "    read '%s' to contig '%s'" % (read_id, contig_id)

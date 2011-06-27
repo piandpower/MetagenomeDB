@@ -169,13 +169,31 @@ except:
 
 def read():
 	try:
-		parser = SeqIO.parse(open(p.input_fn, 'rU'), p.input_format)
+		parser = SeqIO.parse(p.input_fn, p.input_format)
 	except ValueError as msg:
 		error(msg)
 
 	return parser
 
 print "Importing '%s' (%s format) ..." % (p.input_fn, p.input_format)
+
+print "  checking the input file ..."
+
+seen = {}
+for record in read():
+	if (record.id in seen):
+		error("Duplicate sequence '%s'" % record.id)
+
+	seen[record.id] = True
+
+n = len(seen)
+
+if (n == 0):
+	error("The input file contains no sequence")
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+print "  importing sequences ..."
 
 class ProgressBar:
 	def __init__ (self, upper = None):
@@ -194,15 +212,8 @@ class ProgressBar:
 		sys.stdout.write(' ' * (2 + 80 + 8) + "\r")
 		sys.stdout.flush()
 
-seen = {}
-for record in read():
-	if (record.id in seen):
-		error("Duplicate sequence '%s'" % record.id)
-
-	seen[record.id] = True
-
-N, n = len(seen), 0
-pb = ProgressBar(N)
+pb = ProgressBar(n)
+n = 0
 
 for record in read():
 	entry = {
