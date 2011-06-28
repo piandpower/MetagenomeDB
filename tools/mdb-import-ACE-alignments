@@ -29,6 +29,9 @@ g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR M
 g.add_option("--ignore-alignment", dest = "include_alignment", action = "store_false", default = True,
 	help = "If set, will not store HSP sequences and conservation lines.")
 
+g.add_option("--ignore-consensus", dest = "include_consensus", action = "store_false", default = True,
+	help = "If set, will not store the contig consensus sequence.")
+
 p.add_option_group(g)
 
 g = optparse.OptionGroup(p, "Identifiers manipulation")
@@ -363,6 +366,9 @@ for contig in Ace.parse(open(p.input_fn, 'r')):
 				"target_coordinates": (contig_start_, contig_stop_)
 			}
 		}
+
+		if (p.include_consensus):
+			r["alignment"]["target_consensus"] = contig_sequence
 
 		if (p.include_alignment):
 			source = contig_sequence[contig_start-1:contig_stop].replace('*', '-')
