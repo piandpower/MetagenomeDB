@@ -324,6 +324,7 @@ for line in readlines(p.input_clstr_fn):
 				print "      %s" % line
 		else:
 			sequence_o.relate_to_sequence(representative, r)
+
 			sequence_o.commit()
 
 	if (p.display_progress_bar):

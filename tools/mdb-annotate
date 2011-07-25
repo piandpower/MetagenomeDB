@@ -7,14 +7,26 @@ p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
 Annotate objects in the database. Annotations are provided as either JSON- or
 CSV-formatted files.""")
 
-p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
+g = optparse.OptionGroup(p, "Input")
+
+g.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
 	help = "Name of the file containing the annotations, or '-' to read from the standard input (mandatory).")
 
-p.add_option("-f", "--format", dest = "input_format", choices = ("json", "csv"), metavar = "STRING", default = "csv",
+g.add_option("-f", "--format", dest = "input_format", choices = ("json", "csv"), metavar = "STRING", default = "csv",
 	help = "Format of the input file, either 'json' or 'csv' (optional). Default: %default")
 
-p.add_option("--ignore-unknown", dest = "ignore_unknown", action = "store_true", default = False,
-	help = "If set, ignore unknown objects.")
+p.add_option_group(g)
+
+g = optparse.OptionGroup(p, "Errors handling")
+
+g.add_option("--ignore-unknown", dest = "ignore_unknown", action = "store_true", default = False,
+	help = "If set, ignore references to unknown objects.")
+
+g.add_option("--ignore-large-entries", dest = "ignore_large_entries", action = "store_true", default = False,
+	help = """If set, ignore cases where an annotated object is too large to be
+stored in the database.""")
+
+p.add_option_group(g)
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
 p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
@@ -196,8 +208,18 @@ try:
 				else:
 					object.commit()
 
-		except (mdb.errors.DBConnectionError, mdb.errors.DBOperationError) as msg:
+		except mdb.errors.DBConnectionError as msg:
 			error(msg)
+
+		except mdb.errors.DBOperationError as msg:
+			if ("too large" in str(msg)):
+				if (p.ignore_large_entries):
+					print >>sys.stderr, "WARNING: %s is too large to be committed." % object_name
+					continue
+				else:
+					error("%s is too large to be committed" % read_id)
+			else:
+				error(msg)
 
 		except NotFound as msg:
 			if (p.ignore_unknown):

@@ -26,16 +26,6 @@ Cannot be used in combination with --reads-collection.""")
 g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR MONTH DAY",
 	help = "Date of the assembly (optional). By default, creation date of the ACE file.")
 
-g.add_option("--ignore-alignment", dest = "include_alignment", action = "store_false", default = True,
-	help = "If set, will not store HSP sequences and conservation lines.")
-
-g.add_option("--ignore-consensus", dest = "include_consensus", action = "store_false", default = True,
-	help = "If set, will not store the contig consensus sequence.")
-
-p.add_option_group(g)
-
-g = optparse.OptionGroup(p, "Identifiers manipulation")
-
 g.add_option("--read-id-getter", dest = "read_id_getter", metavar = "PYTHON CODE", default = "%",
 	help = """Python code to reformat read identifiers (optional); '%s' will be
 replaced by a Biopython ACE read object. Default: %default.""")
@@ -46,7 +36,17 @@ be replaced by a Biopython ACE record object. Default: %default.""")
 
 p.add_option_group(g)
 
-g = optparse.OptionGroup(p, "Missing and duplicate objects")
+g = optparse.OptionGroup(p, "Filtering")
+
+g.add_option("--ignore-alignment", dest = "include_alignment", action = "store_false", default = True,
+	help = "If set, will not store HSP sequences and conservation lines.")
+
+g.add_option("--ignore-consensus", dest = "include_consensus", action = "store_false", default = True,
+	help = "If set, will not store the contig consensus sequence.")
+
+p.add_option_group(g)
+
+g = optparse.OptionGroup(p, "Errors handling")
 
 g.add_option("--ignore-missing-reads", dest = "ignore_missing_reads", action = "store_true", default = False,
 	help = "If set, ignore reads that are not found in the reads collection.")
@@ -56,6 +56,10 @@ g.add_option("--ignore-missing-contigs", dest = "ignore_missing_contigs", action
 
 g.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_true", default = False,
 	help = "If set, ignore duplicate objects errors.")
+
+g.add_option("--ignore-large-entries", dest = "ignore_large_entries", action = "store_true", default = False,
+	help = """If set, ignore cases where a large amount of contigs being associated
+to a given read would result in this read to be too large for the database.""")
 
 p.add_option_group(g)
 
@@ -398,6 +402,16 @@ for contig in Ace.parse(open(p.input_fn, 'r')):
 			except mdb.errors.DuplicateObjectError as msg:
 				if (p.ignore_duplicates):
 					print >>sys.stderr, "WARNING: %s" % str(msg)
+				else:
+					error(msg)
+
+			except mdb.errors.DBOperationError as msg:
+				if ("too large" in str(msg)):
+					if (p.ignore_large_entries):
+						print >>sys.stderr, "WARNING: Too many contigs for read '%s'; this information will be ignored." % read_id
+						continue
+					else:
+						error("Too many contigs for read '%s'" % read_id)
 				else:
 					error(msg)
 

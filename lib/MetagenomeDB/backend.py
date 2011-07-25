@@ -67,6 +67,12 @@ def _commit (object):
 
 		raise e
 
+	except bson.errors.InvalidDocument as e:
+		if ("too large" in str(e)):
+			raise errors.DBOperationError("Object is too large to be committed")
+
+		raise e
+
 	logger.debug("Object %s %s in collection '%s'." % (object, verb, collection_name))
 
 def exists (id):

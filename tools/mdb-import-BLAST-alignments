@@ -23,14 +23,16 @@ g.add_option("--date", dest = "date", nargs = 3, type = "int", metavar = "YEAR M
 	help = "Date of the BLAST run (optional). By default, creation date of the input file.")
 
 g.add_option("--query-id-getter", dest = "query_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
-	help = "Python code to reformat query identifiers (optional); '%' will be replaced by the query identifier. Default: %default")
+	help = """Python code to reformat query identifiers (optional); '%' will be
+replaced by the query identifier. Default: %default""")
 
 g.add_option("--hit-id-getter", dest = "hit_id_getter", metavar = "PYTHON CODE", default = "%.split()[0]",
-	help = "Python code to reformat hit identifiers (optional); '%' will be replaced by the hit identifier. Default: %default")
+	help = """Python code to reformat hit identifiers (optional); '%' will be
+replaced by the hit identifier. Default: %default""")
 
 p.add_option_group(g)
 
-g = optparse.OptionGroup(p, "Input filtering")
+g = optparse.OptionGroup(p, "Filtering")
 
 g.add_option("--max-E-value", dest = "max_e_value", type = "float", metavar = "FLOAT",
 	help = "If set, filter out all hits with a E-value above the provided cut-off.")
@@ -43,6 +45,14 @@ g.add_option("--max-hits", dest = "max_hits", type = "int", metavar = "INTEGER",
 
 g.add_option("--ignore-alignment", dest = "include_alignment", action = "store_false", default = True,
 	help = "If set, will not store HSP sequences and conservation lines.")
+
+p.add_option_group(g)
+
+g = optparse.OptionGroup(p, "Errors handling")
+
+g.add_option("--ignore-large-entries", dest = "ignore_large_entries", action = "store_true", default = False,
+	help = """If set, ignore cases where a large amount of hits being associated
+to a given query would result in this query object to be too large for the database.""")
 
 p.add_option_group(g)
 
@@ -228,6 +238,20 @@ def get_sequence (collection, name):
 
 external_hits = (p.hits_collection == None)
 
+def try_commit (query_o, query_id):
+	try:
+		query_o.commit()
+
+	except mdb.errors.DBOperationError as msg:
+		if ("too large" in str(msg)):
+			if (p.ignore_large_entries):
+				print >>sys.stderr, "WARNING: Too many hits for query '%s'; this information will be ignored." % query_id
+				continue
+			else:
+				error("Too many hits for query '%s'" % query_id)
+		else:
+			error(msg)
+
 for record in NCBIXML.parse(open(p.input_fn, 'r')):
 	query_id = get_query_id(record.query)
 	query_o = get_sequence(queries, query_id)
@@ -307,7 +331,7 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 						print "      %s" % line
 				else:
 					query_o.relate_to_sequence(hit_o, r)
-					query_o.commit()
+					try_commit(query_o, query_id)
 
 			# the hit is not in the database. In this case, we store the HSP as
 			# a property of the query sequence.
@@ -325,9 +349,9 @@ for record in NCBIXML.parse(open(p.input_fn, 'r')):
 				else:
 					hits.append(r)
 
-	if (external_hits) and (not p.dry_run):
+	if (external_hits) and (not p.dry_run) and (len(hits) > 0):
 		query_o["alignments"] = hits
-		query_o.commit()
+		try_commit(query_o, query_id)
 
 	if (not p.dry_run) and (p.display_progress_bar):
 		pb.display(n)
