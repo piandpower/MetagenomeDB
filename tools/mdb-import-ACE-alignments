@@ -327,7 +327,7 @@ for contig in Ace.parse(open(p.input_fn, 'r')):
 	for read_idx, read in enumerate(contig.reads):
 		read_id = get_read_id(read)
 
-		if (read_id in mapping):
+		if (mapping != None) and (read_id in mapping):
 			read_id, reads_collection = mapping[read_id]
 			read_o = get_sequence(reads_collection, read_id)
 		else:
