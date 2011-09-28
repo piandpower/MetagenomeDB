@@ -246,7 +246,7 @@ def try_commit (query_o, query_id):
 		if ("too large" in str(msg)):
 			if (p.ignore_large_entries):
 				print >>sys.stderr, "WARNING: Too many hits for query '%s'; this information will be ignored." % query_id
-				continue
+				return
 			else:
 				error("Too many hits for query '%s'" % query_id)
 		else:
