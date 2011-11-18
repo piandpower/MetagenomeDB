@@ -1,22 +1,31 @@
 Installation
 ============
 
-**MetagenomeDB** relies on another Python library to function, Pymongo_ (version 1.9 or above). The latest version of Pymongo must be installed, for example by typing ``sudo easy_install Pymongo`` on the command line.
+**MetagenomeDB** relies on another Python library to function, Pymongo_ (version 1.9 or above). The latest version of Pymongo must be installed, for example by typing ``sudo easy_install Pymongo`` on the command line (if ``easy_install`` is not installed on your computer, read the documentation here: http://pypi.python.org/pypi/setuptools).
 
-That's it. The only other requirement is, of course, a working MongoDB_ server, either on your computer or on a computer that can be accessed through TCP/IP.
+That's it. The only other requirement is, of course, a working MongoDB_ server, either on your computer or on a computer that can be accessed through TCP/IP. Documentation on how to install a MongoDB server can be found here: http://www.mongodb.org/display/DOCS/Quickstart.
 
-MetagenomeDB can be installed using two methods:
+MetagenomeDB itself can be installed using two methods:
 
 Using GitHub
 ''''''''''''
 
-All versions of MetagenomeDB, including the latest developer releases, can be downloaded at https://github.com/BioinformaticsCore/MetagenomeDB
+This is the recommended method. `GitHub <http://github.com>`_ is a repository of community-driven open-source projects, allowing people to download the source code of projects, modify it and submit their modifications. The source code of MetagenomeDB is stored at this page: https://github.com/BioinformaticsCore/MetagenomeDB
 
-Once the archive in your computer, installing it can be done by typing ``sudo easy_install [path to your archive]`` in a console (see the ``easy_install`` documentation: http://packages.python.org/distribute/easy_install.html).
+You can download a .zip archive of the latest version of MetagenomeDB by clicking on the "ZIP" button on this page:
 
-If you want more control (such as requesting the library and the tools to be installed in specific directories), you should first unzip the archive, then type ``sudo python setup.py`` plus any needed option from the archive's content directory (see the ``setup.py`` documentation: http://docs.python.org/install/index.html). For example, to ensure the various mdb-* tools are installed in /usr/local/bin/ you can type ``sudo python setup.py install --install-scripts=/usr/local/bin/``.
+.. image:: github_zip.jpg
+	:align: center
 
-GitHub is the preferred source if you are interested in the most recent, albeit potentially unstable, releases of MetagenomeDB.
+You should obtain a file named ``BioinformaticsCore-MetagenomeDB-vXXXX.zip`` where 'XXXX' is a version and build number. The latest version of MetagenomeDB is for now |release|.
+
+Once the archive in your computer, installing it can be done by typing ``sudo easy_install [path to your archive]`` in a console [#]_
+
+If you want more control (such as requesting the library and the tools to be installed in specific directories), you should first unzip the archive, ``cd`` into this directory then type ``sudo python setup.py`` plus any wanted option [#]_. For example, to ensure the various mdb-* tools are installed in /usr/local/bin/ you can type ``sudo python setup.py install --install-scripts=/usr/local/bin/``.
+
+.. [#] see the ``easy_install`` documentation: http://packages.python.org/distribute/easy_install.html.
+
+.. [#] see the ``setup.py`` documentation: http://docs.python.org/install/index.html
 
 Using PyPI
 ''''''''''
@@ -26,7 +35,7 @@ All production-ready versions of MetagenomeDB are registered against the PyPI_ p
 Final step
 ''''''''''
 
-By default MetagenomeDB will read a file named ``.MetagenomeDB`` in your home directory to know how to access the MongoDB database. A template file named ``docs/installation/MetagenomeDB_configuration.txt`` is provided. Change its name to ``.MetagenomeDB``, move it in your home directory, then update it with your own parameters.
+By default MetagenomeDB will read a file named ``.MetagenomeDB`` in your home directory to know how to access the MongoDB database. A template file named ``docs/installation/MetagenomeDB_configuration.txt`` is provided. Copy this file into your home directory, change its name to ``.MetagenomeDB``, then update it with your own parameters.
 
 Optionally, you can provide those information when importing MetagenomeDB in your script::
 
@@ -34,16 +43,9 @@ Optionally, you can provide those information when importing MetagenomeDB in you
 
 	mdb.connect(host = "localhost", port = 1234, database = "MyDatabase")
 
-From then you can store and retrieve objects::
-
-	c = mdb.Collection.find_one({"name": "my_collection"})
-
-	for sequence in c.list_sequences():
-		print sequence["name"], sequence["sequence"]
-
 .. _MongoDB: http://www.mongodb.org/
 .. _Pymongo: http://api.mongodb.org/python
 .. _PyPI: http://pypi.python.org/
 
 .. toctree::
-   :hidden:
+	:hidden:
