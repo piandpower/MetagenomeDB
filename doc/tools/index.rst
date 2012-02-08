@@ -16,7 +16,7 @@ Importing sequence alignments:
 	- :doc:`mdb_import_blast_alignments`
 	- :doc:`mdb_import_fasta_alignments`
 	- :doc:`mdb_import_ace_alignments`
-	- :doc:`mdb_import_cd_hit_454_alignments`
+	- :doc:`mdb_import_cd_hit_alignments`
 
 Importing sequence annotations:
 	- :doc:`mdb_import_crisprfinder_annotations`
@@ -39,7 +39,7 @@ Additional documents:
 	mdb_import_blast_alignments
 	mdb_import_fasta_alignments
 	mdb_import_ace_alignments
-	mdb_import_cd_hit_454_alignments
+	mdb_import_cd_hit_alignments
 	mdb_import_crisprfinder_annotations
 	mdb_import_454assemblyproject_annotations
 	mdb_copy
