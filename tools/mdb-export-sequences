@@ -23,7 +23,7 @@ p.add_option("-f", "--format", dest = "output_format", metavar = "STRING", defau
 http://biopython.org/wiki/SeqIO for a list of the formats supported)""")
 
 p.add_option("--id-setter", dest = "sequence_id_setter", metavar = "PYTHON CODE", default = "%",
-	help = """Python code to reformat sequence identifiers (optional); '%s' will
+	help = """Python code to reformat sequence identifiers (optional); '%' will
 be replaced by a sequence name. Default: %default".""")
 
 p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
