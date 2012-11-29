@@ -147,7 +147,7 @@ def parser (fn, format):
 	elif (format == "csv"):
 		def generator():
 			for line in csv.reader(i, delimiter = ',', quotechar='"'):
-				line = filter(lambda x: x != '', line)
+				line = filter(lambda x: x.strip() != '', line)
 
 				if (len(line) == 0): # empty lines
 					continue
