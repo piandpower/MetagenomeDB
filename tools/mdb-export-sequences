@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-import optparse, sys, os, pprint
+import optparse
+import sys, os
+import re, pprint
 import MetagenomeDB as mdb
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
@@ -26,12 +28,10 @@ p.add_option("--id-setter", dest = "sequence_id_setter", metavar = "PYTHON CODE"
 	help = """Python code to reformat sequence identifiers (optional); '%' will
 be replaced by a sequence name. Default: %default".""")
 
-p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
-p.add_option("--no-progress-bar", dest = "display_progress_bar", action = "store_false", default = True)
-p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
-p.add_option("--version", dest = "display_version", action = "store_true", default = False)
+p.add_option("--no-description", dest = "add_description", default = True, action = "store_false",
+	help = "if set, will not add sequence's description (if any) in the output file")
 
-g = optparse.OptionGroup(p, "Filtering")
+g = optparse.OptionGroup(p, "sequence filtering")
 
 g.add_option("-p", "--property-filter", dest = "property_filter", action = "append", nargs = 2, metavar = "KEY VALUE",
 	help = """Filter the sequences according to a given key and value. If several
@@ -47,38 +47,12 @@ sequences with names not found in this file will be returned (optional).""")
 
 p.add_option_group(g)
 
-g = optparse.OptionGroup(p, "Connection")
+mdb.tools.include("connection_options", globals())
 
-connection_parameters = {}
-def declare_connection_parameter (option, opt, value, parser):
-	connection_parameters[opt[2:]] = value
-
-g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """Host name or IP address of the MongoDB server (optional). Default:
-'host' property in ~/.MetagenomeDB, or 'localhost' if not found.""")
-
-g.add_option("--port", dest = "connection_port", metavar = "INTEGER",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """Port of the MongoDB server (optional). Default: 'port' property
-in ~/.MetagenomeDB, or 27017 if not found.""")
-
-g.add_option("--db", dest = "connection_db", metavar = "STRING",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """Name of the database in the MongoDB server (optional). Default:
-'db' property in ~/.MetagenomeDB, or 'MetagenomeDB' if not found.""")
-
-g.add_option("--user", dest = "connection_user", metavar = "STRING",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """User for the MongoDB server connection (optional). Default:
-'user' property in ~/.MetagenomeDB, or none if not found.""")
-
-g.add_option("--password", dest = "connection_password", metavar = "STRING",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """Password for the MongoDB server connection (optional). Default:
-'password' property in ~/.MetagenomeDB, or none if not found.""")
-
-p.add_option_group(g)
+p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+p.add_option("--no-progress-bar", dest = "display_progress_bar", action = "store_false", default = True)
+p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
+p.add_option("--version", dest = "display_version", action = "store_true", default = False)
 
 (p, a) = p.parse_args()
 
@@ -93,6 +67,9 @@ if (p.display_version):
 	print mdb.version
 	sys.exit(0)
 
+mdb.tools.include("id_modifier", globals())
+set_sequence_id = id_modifier(p.sequence_id_setter)
+
 if (not p.collection_name):
 	error("A collection name must be provided")
 
@@ -102,11 +79,8 @@ if (p.white_list_fn) and (not os.path.exists(p.white_list_fn)):
 if (p.black_list_fn) and (not os.path.exists(p.black_list_fn)):
 	error("File '%s' not found" % p.black_list_fn)
 
-try:
-	set_sequence_id = eval("lambda x: " + p.sequence_id_setter.replace('%', 'x').replace("\\x", '%'))
-
-except SyntaxError as e:
-	error("Invalid setter: %s\n%s^" % (e.text, ' ' * (e.offset + 22)))
+mdb.tools.include("id_modifier", globals())
+set_sequence_id = id_modifier(p.sequence_id_setter)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -125,7 +99,7 @@ except Exception as msg:
 	error(msg)
 
 if (collection == None):
-	error("Unknown collection '%s'" % p.collection_name)
+	error("unknown collection '%s'" % p.collection_name)
 
 if (p.output_fn == None):
 	output_fh = sys.stdout
@@ -181,41 +155,25 @@ try:
 	from Bio.Seq import Seq
 	from Bio.SeqRecord import SeqRecord
 except:
-	error("The BioPython library is not installed.\nTry 'easy_install biopython'")
+	error("the BioPython library is not installed.\nTry 'easy_install biopython'")
 
-print "Exporting sequences to '%s' (%s format) ..." % (p.output_fn, p.output_format)
-
-class ProgressBar:
-	def __init__ (self, upper = None):
-		self.__min = 0.0
-		self.__max = upper + 0.0
-
-	def display (self, value):
-		f = (value - self.__min) / (self.__max - self.__min) # fraction
-		p = 100 * f # percentage
-		s = int(round(80 * f)) # bar size
-
-		sys.stdout.write(' ' * 2 + ('.' * s) + " %4.2f%%\r" % p)
-		sys.stdout.flush()
-
-	def clear (self):
-		sys.stdout.write(' ' * (2 + 80 + 8) + "\r")
-		sys.stdout.flush()
+print "exporting sequences to '%s' (%s format)..." % (p.output_fn, p.output_format)
 
 n_sequences_total = 0
 
 try:
 	for collection in collections:
 		n_sequences = collection.count_sequences()
+		if (n_sequences == 0):
+			continue
 
-		print "  from %scollection '%s' (%s sequence%s before filtering)" % (
-			{True: '', False: "sub"}[n_sequences_total == 0],
+		print "  from collection '%s' (%s sequence%s)" % (
 			collection["name"],
-			n_sequences,
+			"{:,}".format(n_sequences),
 			{True: 's', False: ''}[n_sequences > 1]
 		)
 
-		pb = ProgressBar(n_sequences)
+		pb = mdb.tools.progressbar(n_sequences)
 		n_sequences_exported = 0
 
 		def sequences():
@@ -230,13 +188,16 @@ try:
 				if (blacklist != None) and (name in blacklist):
 					continue
 
-				record = SeqRecord(
+				if (p.add_description):
+					description = sequence.get_property("description", '')
+				else:
+					description = ''
+
+				yield SeqRecord(
 					id = name,
 					seq = Seq(sequence["sequence"]),
-					description = sequence.get_property("description", ''),
+					description = description
 				)
-
-				yield record
 
 				n_sequences_exported += 1
 				if (p.display_progress_bar):
@@ -250,13 +211,22 @@ try:
 		else:
 			SeqIO.write(sequences(), output_fh, p.output_format)
 
-		print "    %s sequence%s exported." % (n_sequences_exported, {True: 's', False: ''}[n_sequences_exported > 1])
+		print "    %s sequence%s exported" % (
+			"{:,}".format(n_sequences_exported),
+			{True: 's', False: ''}[n_sequences_exported > 1]
+		)
+
 		n_sequences_total += n_sequences_exported
 
-	print "Done (%s sequence%s exported total)." % (n_sequences_total, {True: 's', False: ''}[n_sequences_total > 1])
-
-	if (p.dry_run):
-		print "(dry run)"
+	print "%s sequence%s exported total" % (
+		"{:,}".format(n_sequences_total),
+		{True: 's', False: ''}[n_sequences_total > 1]
+	)
 
 except Exception as msg:
 	error(msg)
+
+if (p.dry_run):
+	print "done (dry run)."
+else:
+	print "done."

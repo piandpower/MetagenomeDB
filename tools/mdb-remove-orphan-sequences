@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+import optparse
+import sys, os
+import pprint
+import MetagenomeDB as mdb
+
+p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
+Remove sequences not belonging to any collection from the database.""")
+
+mdb.tools.include("connection_options", globals())
+
+p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
+p.add_option("--version", dest = "display_version", action = "store_true", default = False)
+
+(p, a) = p.parse_args()
+
+def error (msg):
+	if str(msg).endswith('.'):
+		msg = str(msg)[:-1]
+	print >>sys.stderr, "ERROR: %s." % msg
+	sys.exit(1)
+
+if (p.display_version):
+	print mdb.version
+	sys.exit(0)
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+if (p.verbose):
+	mdb.max_verbosity()
+
+try:
+	mdb.connect(**connection_parameters)
+except Exception as msg:
+	error(msg)
+
+print "removing orphan sequences..."
+
+try:
+	pb = mdb.tools.progressbar(mdb.Sequence.count())
+
+	n, m = 0, 0
+	for sequence in mdb.Sequence.find():
+		if (sequence.count_collections() == 0):
+			n += 1
+			if (not p.dry_run):
+				sequence.remove()
+
+		m += 1
+		pb.display(m)
+
+	pb.clear()
+
+	print "  %s sequence%s checked" % ("{:,}".format(m), {True: 's', False: ''}[m > 1])
+	print "  %s sequence%s removed" % ("{:,}".format(n), {True: 's', False: ''}[n > 1])
+
+except mdb.errors.DBConnectionError as msg:
+	error(msg)
+
+if (p.dry_run):
+	print "done (dry run)."
+else:
+	print "done."

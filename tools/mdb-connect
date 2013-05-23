@@ -1,0 +1,165 @@
+#!/usr/bin/env python
+
+import optparse
+import sys, os
+import logging
+import re, csv
+import MetagenomeDB as mdb
+
+p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
+Connect or disconnect sequence to or from a collection.""")
+
+p.add_option("-i", "--input", dest = "input_fn", metavar = "FILENAME",
+	help = "(mandatory) name of a .csv-formatted file with the sequences to connect or disconnect (one sequence per line). The first column must be the sequence name, and the sequence column the collection it belongs to")
+
+p.add_option("-C", "--collection", dest = "collection_name", metavar = "STRING",
+	help = "(mandatory) name of the collection to connect the sequences to, or disconnect the sequences from")
+
+p.add_option("-d", "--disconnect", dest = "connect", action = "store_false", default = True,
+	help = "(optional) if set, will disconnect, rather than connect, the sequences to the collection")
+
+p.add_option("--id-setter", dest = "sequence_id_setter", metavar = "PYTHON CODE", default = "%",
+	help = """(optional; default: '%default') Python code to reformat sequence identifiers; '%' will
+be replaced by the original sequence name""")
+
+p.add_option("--ignore-warnings", dest = "ignore_warnings", action = "store_true", default = False,
+	help = "(optional) if set, will not display warning messages when a sequence is already connected to, or already disconnected from the collection")
+
+mdb.tools.include("connection_options", globals())
+
+p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+p.add_option("--no-progress-bar", dest = "display_progress_bar", action = "store_false", default = True)
+p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
+p.add_option("--version", dest = "display_version", action = "store_true", default = False)
+
+(p, a) = p.parse_args()
+
+__formatter = logging.Formatter("[%(asctime)s] %(name)s: %(levelname)s: %(message)s")
+__handler = logging.StreamHandler()
+__handler.setFormatter(__formatter)
+
+logger = logging.getLogger(os.path.basename(__file__))
+logger.addHandler(__handler)
+
+def error (msg):
+	logger.error(msg)
+	sys.exit(1)
+
+if (p.verbose):
+	logger.setLevel(logging.DEBUG)
+else:
+	logger.setLevel(logging.INFO)
+
+if (p.display_version):
+	print mdb.version
+	sys.exit(0)
+
+if (not p.collection_name):
+	error("a collection name must be provided")
+
+if (not p.input_fn):
+	error("a input filename must be provided")
+
+if (not os.path.exists(p.input_fn)):
+	error("file '%s' not found" % p.input_fn)
+
+mdb.tools.include("id_modifier", globals())
+set_sequence_id = id_modifier(p.sequence_id_setter)
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+if (p.verbose):
+	mdb.max_verbosity()
+
+try:
+	mdb.connect(**connection_parameters)
+except Exception as msg:
+	error(msg)
+
+try:
+	collection = mdb.Collection.find_one({"name": p.collection_name})
+
+except Exception as msg:
+	error(msg)
+
+if (collection == None):
+	error("unknown collection '%s'" % p.collection_name)
+
+logger.info("checking content of '%s'" % p.input_fn)
+
+n_sequences, cache = 0, {}
+
+def entries():
+	global n_sequences
+	for entry in csv.reader(open(p.input_fn, 'rU')):
+		if (len(entry) != 2):
+			error("invalid entry: %s" % entry)
+
+		sequence_name, collection_name = entry
+
+		if (collection_name in cache):
+			collection_o = cache[collection_name]
+		else:
+			collection_o = mdb.Collection.find_one({"name": collection_name})
+			if (collection_o == None):
+				error("unknown collection '%s' for sequence '%s'" % (collection_name, sequence_name))
+
+			cache[collection_name] = collection_o
+
+		sequence_o = len(collection_o.list_sequences({"name": sequence_name}))
+
+		if (len(sequence_o) > 1):
+			error("collection '%s' has more than one sequence with name '%s'" % (collection_name, sequence_name))
+		elif (len(sequence_o) == 0):
+			error("sequence '%s' not found in collection '%s'" % (sequence_name, collection_name))
+
+		yield sequence_o[0], collection_o
+		n_sequences += 1
+
+try:
+	[_ for _ in entries()]
+
+except Exception as msg:
+	error(msg)
+
+logger.debug("%s collections in cache" % len(cache))
+logger.info("%s sequences found in '%s'" % (n_sequences, p.input_fn))
+logger.info("done checking content of '%s'" % p.input_fn)
+
+logger.info("processing content of '%s'" % p.input_fn)
+
+n_actions = 0
+
+try:
+	for sequence_o, collection_o in entries():
+		if (p.connect):
+			try:
+				sequence_o.add_to_collection(collection)
+				if (not p.dry_run):
+					sequence_o.commit()
+				n_actions += 1
+
+			except mdb.errors.DuplicateObjectError:
+				if (not p.ignore_warnings):
+					logger.warning("sequence '%s' from collection '%s' is already part of collection '%s'" % (sequence_o["name"], collection_o["name"], collection["name"]))
+
+		else:
+			try:
+				sequence_o.remove_from_collection(collection)
+				if (not p.dry_run):
+					sequence_o.commit()
+				n_actions += 1
+
+			except mdb.errors.InvalidObjectOperationError:
+				if (not p.ignore_warnings):
+					logger.warning("sequence '%s' from collection '%s' is not part of collection '%s'" % (sequence_o["name"], collection_o["name"], collection["name"]))
+
+except Exception as msg:
+	error(msg)
+
+logger.info("%s sequences %s %s" % (n_actions, {True: "connected to", False: "disconnected from"}[p.connect], collection["name"]))
+
+if (p.dry_run):
+	logger.info("done processing content of '%s' (dry run)" % p.input_fn)
+else:
+	logger.info("done processing content of '%s'" % p.input_fn)

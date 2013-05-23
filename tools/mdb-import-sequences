@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-import optparse, sys, os, pprint
+import optparse
+import sys, os
+import pprint
 import MetagenomeDB as mdb
 
 p = optparse.OptionParser(description = """Part of the MetagenomeDB toolkit.
@@ -39,52 +41,12 @@ g.add_option("--ignore-duplicates", dest = "ignore_duplicates", action = "store_
 
 p.add_option_group(g)
 
-g = optparse.OptionGroup(p, "Connection")
+mdb.tools.include("connection_options", globals())
 
-connection_parameters = {}
-def declare_connection_parameter (option, opt, value, parser):
-	connection_parameters[opt[2:]] = value
-
-g.add_option("--host", dest = "connection_host", metavar = "HOSTNAME",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """Host name or IP address of the MongoDB server (optional). Default:
-'host' property in ~/.MetagenomeDB, or 'localhost' if not found.""")
-
-g.add_option("--port", dest = "connection_port", metavar = "INTEGER",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """Port of the MongoDB server (optional). Default: 'port' property
-in ~/.MetagenomeDB, or 27017 if not found.""")
-
-g.add_option("--db", dest = "connection_db", metavar = "STRING",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """Name of the database in the MongoDB server (optional). Default:
-'db' property in ~/.MetagenomeDB, or 'MetagenomeDB' if not found.""")
-
-g.add_option("--user", dest = "connection_user", metavar = "STRING",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """User for the MongoDB server connection (optional). Default:
-'user' property in ~/.MetagenomeDB, or none if not found.""")
-
-g.add_option("--password", dest = "connection_password", metavar = "STRING",
-	type = "string", action = "callback", callback = declare_connection_parameter,
-	help = """Password for the MongoDB server connection (optional). Default:
-'password' property in ~/.MetagenomeDB, or none if not found.""")
-
-p.add_option_group(g)
-
-g = optparse.OptionGroup(p, "Other options")
-
-g.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False,
-	help = "Increase the verbosity of MetagenomeDB.")
-
-g.add_option("--no-progress-bar", dest = "display_progress_bar", action = "store_false", default = True,
-	help = "Hide the progress bar.")
-
-g.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False,
-	help = "Display current operation on screen rather than performing it.")
-
-g.add_option("--version", dest = "display_version", action = "store_true", default = False,
-	help = "Display the version of the MetagenomeDB toolkit.")
+p.add_option("-v", "--verbose", dest = "verbose", action = "store_true", default = False)
+p.add_option("--no-progress-bar", dest = "display_progress_bar", action = "store_false", default = True)
+p.add_option("--dry-run", dest = "dry_run", action = "store_true", default = False)
+p.add_option("--version", dest = "display_version", action = "store_true", default = False)
 
 p.add_option_group(g)
 
@@ -102,13 +64,13 @@ if (p.display_version):
 	sys.exit(0)
 
 if (p.input_fn == None):
-	error("A sequence file must be provided")
+	error("a sequence file must be provided")
 
 if (not os.path.exists(p.input_fn)):
-	error("File '%s' not found" % p.input_fn)
+	error("file '%s' not found" % p.input_fn)
 
 if (not p.collection_name) and (not p.collection_properties):
-	error("A collection name or description must be provided")
+	error("a collection name or description must be provided")
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -127,25 +89,25 @@ if (p.collection_properties):
 		m[key] = mdb.tools.parse_value_and_modifier(value)
 
 	if ("_id" in m):
-		print >>sys.stderr, "WARNING: A '_id' field was found in the collection description and ignored."
+		print >>sys.stderr, "WARNING: a '_id' field was found in the collection description and ignored."
 		del m["_id"]
 
 	if ("name" in m) and (mdb.Collection.find_one({"name": m["name"]}) != None):
-		error("Duplicate collection '%s'" % m["name"])
+		error("duplicate collection '%s'" % m["name"])
 
 	try:
 		collection = mdb.Collection(m)
 		collection.commit()
 
 	except ValueError as msg:
-		error("Malformed collection description: %s" % msg)
+		error("malformed collection description: %s" % msg)
 
 # Retrieval of an existing collection
 elif (p.collection_name):
 	collection = mdb.Collection.find_one({"name": p.collection_name})
 
 	if (collection == None):
-		error("Unknown collection '%s'" % p.collection_name)
+		error("unknown collection '%s'" % p.collection_name)
 
 if (p.relationship_properties):
 	m = {}
@@ -168,7 +130,7 @@ if (p.sequence_properties):
 try:
 	from Bio import SeqIO
 except:
-	error("The BioPython library is not installed.\nTry 'easy_install biopython'")
+	error("the BioPython library is not installed.\nTry 'easy_install biopython'")
 
 def read():
 	try:
@@ -178,44 +140,27 @@ def read():
 
 	return parser
 
-print "Importing '%s' (%s format) ..." % (p.input_fn, p.input_format)
+print "importing '%s' (%s format) ..." % (p.input_fn, p.input_format)
 
 print "  checking the input file ..."
 
 seen = {}
 for record in read():
 	if (record.id in seen):
-		error("Duplicate sequence '%s'" % record.id)
+		error("duplicate sequence '%s'" % record.id)
 
 	seen[record.id] = True
 
 n = len(seen)
 
 if (n == 0):
-	error("The input file contains no sequence")
+	error("the input file contains no sequence")
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 print "  importing sequences ..."
 
-class ProgressBar:
-	def __init__ (self, upper = None):
-		self.__min = 0.0
-		self.__max = upper + 0.0
-
-	def display (self, value):
-		f = (value - self.__min) / (self.__max - self.__min) # fraction
-		p = 100 * f # percentage
-		s = int(round(80 * f)) # bar size
-
-		sys.stdout.write(' ' * 2 + ('.' * s) + " %4.2f%%\r" % p)
-		sys.stdout.flush()
-
-	def clear (self):
-		sys.stdout.write(' ' * (2 + 80 + 8) + "\r")
-		sys.stdout.flush()
-
-pb = ProgressBar(n)
+pb = mdb.tools.progressbar(n)
 n = 0
 
 for record in read():
@@ -245,7 +190,7 @@ for record in read():
 	if (p.sequence_properties):
 		for (key, value) in p.sequence_properties:
 			if (key in entry):
-				error("Reserved field '%s'" % key)
+				error("reserved field '%s'" % key)
 
 			entry[key] = value
 
@@ -275,7 +220,9 @@ for record in read():
 if (p.display_progress_bar):
 	pb.clear()
 
-print "  %s sequence%s imported." % (n, {True: 's', False: ''}[n > 1])
+print "    %s sequence%s imported" % ("{:,}".format(n), {True: 's', False: ''}[n > 1])
 
 if (p.dry_run):
-	print "(dry run)"
+	print "done (dry run)."
+else:
+	print "done."

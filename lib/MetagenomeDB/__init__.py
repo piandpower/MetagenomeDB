@@ -1,8 +1,8 @@
 
 __version_major__ = 0
 __version_minor__ = 2
-__revision__ = 19
-__build__ = "C38BA28"
+__revision__ = 20
+__build__ = "CEE3EF9"
 
 version = "%s.%s (revision %s, build %s)" % (
 	__version_major__,
@@ -12,19 +12,20 @@ version = "%s.%s (revision %s, build %s)" % (
 )
 
 import logging
-
-logging.basicConfig(
-	level = logging.WARNING,
-	format = "%(asctime)s	%(levelname)s: %(message)s	%(funcName)s() in %(filename)s, line %(lineno)d"
-)
-
 logger = logging.getLogger("MetagenomeDB")
+
+__formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s	%(funcName)s() in %(filename)s, line %(lineno)d")
+__handler = logging.StreamHandler()
+__handler.setFormatter(__formatter)
+
+logger.addHandler(__handler)
 
 import backend
 from connection import *
 import errors
 from objects import *
-from utils import tree, tools
+import tools
+from utils import tree
 
 def set_verbosity (level):
 	""" Set the verbosity level for the MetagenomeDB API.
@@ -46,7 +47,7 @@ def set_verbosity (level):
 
 def min_verbosity():
 	""" Set the verbosity to the minimal level.
-	
+
 	.. note::
 		Equivalent to :func:`~MetagenomeDB.set_verbosity` with **level** set to
 		"error"
@@ -55,7 +56,7 @@ def min_verbosity():
 
 def normal_verbosity():
 	""" Set the verbosity to the normal level.
-	
+
 	.. note::
 		Equivalent to :func:`~MetagenomeDB.set_verbosity` with **level** set to
 		"warning"
@@ -64,7 +65,7 @@ def normal_verbosity():
 
 def max_verbosity():
 	""" Set the verbosity to the maximal level.
-	
+
 	.. note::
 		Equivalent to :func:`~MetagenomeDB.set_verbosity` with **level** set to
 		"debug"

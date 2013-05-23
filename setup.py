@@ -23,7 +23,7 @@ setup(
 	author = "Aurelien Mazurie",
 	author_email = "ajmazurie@oenone.net",
 	url = "https://github.com/BioinformaticsCore/MetagenomeDB",
-	packages = ["MetagenomeDB", "MetagenomeDB.utils"],
+	packages = ["MetagenomeDB", "MetagenomeDB.tools", "MetagenomeDB.utils"],
 	package_dir = {'': "lib"},
 	scripts = glob("tools/*"),
 )
