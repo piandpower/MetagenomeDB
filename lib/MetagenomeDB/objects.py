@@ -1,12 +1,12 @@
+# high-level objects used to represent metagenomics data (sequences and collections)
+# high-level classes to represent persistent metagenomic data (sequences and collections)
 
-from classes import CommittableObject
+import orm
 import errors
-import zlib, itertools
+import utils
 
-### needed for list_top_collections(); should probably be not here
-from utils import tree
-import backend
-###
+import zlib
+import itertools
 
 class Direction:
 	INGOING, SUB = 1, 1
@@ -45,14 +45,14 @@ class Direction:
 		return (value == Direction.OUTGOING) or (value == Direction.BOTH)
 
 # Sequence object.
-class Sequence (CommittableObject):
+class Sequence (orm.PersistentObject):
 
 	__MAX_UNCOMPRESSED_SEQUENCE_SIZE = 1000000
 	__MAX_COMPRESSED_SEQUENCE_SIZE = 1000000
 
 	def __init__ (self, properties):
 		""" Create a new Sequence object.
-		
+
 		Parameters:
 			- **properties**: properties of this sequence, as a dictionary.
 			  Must contain at least a 'name' and 'sequence' property, or a
@@ -83,14 +83,14 @@ class Sequence (CommittableObject):
 			"class": False,
 		}
 
-		CommittableObject.__init__(self, indices, properties)
+		orm.PersistentObject.__init__(self, indices, properties)
 
 	@classmethod
 	def _process_sequence (self, value):
 		# storing the sequence as an uncompressed string
 		if (len(value) <= Sequence.__MAX_UNCOMPRESSED_SEQUENCE_SIZE):
 			return value, len(value)
-	
+
 		sequence, crc = zlib.compress(value, 9), zlib.crc32(value)
 
 		# storing the sequence as a compressed string
@@ -105,7 +105,7 @@ class Sequence (CommittableObject):
 		return {"handle": handle, "crc": crc}, len(value)
 
 	def _setitem_precallback (self, key, value):
-		CommittableObject._setitem_precallback(self, key, value)
+		orm.PersistentObject._setitem_precallback(self, key, value)
 
 		if (key == ("sequence",)):
 			sequence, length = Sequence._process_sequence(value)
@@ -135,7 +135,7 @@ class Sequence (CommittableObject):
 			raise errors.InvalidObjectError("Invalid value for 'sequence' property.")
 
 	def _delitem_precallback (self, key):
-		CommittableObject._delitem_precallback(self, key)
+		orm.PersistentObject._delitem_precallback(self, key)
 
 		if (key == ("name",)):
 			raise errors.InvalidObjectOperationError("Property 'name' cannot be deleted.")
@@ -181,7 +181,7 @@ class Sequence (CommittableObject):
 
 	def remove_from_collection (self, collection, relationship_filter = None):
 		""" Remove this sequence from a collection.
-		
+
 		Parameters:
 			- **collection**: collection to remove this collection from.
 			- **relationship_filter**: relationships to remove (optional).
@@ -190,7 +190,7 @@ class Sequence (CommittableObject):
 
 		.. note::
 			- If this sequence and **collection** have no relationship, a
-			  :class:`MetagenomeDB.errors.InvalidObjectOperationError` exception is thrown. 
+			  :class:`MetagenomeDB.errors.InvalidObjectOperationError` exception is thrown.
 			- If this sequence is not committed and **relationship_filter** is
 			  set a :class:`MetagenomeDB.errors.UncommittedObjectError` exception
 			  is thrown. See :doc:`relationships`.
@@ -205,13 +205,13 @@ class Sequence (CommittableObject):
 
 	def list_collections (self, collection_filter = None, relationship_filter = None):
 		""" List collections this sequence is linked to.
-		
+
 		Parameters:
 			- **collection_filter**: filter for the collections (optional). See
 			  :doc:`queries`.
 			- **relationship_filter**: filter for the relationship linking this
 			  sequence to collections (optional). See :doc:`queries`.
-		
+
 		.. note::
 			- If this sequence is not committed and **relationship_filter** is
 			  set a :class:`MetagenomeDB.errors.UncommittedObjectError` exception
@@ -224,12 +224,12 @@ class Sequence (CommittableObject):
 
 	def count_collections (self, collection_filter = None, relationship_filter = None):
 		""" Count collections this sequence is linked to.
-		
+
 		Parameters:
 			- **collection_filter**: filter for the collections (optional). See :doc:`queries`.
 			- **relationship_filter**: filter for the relationship linking this
 			  sequence to collections (optional). See :doc:`queries`.
-		
+
 		.. note::
 			- If this sequence is not committed and **relationship_filter** is
 			  set a :class:`MetagenomeDB.errors.UncommittedObjectError` exception
@@ -242,7 +242,7 @@ class Sequence (CommittableObject):
 
 	def list_top_collections (self, collection_filter = None):
 		""" List top collections this sequence is linked to.
-		
+
 		Explore all collections this sequence belong to, and the collection these
 		collections belong to (if any) until reaching the 'top' collections which
 		belong to no other collection.
@@ -273,7 +273,7 @@ class Sequence (CommittableObject):
 		else:
 			query = {"_id": {"$in": [collection["_id"] for collection in top]}}
 
-			collection_filter = tree.expand(collection_filter)
+			collection_filter = utils.tree.expand(collection_filter)
 			for key in collection_filter:
 				query[key] = collection_filter[key]
 
@@ -281,12 +281,12 @@ class Sequence (CommittableObject):
 
 	def relate_to_sequence (self, sequence, relationship = None):
 		""" Link this sequence to another sequence.
-		
+
 		Parameters:
 			- **sequence**: sequence to link this sequence to.
 			- **relationship**: description of the relationship linking this
 			  sequence to **sequence**, as a dictionary (optional).
-		
+
 		.. note::
 			- If **sequence** has never been committed to the database a
 			  :class:`MetagenomeDB.errors.UncommittedObjectError` is thrown.
@@ -313,7 +313,7 @@ class Sequence (CommittableObject):
 
 		.. note::
 			- If this sequence and **sequence** have no relationship, a
-			  :class:`MetagenomeDB.errors.InvalidObjectOperationError` exception is thrown. 
+			  :class:`MetagenomeDB.errors.InvalidObjectOperationError` exception is thrown.
 			- If this sequence is not committed and **relationship_filter** is
 			  set a :class:`MetagenomeDB.errors.UncommittedObjectError` exception
 			  is thrown. See :doc:`relationships`.
@@ -328,7 +328,7 @@ class Sequence (CommittableObject):
 
 	def list_related_sequences (self, direction = Direction.BOTH, sequence_filter = None, relationship_filter = None):
 		""" List sequences this sequence is related to.
-		
+
 		Parameters:
 			- **direction**: direction of the relationship (optional). If set to
 			  ``Direction.INGOING``, will list sequences that are linked to the
@@ -361,10 +361,10 @@ class Sequence (CommittableObject):
 
 	def count_related_sequences (self, direction = Direction.BOTH, sequence_filter = None, relationship_filter = None):
 		""" Count sequences this sequence is related to.
-		
+
 		Parameters:
 			- **direction**: direction of the relationship (optional). If set to
-			  ``Direction.INGOING``, will count sequences that are linked to 
+			  ``Direction.INGOING``, will count sequences that are linked to
 			  this sequence. If set to ``Direction.OUTGOING``, will count
 			  sequences this sequence is linked to. If set to ``Direction.BOTH``
 			  (default), all neighboring sequences are counted. See
@@ -401,11 +401,11 @@ class Sequence (CommittableObject):
 		)
 
 # Collection of Sequence objects.
-class Collection (CommittableObject):
+class Collection (orm.PersistentObject):
 
 	def __init__ (self, properties):
 		""" Create a new Collection object.
-		
+
 		Parameters:
 			- **properties**: properties of this sequence, as a dictionary.
 			  Must contain at least a 'name' property, or a
@@ -425,17 +425,17 @@ class Collection (CommittableObject):
 			"class": False,
 		}
 
-		CommittableObject.__init__(self, indices, properties)
+		orm.PersistentObject.__init__(self, indices, properties)
 
 	def _delitem_precallback (self, key):
-		CommittableObject._delitem_precallback(self, key)
+		orm.PersistentObject._delitem_precallback(self, key)
 
 		if (key == ("name",)):
 			raise errors.InvalidObjectOperationError("Property 'name' cannot be deleted.")
 
 	def list_sequences (self, sequence_filter = None, relationship_filter = None):
 		""" List sequences this collection contains.
-		
+
 		Parameters:
 			- **sequence_filter**: filter for the sequences to list (optional).
 			  See :doc:`queries`.
@@ -449,7 +449,7 @@ class Collection (CommittableObject):
 
 	def count_sequences (self, sequence_filter = None, relationship_filter = None):
 		""" Count sequences this collection contains.
-		
+
 		Parameters:
 			- **sequence_filter**: filter for the sequences to count (optional).
 			  See :doc:`queries`.
@@ -463,7 +463,7 @@ class Collection (CommittableObject):
 
 	def add_to_collection (self, collection, relationship = None):
 		""" Add this collection to a (super) collection.
-		
+
 		Parameters:
 			- **collection**: collection to add this collection to.
 			- **relationship**: properties of the relationship from this
@@ -487,7 +487,7 @@ class Collection (CommittableObject):
 
 	def remove_from_collection (self, collection, relationship_filter = None):
 		""" Remove this collection from another (super) collection.
-		
+
 		Parameters:
 			- **collection**: collection to remove this collection from.
 			- **relationship_filter**: relationships to remove (optional).
@@ -496,7 +496,7 @@ class Collection (CommittableObject):
 
 		.. note::
 			- If this collection and **collection** have no relationship, a
-			  :class:`MetagenomeDB.errors.InvalidObjectOperationError` exception is thrown. 
+			  :class:`MetagenomeDB.errors.InvalidObjectOperationError` exception is thrown.
 			- If this collection is not committed and **relationship_filter** is
 			  set a :class:`MetagenomeDB.errors.UncommittedObjectError` exception
 			  is thrown. See :doc:`relationships`.

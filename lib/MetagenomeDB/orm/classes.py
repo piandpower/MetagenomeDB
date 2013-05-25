@@ -1,16 +1,21 @@
-# objects.py: object representation of the MongoDB content
+# low-level classes to perform object-relational mapping
 
-import backend, errors
-from utils import tree
+from .. import errors
+import connection
+import methods
+from .. import utils
+
 import bson
-import sys, copy, logging
 
-logger = logging.getLogger("MetagenomeDB.classes")
+import sys
+import copy
+import logging
+
+logger = logging.getLogger("MetagenomeDB.ORM.classes")
 
 class MutableObject (object):
 	""" MutableObject: Base object that can receive arbitrary properties.
 	"""
-
 	def __init__ (self, properties):
 		""" Create a new object.
 
@@ -19,7 +24,7 @@ class MutableObject (object):
 			  Nested properties can be expressed using dot notation or by nested
 			  dictionaries.
 		"""
-		self._properties = tree.expand(properties)
+		self._properties = utils.tree.expand(properties)
 		self._modified = False
 
 	def get_properties (self):
@@ -59,7 +64,7 @@ class MutableObject (object):
 
 	def _setitem_postcallback (self):
 		""" Setter callback, called after the property has been set or updated.
-		
+
 		.. note::
 			The property may not have been changed if its former value was the
 			same as the new one; in this case self._modified will be set to False
@@ -67,12 +72,12 @@ class MutableObject (object):
 		pass
 
 	def __setitem__ (self, key, value):
-		key = tree.expand_key(key)
+		key = utils.tree.expand_key(key)
 		value = self._setitem_precallback(key, value)
 
 		# only modify the property if the value is different from its previous one (if any)
-		if (not tree.contains(self._properties, key)) or (value != tree.get(self._properties, key)):
-			tree.set(self._properties, key, value)
+		if (not utils.tree.contains(self._properties, key)) or (value != utils.tree.get(self._properties, key)):
+			utils.tree.set(self._properties, key, value)
 			self._modified = True
 		else:
 			self._modified = False
@@ -92,8 +97,8 @@ class MutableObject (object):
 		return None
 
 	def __getitem__ (self, key):
-		key = tree.expand_key(key)
-		value = copy.deepcopy(tree.get(self._properties, key))
+		key = utils.tree.expand_key(key)
+		value = copy.deepcopy(utils.tree.get(self._properties, key))
 
 		value_ = self._getitem_precallback(key, value)
 		return value if (value_ == None) else value_
@@ -112,21 +117,31 @@ class MutableObject (object):
 		pass
 
 	def __delitem__ (self, key):
-		key = tree.expand_key(key)
+		key = utils.tree.expand_key(key)
 		self._delitem_precallback(key)
 
-		tree.delete(self._properties, key)
+		utils.tree.delete(self._properties, key)
 		self._modified = True
 
 		self._delitem_postcallback()
 
 	def __contains__ (self, key):
-		key_ = tree.expand_key(key)
-		return tree.contains(self._properties, key_)
+		key_ = utils.tree.expand_key(key)
+		return utils.tree.contains(self._properties, key_)
 
-class CommittableObject (MutableObject):
-	""" CommittableObject: Object that can be committed to the backend database.
+class PersistentObject (MutableObject):
+	""" PersistentObject: Persistent object that can be committed to the backend database.
 	"""
+
+	class __metaclass__ (type):
+		""" Hook called when a subclass of PersistentObject is declared; this
+			subclass is automatically registered as a foundry in methods.py
+		"""
+		def __init__ (cls, name, bases, attrs):
+			if (not name.endswith("PersistentObject")):
+				methods.declare_class(cls)
+
+			type.__init__(cls, name, bases, attrs)
 
 	def __init__ (self, indices, properties):
 		""" Create a new object.
@@ -148,7 +163,7 @@ class CommittableObject (MutableObject):
 				id = bson.objectid.ObjectId(id)
 				self._properties["_id"] = id
 
-			if (not backend.exists(id)):
+			if (not methods.exists(id)):
 				raise errors.InvalidObjectError("Unknown object identifier '%s'." % id)
 
 			self._committed = True
@@ -190,7 +205,7 @@ class CommittableObject (MutableObject):
 			  exception is thrown.
 
 		.. seealso::
-			:meth:`~CommittableObject.is_committed`
+			:meth:`~PersistentObject.is_committed`
 		"""
 		if (self._committed):
 			return
@@ -205,8 +220,8 @@ class CommittableObject (MutableObject):
 			self._properties[key] = value
 		"""
 
-		with errors._protect():
-			backend._commit(self)
+		with connection.protect():
+			methods._commit(self)
 
 		"""
 		# post-flight: we restore the object's properties, if needed
@@ -221,22 +236,22 @@ class CommittableObject (MutableObject):
 			its latest modification.
 
 		.. seealso::
-			:meth:`~CommittableObject.commit`
+			:meth:`~PersistentObject.commit`
 		"""
 		return self._committed
 
 	@classmethod
 	def count (cls, filter = None):
 		""" Count the number of objects of this type in the database.
-		
+
 		Parameters:
 			- **filter**: filter for the objects to count (optional); see
 			  :doc:`queries`.
 
 		.. seealso::
-			:meth:`~CommittableObject.find`
+			:meth:`~PersistentObject.find`
 		"""
-		return backend.count(cls.__name__, query = filter)
+		return methods.count(cls.__name__, query = filter)
 
 	@classmethod
 	def distinct (cls, property):
@@ -250,12 +265,12 @@ class CommittableObject (MutableObject):
 			A dictionary with all values found for this property as keys, and
 			number of objects having this value as values.
 		"""
-		return backend.distinct(cls.__name__, property)
+		return methods.distinct(cls.__name__, property)
 
 	@classmethod
 	def find (cls, filter = None):
 		""" Find all objects of this type that match a query.
-		
+
 		Parameters:
 			- **filter**: filter for the objects to select (optional); see
 			  :doc:`queries`.
@@ -264,9 +279,9 @@ class CommittableObject (MutableObject):
 			A generator.
 
 		.. seealso::
-			:meth:`~CommittableObject.count`, :meth:`~CommittableObject.find_one`
+			:meth:`~PersistentObject.count`, :meth:`~PersistentObject.find_one`
 		"""
-		return backend.find(cls.__name__, query = filter)
+		return methods.find(cls.__name__, query = filter)
 
 	@classmethod
 	def find_one (cls, filter):
@@ -279,9 +294,9 @@ class CommittableObject (MutableObject):
 			An object, or None if no object found.
 
 		.. seealso::
-			:meth:`~CommittableObject.find`
+			:meth:`~PersistentObject.find`
 		"""
-		return backend.find(cls.__name__, query = filter, find_one = True)
+		return methods.find(cls.__name__, query = filter, find_one = True)
 
 	def _connect_to (self, target, relationship):
 		""" Connect this object to another through a directed,
@@ -305,7 +320,7 @@ class CommittableObject (MutableObject):
 		if (relationship == None):
 			relationship = {}
 		else:
-			relationship = tree.expand(relationship)
+			relationship = utils.tree.expand(relationship)
 
 		# case where this object has no connection with the target yet
 		if (not target_id in self._properties["_relationships"]):
@@ -368,16 +383,16 @@ class CommittableObject (MutableObject):
 			for n in range(n_relationships):
 				query = {"_id": self._properties["_id"]}
 
-				for key, value in tree.flatten(relationship_filter).iteritems():
+				for key, value in utils.tree.flatten(relationship_filter).iteritems():
 					query["_relationships.%s.%s.%s" % (target_id, n, key)] = value
 
-				if (backend.find(clazz, query, count = True) == 0):
+				if (methods.find(clazz, query, count = True) == 0):
 					continue
 
 				to_remove.append(n)
 
 			if (len(to_remove) == 0):
-				raise errors.InvalidObjectOperationError("%s is not connected to %s by any relationship matching %s." % (self, target, tree.flatten(relationship_filter)))
+				raise errors.InvalidObjectOperationError("%s is not connected to %s by any relationship matching %s." % (self, target, utils.tree.flatten(relationship_filter)))
 
 			for n in sorted(to_remove, reverse = True):
 				logger.debug("Removed relationship %s between %s and %s." % (self._properties["_relationships"][target_id][n], self, target))
@@ -392,7 +407,7 @@ class CommittableObject (MutableObject):
 
 	def _in_vertices (self, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
 		""" List (or count) all incoming relationships between objects and this object.
-		
+
 		.. note::
 			This method should not be called directly.
 		"""
@@ -410,18 +425,18 @@ class CommittableObject (MutableObject):
 		query = {"_relationship_with": object_id}
 
 		if (relationship_filter != None):
-			query["_relationships.%s" % object_id] = {"$elemMatch": tree.flatten(relationship_filter)}
+			query["_relationships.%s" % object_id] = {"$elemMatch": utils.tree.flatten(relationship_filter)}
 
 		if (neighbor_filter != None):
-			neighbor_filter = tree.expand(neighbor_filter)
+			neighbor_filter = utils.tree.expand(neighbor_filter)
 			for key in neighbor_filter:
 				query[key] = neighbor_filter[key]
 
-		return backend.find(neighbor_collection, query, count = count)
+		return methods.find(neighbor_collection, query, count = count)
 
 	def _out_vertices (self, neighbor_collection, neighbor_filter = None, relationship_filter = None, count = False):
 		""" List (or count) all outgoing relationships between this object and others.
-		
+
 		.. note::
 			- This method should not be called directly.
 			- If relationship_filter is not None, a query is performed in the
@@ -449,10 +464,10 @@ class CommittableObject (MutableObject):
 			for target_id in targets:
 				query = {
 					"_id": self._properties["_id"],
-					"_relationships.%s" % target_id: {"$elemMatch": tree.flatten(relationship_filter)}
+					"_relationships.%s" % target_id: {"$elemMatch": utils.tree.flatten(relationship_filter)}
 				}
 
-				if (backend.find(self.__class__.__name__, query, count = True) == 0):
+				if (methods.find(self.__class__.__name__, query, count = True) == 0):
 					continue
 
 				candidates.append(target_id)
@@ -467,20 +482,20 @@ class CommittableObject (MutableObject):
 		query = {"_id": {"$in": [bson.objectid.ObjectId(id) for id in candidates]}}
 
 		if (neighbor_filter != None):
-			neighbor_filter = tree.expand(neighbor_filter)
+			neighbor_filter = utils.tree.expand(neighbor_filter)
 			for key in neighbor_filter:
 				query[key] = neighbor_filter[key]
 
-		return backend.find(neighbor_collection, query, count = count)
+		return methods.find(neighbor_collection, query, count = count)
 
 	def has_relationships_with (self, target):
 		""" Test if this object has relationship(s) with another object.
-		
+
 		Parameters:
 			- **target**: object to test for the existence of relationships with.
 
 		.. seealso::
-			:meth:`~CommittableObject.list_relationships_with`
+			:meth:`~PersistentObject.list_relationships_with`
 		"""
 		if (not "_id" in target._properties):
 			logger.debug("Attempt to test a relationship between %s and %s while the later has never been committed." % (self, target))
@@ -498,7 +513,7 @@ class CommittableObject (MutableObject):
 			A list.
 
 		.. seealso::
-			:meth:`~CommittableObject.has_relationships_with`
+			:meth:`~PersistentObject.has_relationships_with`
 		"""
 		if (not "_id" in target._properties):
 			logger.debug("Attempt to list relationships between %s and %s while the later has never been committed." % (self, target))
@@ -519,10 +534,10 @@ class CommittableObject (MutableObject):
 			- The object remains in memory, flagged as uncommitted.
 
 		.. seealso::
-			:meth:`~CommittableObject.remove_all`
+			:meth:`~PersistentObject.remove_all`
 		"""
 		# remove all relationships with other objects
-		for collection_name in backend.list_collections():
+		for collection_name in methods.list_collections():
 			if ("_id" in self._properties):
 				for object in self._in_vertices(collection_name):
 					object._disconnect_from(self, None)
@@ -533,8 +548,8 @@ class CommittableObject (MutableObject):
 		# if the object has been committed at least once,
 		if ("_id" in self._properties):
 			# remove the object from the database
-			with errors._protect():
-				backend.remove_object(self)
+			with connection.protect():
+				methods.remove_object(self)
 
 			# and declare it has never having been committed
 			del self._properties["_id"]
@@ -550,12 +565,12 @@ class CommittableObject (MutableObject):
 			- Instanciated objects remain in memory, flagged as uncommitted.
 
 		.. seealso::
-			:meth:`~CommittableObject.remove`
+			:meth:`~PersistentObject.remove`
 		"""
 		collection_name = cls.__name__
 
-		n_objects = backend.find(collection_name, None, count = True)
-		objects = backend.find(collection_name, None)
+		n_objects = methods.find(collection_name, None, count = True)
+		objects = methods.find(collection_name, None)
 
 		n = 0
 		for object in objects:
@@ -569,7 +584,7 @@ class CommittableObject (MutableObject):
 			logger.warning("%s out of %s objects in collection '%s' were not removed." % (n_objects - n, n_objects, collection_name))
 			return
 
-		backend.drop_collection(cls.__name__)
+		methods.drop_collection(cls.__name__)
 
 	def __del__ (self):
 		if (hasattr(self, "_committed") and (not self._committed)):

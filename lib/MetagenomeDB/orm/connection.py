@@ -1,9 +1,15 @@
 
-import os, logging, ConfigParser, copy
-import pymongo
-import errors
+from .. import errors
 
-logger = logging.getLogger("MetagenomeDB")
+import pymongo
+
+import os
+import ConfigParser
+import contextlib
+import copy
+import logging
+
+logger = logging.getLogger("MetagenomeDB.ORM.connection")
 
 _connection = None # connection to a database (warning: instance of pymongo.database.Database, NOT pymongo.connection.Connection)
 _connection_info = {} # information about the connection
@@ -18,7 +24,7 @@ def connect (host = None, port = None, db = None, user = None, password = None):
 		  'MetagenomeDB'
 		- **user**: user for a secured MongoDB connection (optional)
 		- **password**: password for a secured MongoDB connection (optional)
-	
+
 	.. note::
 		If a value is not provided for any of these parameters, an attempt will
 		be made to read it from a ~/.MetagenomeDB file. If this attempt fail
@@ -106,7 +112,7 @@ def connect (host = None, port = None, db = None, user = None, password = None):
 
 def connection():
 	""" Obtain a connection object to a MongoDB database. If no connection exists, connect() is called without argument.
-	
+
 	.. note::
 		connection() is a singleton; i.e., any call to this function will
 		return the same connection object.
@@ -125,3 +131,33 @@ def connection_information():
 		connect()
 
 	return copy.deepcopy(_connection_info)
+
+@contextlib.contextmanager
+def protect():
+	try:
+		yield
+
+	except pymongo.errors.ConnectionFailure as e:
+		raise errors.DBConnectionError("Unable to access the database. Reason: " + str(e))
+
+	except pymongo.errors.OperationFailure as e:
+		try:
+			error = connection().previous_error()
+		except:
+			error = None
+
+		if (error == None):
+			msg, code = str(e), None
+		else:
+			msg, code = error["err"], error.get("code")
+
+		if ("unauthorized" in msg) or ("auth fails" in msg):
+			raise errors.DBConnectionError("Incorrect credentials.")
+
+		if (code != None):
+			msg += " (error code: %s)" % code
+
+		raise errors.DBOperationError("Unable to perform the operation. Reason: " + msg)
+
+	except pymongo.errors.PyMongoError as e:
+		raise errors.DBOperationError("Unable to perform the operation. Reason: " + str(e))

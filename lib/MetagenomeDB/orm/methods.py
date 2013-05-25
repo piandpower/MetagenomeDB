@@ -1,24 +1,35 @@
-# backend.py: low-level interface with the MongoDB database, with on-the-fly
-# instanciation of objects (with caching) from MongoDB result sets.
+# low-level interface with the MongoDB server
 
 # Note: The term 'collection', when used in this file, refers to a MongoDB
-# collection and NOT to the Collection object in objects.py
+# collection and NOT to the Collection class in objects.py
 
-import weakref, datetime, re, logging, inspect
+from .. import errors
+import connection
+import classes
+from .. import utils
+
 import pymongo, bson
 
-import connection, errors
-import classes, objects
-from utils import tree
+import weakref
+import datetime
+import re
+import logging
+import inspect
 
-logger = logging.getLogger("MetagenomeDB")
+logger = logging.getLogger("MetagenomeDB.ORM.methods")
 
 # Object cache, as a map with weak values
-__objects = weakref.WeakValueDictionary()
+_cache = weakref.WeakValueDictionary()
+
+# List of classes the foundry should instanciate from MongoDB documents, based on the name of the collection this document comes from
+_classes = {}
+
+def declare_class (cls):
+	_classes[cls.__name__] = cls
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-# Commit a CommittableObject to the database. IMPORTANT NOTE: this does not
+# Commit a PersistentObject to the database. IMPORTANT NOTE: this does not
 # support concurrent modifications. I.e., if another client modifies the
 # backend database after an object has been instanciated, a commit() will
 # overwrite those modifications.
@@ -35,10 +46,10 @@ def _commit (object):
 		if (len(object._indices) > 0):
 			msg += " with indices %s" % ', '.join(["'%s'" % key for key in sorted(object._indices.keys())])
 
-		logger.debug(msg + '.')
+			for (index, is_unique) in object._indices.iteritems():
+				collection.create_index(index, unique = is_unique)
 
-		for (index, is_unique) in object._indices.iteritems():
-			collection.create_index(index, unique = is_unique)
+		logger.debug(msg + '.')
 
 	# second case: the object is not committed, and is not in the database
 	if (not "_id" in object):
@@ -57,7 +68,7 @@ def _commit (object):
 		)
 
 		object._properties["_id"] = object_id
-		__objects[object_id] = object
+		_cache[object_id] = object
 
 	except pymongo.errors.OperationFailure as e:
 		# we process index-related errors independently
@@ -76,25 +87,26 @@ def _commit (object):
 	logger.debug("Object %s %s in collection '%s'." % (object, verb, collection_name))
 
 def exists (id):
-	return (id in __objects)
+	return (id in _cache)
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-# Count entries in a given collection
 def count (collection, query):
+	""" Return the number of objects matching a given query in a given collection
+	"""
 	if (query == {}):
 		cursor = connection.connection()[collection]
 		return cursor.count()
 	else:
 		return find(collection, query, count = True)
 
-# Retrieve distinct values (and number of objects
-# with this value) for a give field
 def distinct (collection, field):
+	""" Return unique values for a given field in a given collection, plus the number of objects having this value
+	"""
 	cursor = connection.connection()[collection]
 
 	result = cursor.group(
-		key = { field: 1 },
+		key = {field: 1},
 		condition = {},
 		initial = {"count": 0},
 		reduce = "function (o, p) { p.count++; }"
@@ -106,12 +118,28 @@ def distinct (collection, field):
 
 	return result_
 
-# Create objects from entries matching a given query, expressed as
-# a JSON tree; see http://www.mongodb.org/display/DOCS/Querying
-# Special keys:
-#   - any '_xxx' key will be changed to '$xxx' (e.g., $where), except '_id'
-#   - value for '_id' will be cast into a bson.objectid.ObjectId
+def list_collections (with_classes = False):
+	""" Return a list of all existing collections in the database that can be
+		mapped to an instance of a PersistentObject class or subclass.
+	"""
+	# list all collections in the database
+	with connection.protect():
+		collection_names = connection.connection().collection_names()
+
+	# return collections represented by PersistentObject subclasses
+	collections = []
+	for collection_name in collection_names:
+		if (collection_name in _classes):
+			if (with_classes):
+				collections.append((collection_name, _classes[collection_name]))
+			else:
+				collections.append(collection_name)
+
+	return collections
+
 def find (collection, query, find_one = False, count = False):
+	""" Return objects matching a given query (expressed as a JSON object, see http://www.mongodb.org/display/DOCS/Querying), as PersistentObject instances
+	"""
 	cursor = connection.connection()[collection]
 	query_t = type(query)
 
@@ -149,20 +177,20 @@ def _forge_from_entry (collection, entry):
 		return None
 
 	id = entry["_id"]
-	if (id in __objects):
-		return __objects[id]
+	if (id in _cache):
+		return _cache[id]
 
 	# select the class for this object
-	clazz = getattr(objects, collection)
+	clazz = _classes[collection]
 
-	# trick: we store a non-volatile object in the __objects dictionary so
+	# trick: we store a non-volatile object in the _cache dictionary so
 	# that during the instanciation the identifier is present in the cache
-	__objects[id] = clazz
+	_cache[id] = clazz
 
 	# instanciate this class
-	instance = clazz(tree.traverse(entry, lambda x: True, lambda x: str(x)))
+	instance = clazz(utils.tree.traverse(entry, lambda x: True, lambda x: str(x)))
 
-	__objects[id] = instance
+	_cache[id] = instance
 	return instance
 
 # Forge an iterator from multiple entries
@@ -179,30 +207,29 @@ def _forge_from_entries (collection, resultset):
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 def remove_object (object):
-	""" Remove an object from a collection.
+	""" Remove an object from a collection
 	"""
 	collection_name = object.__class__.__name__
 
-	with errors._protect():
+	with connection.protect():
 		connection.connection()[collection_name].remove({"_id": object["_id"]})
 
-	del __objects[object["_id"]]
+	del _cache[object["_id"]]
 
 	logger.debug("Object %s was removed from collection '%s'." % (object, collection_name))
 
 def drop_collection (collection):
-	""" Drop a collection.
+	""" Drop a collection
 	"""
-	with errors._protect():
+	with connection.protect():
 		connection.connection().drop_collection(collection)
 
 	logger.debug("Collection '%s' was dropped." % collection)
 
 def copy_database (target_db, admin_user = None, admin_password = None, force = False):
-	""" Copy the current database to a new database name.
-	(see http://www.mongodb.org/display/DOCS/Clone+Database)
+	""" Copy the current database to a new database name (see http://www.mongodb.org/display/DOCS/Clone+Database)
 	"""
-	with errors._protect():
+	with connection.protect():
 		# save the current connection
 		db_connection = connection.connection()
 		db_connection_ = connection.connection_information()
@@ -231,28 +258,3 @@ def copy_database (target_db, admin_user = None, admin_password = None, force = 
 			connection._connection_information = db_connection_
 
 	logger.debug("Copy of '%s' into '%s' successful." % (source_db, target_db))
-
-def list_collections (with_classes = False):
-	""" Return a list of all existing collections that are
-	represented by a CommittableObject subclass.
-	"""
-	# list all CommittableObject subclasses
-	class2object = {}
-	for name, object in inspect.getmembers(objects, inspect.isclass):
-		if (issubclass(object, classes.CommittableObject)):
-			class2object[name] = object
-
-	# list all collections in the database
-	with errors._protect():
-		collection_names = connection.connection().collection_names()
-
-	# return collections represented by CommittableObject subclasses
-	collections = []
-	for collection_name in collection_names:
-		if (collection_name in class2object):
-			if (with_classes):
-				collections.append((collection_name, class2object[collection_name]))
-			else:
-				collections.append(collection_name)
-
-	return collections

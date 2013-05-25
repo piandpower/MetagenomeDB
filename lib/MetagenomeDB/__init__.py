@@ -1,8 +1,8 @@
 
 __version_major__ = 0
 __version_minor__ = 2
-__revision__ = 20
-__build__ = "CEE3EF9"
+__revision__ = 21
+__build__ = "676B32E"
 
 version = "%s.%s (revision %s, build %s)" % (
 	__version_major__,
@@ -11,21 +11,15 @@ version = "%s.%s (revision %s, build %s)" % (
 	__build__
 )
 
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
 import logging
 logger = logging.getLogger("MetagenomeDB")
 
-__formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s	%(funcName)s() in %(filename)s, line %(lineno)d")
-__handler = logging.StreamHandler()
-__handler.setFormatter(__formatter)
+loghandler = logging.StreamHandler()
+loghandler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s\n\t%(message)s\n\tOrigin: %(funcName)s() in %(filename)s, line %(lineno)d"))
 
-logger.addHandler(__handler)
-
-import backend
-from connection import *
-import errors
-from objects import *
-import tools
-from utils import tree
+logger.addHandler(loghandler)
 
 def set_verbosity (level):
 	""" Set the verbosity level for the MetagenomeDB API.
@@ -71,3 +65,9 @@ def max_verbosity():
 		"debug"
 	"""
 	set_verbosity("debug")
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+import errors
+import tools
+from objects import *

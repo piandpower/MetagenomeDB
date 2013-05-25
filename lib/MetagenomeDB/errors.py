@@ -1,40 +1,4 @@
 
-import contextlib
-import pymongo
-import connection
-
-@contextlib.contextmanager
-def _protect():
-	try:
-		yield
-
-	except pymongo.errors.ConnectionFailure as e:
-		raise DBConnectionError("Unable to access the database. Reason: " + str(e))
-
-	except pymongo.errors.OperationFailure as e:
-		try:
-			error = connection.connection().previous_error()
-		except:
-			error = None
-
-		if (error == None):
-			msg, code = str(e), None
-		else:
-			msg, code = error["err"], error.get("code")
-
-		if ("unauthorized" in msg) or ("auth fails" in msg):
-			raise DBConnectionError("Incorrect credentials.")
-
-		if (code != None):
-			msg += " (error code: %s)" % code
-
-		raise DBOperationError("Unable to perform the operation. Reason: " + msg)
-
-	except pymongo.errors.PyMongoError as e:
-		raise DBOperationError("Unable to perform the operation. Reason: " + str(e))
-
-#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
 class MetagenomeDBError (Exception):
 	""" Base class for all MetagenomeDB exceptions.
 	"""
